@@ -29,16 +29,26 @@ public class CourseDAO {
         
         List<Course> courses = new ArrayList<>();
         
+        LOGGER.info("Starting findAll() query: " + sql);
+        long startTime = System.currentTimeMillis();
+        
         try (Connection conn = DatabaseConnection.getConnection();
              PreparedStatement stmt = conn.prepareStatement(sql);
              ResultSet rs = stmt.executeQuery()) {
             
+            LOGGER.info("Query executed, processing results...");
+            int count = 0;
             while (rs.next()) {
                 courses.add(mapResultSetToCourse(rs));
+                count++;
             }
             
+            long endTime = System.currentTimeMillis();
+            LOGGER.info("Query completed. Found " + count + " courses in " + (endTime - startTime) + "ms");
+            
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding all courses", e);
+            long endTime = System.currentTimeMillis();
+            LOGGER.log(Level.SEVERE, "Error finding all courses after " + (endTime - startTime) + "ms", e);
         }
         
         return courses;

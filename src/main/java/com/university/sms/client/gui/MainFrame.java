@@ -10,6 +10,8 @@ import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
+import javax.swing.event.ChangeEvent;
+import javax.swing.event.ChangeListener;
 
 /**
  * Giao diện chính của ứng dụng
@@ -275,6 +277,20 @@ public class MainFrame extends JFrame {
                 });
             }
         });
+        
+        // Add tab change listener to refresh data when switching tabs
+        tabbedPane.addChangeListener(new ChangeListener() {
+            @Override
+            public void stateChanged(ChangeEvent e) {
+                if (e.getSource() instanceof JTabbedPane) {
+                    JTabbedPane tabPane = (JTabbedPane) e.getSource();
+                    int selectedIndex = tabPane.getSelectedIndex();
+                    
+                    // Refresh the selected panel's data
+                    refreshSelectedPanel(selectedIndex);
+                }
+            }
+        });
     }
 
     private void setupUserInterface() {
@@ -306,6 +322,37 @@ public class MainFrame extends JFrame {
         }
         
         updateConnectionStatus();
+    }
+    
+    private void refreshSelectedPanel(int selectedIndex) {
+        // Refresh only the selected panel to avoid unnecessary requests
+        switch (selectedIndex) {
+            case 0: // Student panel
+                if (studentPanel != null) {
+                    studentPanel.refreshData();
+                }
+                break;
+            case 1: // Course panel
+                if (coursePanel != null) {
+                    coursePanel.refreshData();
+                }
+                break;
+            case 2: // Grade panel
+                if (gradePanel != null) {
+                    gradePanel.refreshData();
+                }
+                break;
+            case 3: // Report panel
+                if (reportPanel != null) {
+                    reportPanel.refreshData();
+                }
+                break;
+            case 4: // Admin panel
+                if (adminPanel != null) {
+                    adminPanel.refreshData();
+                }
+                break;
+        }
     }
 
     private void showChangePasswordDialog() {

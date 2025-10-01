@@ -77,7 +77,8 @@ public class CoursePanel extends JPanel {
     }
 
     private void loadInitialData() {
-        refreshData();
+        // Don't call refreshData() here - it will be called by setServerConnection()
+        // This prevents double loading
     }
 
     public void refreshData() {

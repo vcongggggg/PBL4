@@ -276,13 +276,8 @@ public class StudentPanel extends JPanel {
     }
 
     private void loadInitialData() {
-        if (currentUser.getRole() == User.UserRole.STUDENT) {
-            // Student can only see their own information
-            loadStudentOwnInfo();
-        } else {
-            // Teachers and admins can see all students
-            refreshData();
-        }
+        // Don't load data here - it will be called by setServerConnection()
+        // This prevents double loading
     }
 
     private void loadStudentOwnInfo() {
