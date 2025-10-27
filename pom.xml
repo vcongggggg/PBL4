@@ -101,6 +101,12 @@
                             <mainClass>com.university.sms.client.ClientMain</mainClass>
                         </configuration>
                     </execution>
+                    <execution>
+                        <id>csv-client</id>
+                        <configuration>
+                            <mainClass>com.university.sms.csvclient.CSVClientMain</mainClass>
+                        </configuration>
+                    </execution>
                 </executions>
             </plugin>
 

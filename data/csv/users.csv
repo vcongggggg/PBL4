@@ -1,0 +1,2 @@
+userId,username,password,fullName,email,phone,address,role,isActive,createdAt
+1,admin,password,Quản trị viên hệ thống,admin@university.edu.vn,0123456789,Trường Đại học ABC,ADMIN,true,2025-09-26 22:16:05.0
