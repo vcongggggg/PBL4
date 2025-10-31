@@ -1,7 +1,9 @@
 package com.university.sms.client.gui;
 
 import com.formdev.flatlaf.FlatLightLaf;
+import com.university.sms.client.IServerConnection;
 import com.university.sms.client.ServerConnection;
+import com.university.sms.csvclient.CSVServerConnection;
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
@@ -17,8 +19,27 @@ import java.awt.event.KeyEvent;
  * Giao diện đăng nhập
  */
 public class LoginFrame extends JFrame {
+    // Factory pattern (inner types để tránh tạo file mới)
+    public interface ConnectionFactory {
+        IServerConnection create(String host, int port);
+    }
+
+    public static class RegularConnectionFactory implements ConnectionFactory {
+        @Override
+        public IServerConnection create(String host, int port) {
+            return new ServerConnection(host, port);
+        }
+    }
+
+    public static class CsvConnectionFactory implements ConnectionFactory {
+        @Override
+        public IServerConnection create(String host, int port) {
+            return new CSVServerConnection(host, port);
+        }
+    }
+
     private static final long serialVersionUID = 1L;
-    
+
     private JTextField usernameField;
     private JPasswordField passwordField;
     private JTextField serverField;
@@ -27,11 +48,18 @@ public class LoginFrame extends JFrame {
     private JButton connectButton;
     private JLabel statusLabel;
     private JProgressBar progressBar;
-    
-    private ServerConnection serverConnection;
+
+    private IServerConnection serverConnection;
+    private ConnectionFactory connectionFactory;
     private boolean isConnectedToServer = false;
 
     public LoginFrame() {
+        this(new RegularConnectionFactory());
+    }
+
+    // Constructor nhận factory
+    public LoginFrame(ConnectionFactory factory) {
+        this.connectionFactory = factory;
         initializeComponents();
         setupLayout();
         setupEventListeners();
@@ -49,72 +77,79 @@ public class LoginFrame extends JFrame {
         setTitle("Hệ thống Quản lý Sinh viên - Đăng nhập");
         setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
         setResizable(false);
-        
+
         // Create components
         usernameField = new JTextField(20);
         passwordField = new JPasswordField(20);
         serverField = new JTextField("localhost", 15);
         portField = new JTextField("8888", 8);
-        
+
         loginButton = new JButton("Đăng nhập");
         connectButton = new JButton("Kết nối");
-        
+
         statusLabel = new JLabel("Chưa kết nối đến server");
         statusLabel.setForeground(Color.RED);
-        
+
         progressBar = new JProgressBar();
         progressBar.setIndeterminate(false);
         progressBar.setVisible(false);
-        
+
         // Initially disable login button
         loginButton.setEnabled(false);
     }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
-        
+
         // Main panel
         JPanel mainPanel = new JPanel(new GridBagLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(30, 40, 30, 40));
         mainPanel.setBackground(Color.WHITE);
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
-        
+
         // Title
         JLabel titleLabel = new JLabel("HỆ THỐNG QUẢN LÝ SINH VIÊN");
         titleLabel.setFont(new Font("Arial", Font.BOLD, 20));
         titleLabel.setForeground(new Color(0, 102, 204));
-        gbc.gridx = 0; gbc.gridy = 0; gbc.gridwidth = 2;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.gridwidth = 2;
         gbc.anchor = GridBagConstraints.CENTER;
         mainPanel.add(titleLabel, gbc);
-        
+
         // Subtitle
         JLabel subtitleLabel = new JLabel("Đăng nhập để tiếp tục");
         subtitleLabel.setFont(new Font("Arial", Font.PLAIN, 14));
         subtitleLabel.setForeground(Color.GRAY);
         gbc.gridy = 1;
         mainPanel.add(subtitleLabel, gbc);
-        
+
         // Server connection panel
         JPanel serverPanel = createServerConnectionPanel();
-        gbc.gridy = 2; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.gridy = 2;
+        gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
         mainPanel.add(serverPanel, gbc);
-        
+
         // Login form panel
         JPanel loginPanel = createLoginPanel();
-        gbc.gridy = 3; gbc.gridwidth = 2;
+        gbc.gridy = 3;
+        gbc.gridwidth = 2;
         mainPanel.add(loginPanel, gbc);
-        
+
         // Status and progress
-        gbc.gridy = 4; gbc.gridwidth = 2;
+        gbc.gridy = 4;
+        gbc.gridwidth = 2;
         mainPanel.add(statusLabel, gbc);
-        
-        gbc.gridy = 5; gbc.fill = GridBagConstraints.HORIZONTAL;
+
+        gbc.gridy = 5;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
         mainPanel.add(progressBar, gbc);
-        
+
         add(mainPanel, BorderLayout.CENTER);
-        
+
         // Footer
         JPanel footerPanel = new JPanel(new FlowLayout());
         footerPanel.setBackground(new Color(240, 240, 240));
@@ -123,7 +158,7 @@ public class LoginFrame extends JFrame {
         footerLabel.setForeground(Color.GRAY);
         footerPanel.add(footerLabel);
         add(footerPanel, BorderLayout.SOUTH);
-        
+
         pack();
         setLocationRelativeTo(null);
     }
@@ -131,59 +166,78 @@ public class LoginFrame extends JFrame {
     private JPanel createServerConnectionPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createTitledBorder("Kết nối Server"));
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
-        
+
         // Server address
-        gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
         panel.add(new JLabel("Địa chỉ Server:"), gbc);
-        
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
         panel.add(serverField, gbc);
-        
+
         // Port
-        gbc.gridx = 2; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
         panel.add(new JLabel("Port:"), gbc);
-        
+
         gbc.gridx = 3;
         panel.add(portField, gbc);
-        
+
         // Connect button
         gbc.gridx = 4;
         panel.add(connectButton, gbc);
-        
+
         return panel;
     }
 
     private JPanel createLoginPanel() {
         JPanel panel = new JPanel(new GridBagLayout());
         panel.setBorder(BorderFactory.createTitledBorder("Thông tin đăng nhập"));
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(10, 10, 10, 10);
-        
+
         // Username
-        gbc.gridx = 0; gbc.gridy = 0; gbc.anchor = GridBagConstraints.WEST;
+        gbc.gridx = 0;
+        gbc.gridy = 0;
+        gbc.anchor = GridBagConstraints.WEST;
         panel.add(new JLabel("Tên đăng nhập:"), gbc);
-        
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
         panel.add(usernameField, gbc);
-        
+
         // Password
-        gbc.gridx = 0; gbc.gridy = 1; gbc.fill = GridBagConstraints.NONE; gbc.weightx = 0;
+        gbc.gridx = 0;
+        gbc.gridy = 1;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.weightx = 0;
         panel.add(new JLabel("Mật khẩu:"), gbc);
-        
-        gbc.gridx = 1; gbc.fill = GridBagConstraints.HORIZONTAL; gbc.weightx = 1.0;
+
+        gbc.gridx = 1;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.weightx = 1.0;
         panel.add(passwordField, gbc);
-        
+
         // Login button
-        gbc.gridx = 0; gbc.gridy = 2; gbc.gridwidth = 2; gbc.fill = GridBagConstraints.NONE;
-        gbc.anchor = GridBagConstraints.CENTER; gbc.weightx = 0;
+        gbc.gridx = 0;
+        gbc.gridy = 2;
+        gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.NONE;
+        gbc.anchor = GridBagConstraints.CENTER;
+        gbc.weightx = 0;
         loginButton.setPreferredSize(new Dimension(120, 35));
         loginButton.setFont(new Font("Arial", Font.BOLD, 14));
         panel.add(loginButton, gbc);
-        
+
         return panel;
     }
 
@@ -195,7 +249,7 @@ public class LoginFrame extends JFrame {
                 connectToServer();
             }
         });
-        
+
         // Login button
         loginButton.addActionListener(new ActionListener() {
             @Override
@@ -203,7 +257,7 @@ public class LoginFrame extends JFrame {
                 performLogin();
             }
         });
-        
+
         // Enter key listeners
         KeyAdapter enterKeyListener = new KeyAdapter() {
             @Override
@@ -217,7 +271,7 @@ public class LoginFrame extends JFrame {
                 }
             }
         };
-        
+
         usernameField.addKeyListener(enterKeyListener);
         passwordField.addKeyListener(enterKeyListener);
         serverField.addKeyListener(enterKeyListener);
@@ -232,32 +286,32 @@ public class LoginFrame extends JFrame {
     private void connectToServer() {
         String host = serverField.getText().trim();
         String portText = portField.getText().trim();
-        
+
         if (host.isEmpty() || portText.isEmpty()) {
             showMessage("Vui lòng nhập đầy đủ thông tin server", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        
+
         try {
             int port = Integer.parseInt(portText);
-            
+
             // Show progress
             showProgress("Đang kết nối đến server...");
             connectButton.setEnabled(false);
-            
+
             // Connect in background thread
             SwingWorker<Boolean, Void> worker = new SwingWorker<Boolean, Void>() {
                 @Override
                 protected Boolean doInBackground() throws Exception {
-                    serverConnection = new ServerConnection(host, port);
+                    serverConnection = connectionFactory.create(host, port);
                     return serverConnection.connect();
                 }
-                
+
                 @Override
                 protected void done() {
                     hideProgress();
                     connectButton.setEnabled(true);
-                    
+
                     try {
                         boolean connected = get();
                         if (connected) {
@@ -270,9 +324,9 @@ public class LoginFrame extends JFrame {
                     }
                 }
             };
-            
+
             worker.execute();
-            
+
         } catch (NumberFormatException e) {
             showMessage("Port không hợp lệ", "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
@@ -284,9 +338,9 @@ public class LoginFrame extends JFrame {
         statusLabel.setForeground(new Color(0, 150, 0));
         loginButton.setEnabled(true);
         connectButton.setText("Ngắt kết nối");
-        
+
         // Set up response handler
-        serverConnection.setResponseHandler(new ServerConnection.ResponseHandler() {
+        serverConnection.setResponseHandler(new IServerConnection.ResponseHandler() {
             @Override
             public void onResponse(Message response) {
                 // Handle responses if needed
@@ -306,7 +360,7 @@ public class LoginFrame extends JFrame {
                 });
             }
         });
-        
+
         // Focus on username field
         usernameField.requestFocus();
     }
@@ -317,9 +371,9 @@ public class LoginFrame extends JFrame {
         statusLabel.setForeground(Color.RED);
         loginButton.setEnabled(false);
         connectButton.setText("Kết nối");
-        
-        showMessage("Không thể kết nối đến server. Vui lòng kiểm tra lại địa chỉ và port.", 
-                   "Lỗi kết nối", JOptionPane.ERROR_MESSAGE);
+
+        showMessage("Không thể kết nối đến server. Vui lòng kiểm tra lại địa chỉ và port.",
+                "Lỗi kết nối", JOptionPane.ERROR_MESSAGE);
     }
 
     private void onServerDisconnected() {
@@ -329,35 +383,35 @@ public class LoginFrame extends JFrame {
         loginButton.setEnabled(false);
         connectButton.setText("Kết nối");
         connectButton.setEnabled(true);
-        
+
         showMessage("Mất kết nối đến server", "Thông báo", JOptionPane.WARNING_MESSAGE);
     }
 
     private void performLogin() {
         String username = usernameField.getText().trim();
         String password = new String(passwordField.getPassword());
-        
+
         if (username.isEmpty() || password.isEmpty()) {
             showMessage("Vui lòng nhập đầy đủ thông tin đăng nhập", "Lỗi", JOptionPane.ERROR_MESSAGE);
             return;
         }
-        
+
         // Show progress
         showProgress("Đang đăng nhập...");
         loginButton.setEnabled(false);
-        
+
         // Login in background thread
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
                 return serverConnection.login(username, password);
             }
-            
+
             @Override
             protected void done() {
                 hideProgress();
                 loginButton.setEnabled(true);
-                
+
                 try {
                     Message response = get();
                     if (response.isSuccess()) {
@@ -370,22 +424,22 @@ public class LoginFrame extends JFrame {
                 }
             }
         };
-        
+
         worker.execute();
     }
 
     private void onLoginSuccess(Message response) {
         User user = (User) response.getData(Constants.KEY_USER);
-        
+
         if (user != null) {
             // Hide login window
             setVisible(false);
-            
+
             // Open main application window
             SwingUtilities.invokeLater(() -> {
                 MainFrame mainFrame = new MainFrame(user, serverConnection);
                 mainFrame.setVisible(true);
-                
+
                 // Dispose login window
                 dispose();
             });
@@ -416,11 +470,5 @@ public class LoginFrame extends JFrame {
         JOptionPane.showMessageDialog(this, message, title, messageType);
     }
 
-    public static void main(String[] args) {
-        SwingUtilities.invokeLater(() -> {
-            new LoginFrame().setVisible(true);
-        });
-    }
+    // main() bị loại bỏ: sử dụng UnifiedClientMain làm entrypoint hợp nhất
 }
-
-

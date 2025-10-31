@@ -25,10 +25,12 @@ public class CSVDataService {
   private static final String USERS_FILE = "users.csv";
 
   private Path dataDir;
+  private int dbVersion = 1; // Tăng version mỗi khi có thay đổi
 
   public CSVDataService() {
     this.dataDir = Paths.get(DATA_DIR);
     initializeDataDirectory();
+    loadVersion(); // Load version khi khởi tạo
   }
 
   /**
@@ -297,7 +299,11 @@ public class CSVDataService {
       students.add(student);
     }
 
-    return writeStudentsToCSV(students);
+    boolean result = writeStudentsToCSV(students);
+    if (result) {
+      incrementVersion(); // Tăng version khi có thay đổi
+    }
+    return result;
   }
 
   /**
@@ -306,7 +312,11 @@ public class CSVDataService {
   public boolean deleteStudent(int studentId) {
     List<Student> students = getAllStudents();
     students.removeIf(student -> student.getStudentId() == studentId);
-    return writeStudentsToCSV(students);
+    boolean result = writeStudentsToCSV(students);
+    if (result) {
+      incrementVersion(); // Tăng version khi có thay đổi
+    }
+    return result;
   }
 
   /**
@@ -555,7 +565,11 @@ public class CSVDataService {
       courses.add(course);
     }
 
-    return writeCoursesToCSV(courses);
+    boolean result = writeCoursesToCSV(courses);
+    if (result) {
+      incrementVersion(); // Tăng version khi có thay đổi
+    }
+    return result;
   }
 
   /**
@@ -617,7 +631,11 @@ public class CSVDataService {
       enrollments.add(enrollment);
     }
 
-    return writeEnrollmentsToCSV(enrollments);
+    boolean result = writeEnrollmentsToCSV(enrollments);
+    if (result) {
+      incrementVersion(); // Tăng version khi có thay đổi
+    }
+    return result;
   }
 
   /**
@@ -655,5 +673,83 @@ public class CSVDataService {
    */
   public Path getDataDirectory() {
     return dataDir;
+  }
+
+  /**
+   * Lấy metadata của CSV local
+   */
+  public Map<String, Object> getCSVMetadata() {
+    Map<String, Object> metadata = new HashMap<>();
+
+    List<Student> students = getAllStudents();
+    List<Course> courses = getAllCourses();
+    List<Enrollment> enrollments = getAllEnrollments();
+
+    // Identify this client/source type for server-side provenance tagging
+    metadata.put("database_type", "CSV");
+    metadata.put("db_version", dbVersion);
+    metadata.put("student_count", students.size());
+    metadata.put("course_count", courses.size());
+    metadata.put("enrollment_count", enrollments.size());
+    metadata.put("total_records", students.size() + courses.size() + enrollments.size());
+
+    return metadata;
+  }
+
+  /**
+   * Tăng version khi có thay đổi
+   */
+  public void incrementVersion() {
+    this.dbVersion++;
+    saveVersionToFile();
+  }
+
+  /**
+   * Lưu version vào file
+   */
+  private void saveVersionToFile() {
+    try {
+      Path versionFile = dataDir.resolve(".version");
+      Files.write(versionFile, String.valueOf(dbVersion).getBytes());
+      LOGGER.info("Saved version to file: " + dbVersion);
+    } catch (IOException e) {
+      LOGGER.warning("Could not save version file: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Đọc version từ file
+   */
+  private void loadVersion() {
+    try {
+      Path versionFile = dataDir.resolve(".version");
+      if (Files.exists(versionFile)) {
+        String content = Files.readString(versionFile).trim();
+        dbVersion = Integer.parseInt(content);
+        LOGGER.info("Loaded version from file: " + dbVersion);
+      } else {
+        // Tạo file version mới
+        dbVersion = 1;
+        saveVersionToFile();
+      }
+    } catch (IOException e) {
+      LOGGER.warning("Could not load version file: " + e.getMessage());
+      dbVersion = 1;
+    }
+  }
+
+  /**
+   * Set version (dùng khi sync từ server)
+   */
+  public void setVersion(int version) {
+    this.dbVersion = version;
+    saveVersionToFile();
+  }
+
+  /**
+   * Get current version
+   */
+  public int getVersion() {
+    return dbVersion;
   }
 }

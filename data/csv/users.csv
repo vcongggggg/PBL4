@@ -1,2 +1,3 @@
 userId,username,password,fullName,email,phone,address,role,isActive,createdAt
 1,admin,password,Quản trị viên hệ thống,admin@university.edu.vn,0123456789,Trường Đại học ABC,ADMIN,true,2025-09-26 22:16:05.0
+10,sv999,password,Nguyễn Test,bin@gmail.com,0900000000,Hà Nội,STUDENT,true,2025-10-31 09:50:00.0

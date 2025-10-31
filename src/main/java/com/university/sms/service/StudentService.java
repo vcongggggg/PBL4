@@ -12,7 +12,7 @@ import java.util.logging.Logger;
  */
 public class StudentService {
     private static final Logger LOGGER = Logger.getLogger(StudentService.class.getName());
-    
+
     private StudentDAO studentDAO;
 
     public StudentService() {
@@ -30,10 +30,10 @@ public class StudentService {
 
         // Validate required fields
         if (student.getUserId() <= 0 ||
-            student.getStudentCode() == null || student.getStudentCode().trim().isEmpty() ||
-            student.getDepartmentId() <= 0 ||
-            student.getAdmissionYear() <= 0) {
-            
+                student.getStudentCode() == null || student.getStudentCode().trim().isEmpty() ||
+                student.getDepartmentId() <= 0 ||
+                student.getAdmissionYear() <= 0) {
+
             LOGGER.warning("Cannot add student: Missing required fields");
             return false;
         }
@@ -207,8 +207,8 @@ public class StudentService {
      * Cập nhật GPA và tổng tín chỉ
      */
     public boolean updateGpaAndCredits(int studentId, BigDecimal gpa, int totalCredits) {
-        if (studentId <= 0 || gpa == null || gpa.compareTo(BigDecimal.ZERO) < 0 || 
-            gpa.compareTo(new BigDecimal("4.0")) > 0 || totalCredits < 0) {
+        if (studentId <= 0 || gpa == null || gpa.compareTo(BigDecimal.ZERO) < 0 ||
+                gpa.compareTo(new BigDecimal("4.0")) > 0 || totalCredits < 0) {
             LOGGER.warning("Cannot update GPA and credits: Invalid input");
             return false;
         }
@@ -243,7 +243,7 @@ public class StudentService {
 
             student.setClassId(newClassId);
             boolean success = studentDAO.updateStudent(student);
-            
+
             if (success) {
                 LOGGER.info("Student transferred successfully: " + studentId + " -> Class " + newClassId);
             }
@@ -290,30 +290,30 @@ public class StudentService {
     public StudentStatistics getStudentStatistics(int departmentId) {
         try {
             List<Student> students = studentDAO.findByDepartmentId(departmentId);
-            
+
             StudentStatistics stats = new StudentStatistics();
             stats.setTotalStudents(students.size());
-            
+
             long activeCount = students.stream()
-                .filter(s -> s.getStudentStatus() == Student.StudentStatus.ACTIVE)
-                .count();
+                    .filter(s -> s.getStudentStatus() == Student.StudentStatus.ACTIVE)
+                    .count();
             stats.setActiveStudents((int) activeCount);
-            
+
             long graduatedCount = students.stream()
-                .filter(s -> s.getStudentStatus() == Student.StudentStatus.GRADUATED)
-                .count();
+                    .filter(s -> s.getStudentStatus() == Student.StudentStatus.GRADUATED)
+                    .count();
             stats.setGraduatedStudents((int) graduatedCount);
-            
+
             long suspendedCount = students.stream()
-                .filter(s -> s.getStudentStatus() == Student.StudentStatus.SUSPENDED)
-                .count();
+                    .filter(s -> s.getStudentStatus() == Student.StudentStatus.SUSPENDED)
+                    .count();
             stats.setSuspendedStudents((int) suspendedCount);
-            
+
             long droppedCount = students.stream()
-                .filter(s -> s.getStudentStatus() == Student.StudentStatus.DROPPED)
-                .count();
+                    .filter(s -> s.getStudentStatus() == Student.StudentStatus.DROPPED)
+                    .count();
             stats.setDroppedStudents((int) droppedCount);
-            
+
             return stats;
         } catch (Exception e) {
             LOGGER.severe("Error getting student statistics: " + e.getMessage());
@@ -328,7 +328,7 @@ public class StudentService {
         if (studentCode == null || studentCode.trim().isEmpty()) {
             return false;
         }
-        
+
         // Student code format: SV + year + sequential number (e.g., SV2024001)
         String codeRegex = "^SV\\d{4}\\d{3}$";
         return studentCode.matches(codeRegex);
@@ -338,15 +338,16 @@ public class StudentService {
      * Generate student code
      */
     public String generateStudentCode(int admissionYear, int departmentId) {
-        // This is a simple implementation - in a real system, you'd want to ensure uniqueness
+        // This is a simple implementation - in a real system, you'd want to ensure
+        // uniqueness
         int sequence = 1;
         String code;
-        
+
         do {
             code = String.format("SV%d%03d", admissionYear, sequence);
             sequence++;
         } while (studentExists(code) && sequence <= 999);
-        
+
         return sequence <= 999 ? code : null;
     }
 
@@ -361,19 +362,56 @@ public class StudentService {
         private int droppedStudents;
 
         // Getters and setters
-        public int getTotalStudents() { return totalStudents; }
-        public void setTotalStudents(int totalStudents) { this.totalStudents = totalStudents; }
-        
-        public int getActiveStudents() { return activeStudents; }
-        public void setActiveStudents(int activeStudents) { this.activeStudents = activeStudents; }
-        
-        public int getGraduatedStudents() { return graduatedStudents; }
-        public void setGraduatedStudents(int graduatedStudents) { this.graduatedStudents = graduatedStudents; }
-        
-        public int getSuspendedStudents() { return suspendedStudents; }
-        public void setSuspendedStudents(int suspendedStudents) { this.suspendedStudents = suspendedStudents; }
-        
-        public int getDroppedStudents() { return droppedStudents; }
-        public void setDroppedStudents(int droppedStudents) { this.droppedStudents = droppedStudents; }
+        public int getTotalStudents() {
+            return totalStudents;
+        }
+
+        public void setTotalStudents(int totalStudents) {
+            this.totalStudents = totalStudents;
+        }
+
+        public int getActiveStudents() {
+            return activeStudents;
+        }
+
+        public void setActiveStudents(int activeStudents) {
+            this.activeStudents = activeStudents;
+        }
+
+        public int getGraduatedStudents() {
+            return graduatedStudents;
+        }
+
+        public void setGraduatedStudents(int graduatedStudents) {
+            this.graduatedStudents = graduatedStudents;
+        }
+
+        public int getSuspendedStudents() {
+            return suspendedStudents;
+        }
+
+        public void setSuspendedStudents(int suspendedStudents) {
+            this.suspendedStudents = suspendedStudents;
+        }
+
+        public int getDroppedStudents() {
+            return droppedStudents;
+        }
+
+        public void setDroppedStudents(int droppedStudents) {
+            this.droppedStudents = droppedStudents;
+        }
+    }
+
+    /**
+     * Lấy tổng số lượng sinh viên
+     */
+    public int getTotalCount() {
+        try {
+            return studentDAO.getTotalCount();
+        } catch (Exception e) {
+            LOGGER.severe("Error getting total student count: " + e.getMessage());
+            return 0;
+        }
     }
 }

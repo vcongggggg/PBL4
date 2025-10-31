@@ -21,11 +21,11 @@ public class StudentDAO {
      */
     public boolean addStudent(Student student) {
         String sql = "INSERT INTO students (user_id, student_code, class_id, department_id, admission_year, " +
-                    "birth_date, gender, citizen_id, emergency_contact, emergency_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
-        
+                "birth_date, gender, citizen_id, emergency_contact, emergency_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
             stmt.setInt(1, student.getUserId());
             stmt.setString(2, student.getStudentCode());
             if (student.getClassId() != null) {
@@ -44,9 +44,9 @@ public class StudentDAO {
             stmt.setString(8, student.getCitizenId());
             stmt.setString(9, student.getEmergencyContact());
             stmt.setString(10, student.getEmergencyPhone());
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 try (ResultSet rs = stmt.getGeneratedKeys()) {
                     if (rs.next()) {
@@ -56,12 +56,30 @@ public class StudentDAO {
                 LOGGER.info("Student added successfully: " + student.getStudentCode());
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error adding student: " + student.getStudentCode(), e);
         }
-        
+
         return false;
+    }
+
+    /**
+     * Thêm mới hoặc cập nhật nếu đã tồn tại theo student_code
+     */
+    public boolean addOrUpdate(Student student) {
+        try {
+            Student existing = findByStudentCode(student.getStudentCode());
+            if (existing == null) {
+                return addStudent(student);
+            }
+            // Gán id để cập nhật các trường mutable cơ bản
+            student.setStudentId(existing.getStudentId());
+            return updateStudent(student);
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error addOrUpdate student: " + student.getStudentCode(), e);
+            return false;
+        }
     }
 
     /**
@@ -69,27 +87,27 @@ public class StudentDAO {
      */
     public Student findById(int studentId) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "WHERE s.student_id = ?";
-        
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "WHERE s.student_id = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, studentId);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToStudent(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding student by ID: " + studentId, e);
         }
-        
+
         return null;
     }
 
@@ -98,27 +116,27 @@ public class StudentDAO {
      */
     public Student findByStudentCode(String studentCode) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "WHERE s.student_code = ?";
-        
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "WHERE s.student_code = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, studentCode);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToStudent(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding student by code: " + studentCode, e);
         }
-        
+
         return null;
     }
 
@@ -127,27 +145,27 @@ public class StudentDAO {
      */
     public Student findByUserId(int userId) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "WHERE s.user_id = ?";
-        
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "WHERE s.user_id = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, userId);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToStudent(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding student by user ID: " + userId, e);
         }
-        
+
         return null;
     }
 
@@ -156,29 +174,29 @@ public class StudentDAO {
      */
     public List<Student> findByClassId(int classId) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "WHERE s.class_id = ? ORDER BY s.student_code";
-        
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "WHERE s.class_id = ? ORDER BY s.student_code";
+
         List<Student> students = new ArrayList<>();
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, classId);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     students.add(mapResultSetToStudent(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding students by class ID: " + classId, e);
         }
-        
+
         return students;
     }
 
@@ -187,29 +205,29 @@ public class StudentDAO {
      */
     public List<Student> findByDepartmentId(int departmentId) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "WHERE s.department_id = ? ORDER BY s.student_code";
-        
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "WHERE s.department_id = ? ORDER BY s.student_code";
+
         List<Student> students = new ArrayList<>();
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, departmentId);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     students.add(mapResultSetToStudent(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding students by department ID: " + departmentId, e);
         }
-        
+
         return students;
     }
 
@@ -218,27 +236,29 @@ public class StudentDAO {
      */
     public List<Student> findAll() {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "ORDER BY s.student_code";
-        
+                ", dor.source AS data_source " +
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
+                "ORDER BY CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
+
         List<Student> students = new ArrayList<>();
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     students.add(mapResultSetToStudent(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding all students", e);
         }
-        
+
         return students;
     }
 
@@ -247,33 +267,33 @@ public class StudentDAO {
      */
     public List<Student> searchStudents(String keyword) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, d.department_name, c.class_name " +
-                    "FROM students s " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN departments d ON s.department_id = d.department_id " +
-                    "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                    "WHERE s.student_code LIKE ? OR u.full_name LIKE ? OR u.email LIKE ? " +
-                    "ORDER BY s.student_code";
-        
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN departments d ON s.department_id = d.department_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "WHERE s.student_code LIKE ? OR u.full_name LIKE ? OR u.email LIKE ? " +
+                "ORDER BY s.student_code";
+
         List<Student> students = new ArrayList<>();
         String searchPattern = "%" + keyword + "%";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, searchPattern);
             stmt.setString(2, searchPattern);
             stmt.setString(3, searchPattern);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     students.add(mapResultSetToStudent(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error searching students with keyword: " + keyword, e);
         }
-        
+
         return students;
     }
 
@@ -282,11 +302,11 @@ public class StudentDAO {
      */
     public boolean updateStudent(Student student) {
         String sql = "UPDATE students SET class_id = ?, birth_date = ?, gender = ?, citizen_id = ?, " +
-                    "emergency_contact = ?, emergency_phone = ? WHERE student_id = ?";
-        
+                "emergency_contact = ?, emergency_phone = ? WHERE student_id = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             if (student.getClassId() != null) {
                 stmt.setInt(1, student.getClassId());
             } else {
@@ -302,18 +322,37 @@ public class StudentDAO {
             stmt.setString(5, student.getEmergencyContact());
             stmt.setString(6, student.getEmergencyPhone());
             stmt.setInt(7, student.getStudentId());
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Student updated successfully: " + student.getStudentCode());
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating student: " + student.getStudentId(), e);
         }
-        
+
+        return false;
+    }
+
+    /**
+     * Xóa sinh viên theo ID
+     */
+    public boolean deleteStudent(int studentId) {
+        String sql = "DELETE FROM students WHERE student_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setInt(1, studentId);
+            int result = stmt.executeUpdate();
+            if (result > 0) {
+                LOGGER.info("Student deleted successfully: " + studentId);
+                return true;
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error deleting student: " + studentId, e);
+        }
         return false;
     }
 
@@ -322,24 +361,24 @@ public class StudentDAO {
      */
     public boolean updateStudentStatus(int studentId, Student.StudentStatus status) {
         String sql = "UPDATE students SET student_status = ? WHERE student_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, status.name().toLowerCase());
             stmt.setInt(2, studentId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Student status updated successfully: " + studentId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating student status: " + studentId, e);
         }
-        
+
         return false;
     }
 
@@ -348,25 +387,25 @@ public class StudentDAO {
      */
     public boolean updateGpaAndCredits(int studentId, BigDecimal gpa, int totalCredits) {
         String sql = "UPDATE students SET gpa = ?, total_credits = ? WHERE student_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setBigDecimal(1, gpa);
             stmt.setInt(2, totalCredits);
             stmt.setInt(3, studentId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Student GPA and credits updated successfully: " + studentId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating student GPA and credits: " + studentId, e);
         }
-        
+
         return false;
     }
 
@@ -378,40 +417,62 @@ public class StudentDAO {
         student.setStudentId(rs.getInt("student_id"));
         student.setUserId(rs.getInt("user_id"));
         student.setStudentCode(rs.getString("student_code"));
-        
+
         int classId = rs.getInt("class_id");
         if (!rs.wasNull()) {
             student.setClassId(classId);
         }
-        
+
         student.setDepartmentId(rs.getInt("department_id"));
         student.setAdmissionYear(rs.getInt("admission_year"));
-        
+
         String status = rs.getString("student_status");
         if (status != null) {
             student.setStudentStatus(Student.StudentStatus.valueOf(status.toUpperCase()));
         }
-        
+
         student.setGpa(rs.getBigDecimal("gpa"));
         student.setTotalCredits(rs.getInt("total_credits"));
         student.setBirthDate(rs.getDate("birth_date"));
-        
+
         String gender = rs.getString("gender");
         if (gender != null) {
             student.setGender(Student.Gender.valueOf(gender.toUpperCase()));
         }
-        
+
         student.setCitizenId(rs.getString("citizen_id"));
         student.setEmergencyContact(rs.getString("emergency_contact"));
         student.setEmergencyPhone(rs.getString("emergency_phone"));
         student.setCreatedAt(rs.getTimestamp("created_at"));
-        
+
         // User information
         student.setFullName(rs.getString("full_name"));
         student.setEmail(rs.getString("email"));
         student.setPhone(rs.getString("phone"));
         student.setAddress(rs.getString("address"));
-        
+
         return student;
+    }
+
+    /**
+     * Lấy tổng số lượng sinh viên
+     */
+    public int getTotalCount() {
+        String sql = "SELECT COUNT(*) as total FROM students";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("total");
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error getting total student count", e);
+        }
+
+        return 0;
     }
 }

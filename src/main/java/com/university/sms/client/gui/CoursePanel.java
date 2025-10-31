@@ -1,6 +1,6 @@
 package com.university.sms.client.gui;
 
-import com.university.sms.client.ServerConnection;
+import com.university.sms.client.IServerConnection;
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.Course;
@@ -18,20 +18,20 @@ import java.util.List;
  */
 public class CoursePanel extends JPanel {
     private static final long serialVersionUID = 1L;
-    
+
     private User currentUser;
-    private ServerConnection serverConnection;
+    private IServerConnection serverConnection;
     private boolean isReadOnly;
-    
+
     private JTable courseTable;
     private DefaultTableModel tableModel;
     private JButton refreshButton;
 
-    public CoursePanel(User currentUser, ServerConnection serverConnection, boolean isReadOnly) {
+    public CoursePanel(User currentUser, IServerConnection serverConnection, boolean isReadOnly) {
         this.currentUser = currentUser;
         this.serverConnection = serverConnection;
         this.isReadOnly = isReadOnly;
-        
+
         initializeComponents();
         setupLayout();
         setupEventListeners();
@@ -40,7 +40,8 @@ public class CoursePanel extends JPanel {
 
     private void initializeComponents() {
         // Create table
-        String[] columnNames = {"Mã khóa học", "Tên môn học", "Giáo viên", "Năm học", "Học kỳ", "Phòng", "Lịch học", "SV hiện tại/Tối đa"};
+        String[] columnNames = { "Mã khóa học", "Tên môn học", "Giáo viên", "Năm học", "Học kỳ", "Phòng", "Lịch học",
+                "SV hiện tại/Tối đa" };
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -50,18 +51,18 @@ public class CoursePanel extends JPanel {
         courseTable = new JTable(tableModel);
         courseTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         courseTable.setRowHeight(25);
-        
+
         refreshButton = new JButton("Làm mới");
     }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
-        
+
         // Top panel with buttons
         JPanel topPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         topPanel.add(refreshButton);
         add(topPanel, BorderLayout.NORTH);
-        
+
         // Center with table
         JScrollPane scrollPane = new JScrollPane(courseTable);
         add(scrollPane, BorderLayout.CENTER);
@@ -87,7 +88,7 @@ public class CoursePanel extends JPanel {
             protected Message doInBackground() throws Exception {
                 return serverConnection.getAllCourses();
             }
-            
+
             @Override
             protected void done() {
                 try {
@@ -104,24 +105,24 @@ public class CoursePanel extends JPanel {
                 }
             }
         };
-        
+
         worker.execute();
     }
 
     private void updateCourseTable(List<Course> courses) {
         tableModel.setRowCount(0);
-        
+
         if (courses != null) {
             for (Course course : courses) {
                 Object[] rowData = {
-                    course.getCourseCode(),
-                    course.getSubjectName(),
-                    course.getTeacherName(),
-                    course.getAcademicYear(),
-                    course.getSemester(),
-                    course.getRoom(),
-                    course.getScheduleDay() + " " + course.getScheduleTime(),
-                    course.getCurrentStudents() + "/" + course.getMaxStudents()
+                        course.getCourseCode(),
+                        course.getSubjectName(),
+                        course.getTeacherName(),
+                        course.getAcademicYear(),
+                        course.getSemester(),
+                        course.getRoom(),
+                        course.getScheduleDay() + " " + course.getScheduleTime(),
+                        course.getCurrentStudents() + "/" + course.getMaxStudents()
                 };
                 tableModel.addRow(rowData);
             }

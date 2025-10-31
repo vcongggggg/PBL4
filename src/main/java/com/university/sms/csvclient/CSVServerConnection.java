@@ -1,54 +1,31 @@
 package com.university.sms.csvclient;
 
+import com.university.sms.client.BaseServerConnection;
+
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.Student;
 import com.university.sms.model.Course;
 import com.university.sms.model.Enrollment;
-import com.university.sms.model.User;
 
-import java.io.*;
-import java.net.Socket;
-import java.net.SocketException;
 import java.util.List;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
-import java.util.concurrent.TimeUnit;
-import java.util.logging.Level;
+
 import java.util.logging.Logger;
 
 /**
  * Quản lý kết nối đến server cho CSV client
- * Kết hợp dữ liệu từ CSV local và server
+ * Giao tiếp với server database, không đồng bộ dữ liệu về CSV local
  * Implement interface tương tự ServerConnection để tương thích với GUI hiện có
  */
-public class CSVServerConnection {
+public class CSVServerConnection extends BaseServerConnection {
   private static final Logger LOGGER = Logger.getLogger(CSVServerConnection.class.getName());
-
-  private Socket socket;
-  private ObjectInputStream inputStream;
-  private ObjectOutputStream outputStream;
-  private boolean isConnected;
-
-  private String serverHost;
-  private int serverPort;
 
   private CSVDataService csvDataService;
 
-  // Callback interface for handling server responses
-  public interface ResponseHandler {
-    void onResponse(Message response);
-
-    void onError(String error);
-
-    void onDisconnected();
-  }
-
-  private ResponseHandler responseHandler;
-
   public CSVServerConnection(String serverHost, int serverPort) {
-    this.serverHost = serverHost;
-    this.serverPort = serverPort;
-    this.isConnected = false;
+    super(serverHost, serverPort);
     this.csvDataService = new CSVDataService();
   }
 
@@ -56,128 +33,30 @@ public class CSVServerConnection {
    * Kết nối đến server
    */
   public boolean connect() {
-    try {
-      socket = new Socket(serverHost, serverPort);
-
-      // Initialize streams
-      outputStream = new ObjectOutputStream(socket.getOutputStream());
-      inputStream = new ObjectInputStream(socket.getInputStream());
-
-      isConnected = true;
-
-      LOGGER.info("CSV Client connected to server: " + serverHost + ":" + serverPort);
-
-      // Start listening for server messages in background thread
-      startMessageListener();
-
-      return true;
-
-    } catch (IOException e) {
-      LOGGER.log(Level.SEVERE, "Error connecting to server", e);
-      isConnected = false;
-      return false;
-    }
+    return super.connect();
   }
 
   /**
    * Ngắt kết nối khỏi server
    */
   public void disconnect() {
-    isConnected = false;
-
-    try {
-      if (inputStream != null) {
-        inputStream.close();
-      }
-      if (outputStream != null) {
-        outputStream.close();
-      }
-      if (socket != null && !socket.isClosed()) {
-        socket.close();
-      }
-    } catch (IOException e) {
-      LOGGER.log(Level.WARNING, "Error closing connection", e);
-    }
-
-    LOGGER.info("CSV Client disconnected from server");
-
-    // Notify handler about disconnection
-    if (responseHandler != null) {
-      responseHandler.onDisconnected();
-    }
+    super.disconnect();
   }
 
   /**
    * Gửi yêu cầu đến server
    */
-  public boolean sendRequest(Message request) {
-    if (!isConnected || outputStream == null) {
-      LOGGER.warning("Cannot send request: Not connected to server");
-      return false;
-    }
-
-    try {
-      outputStream.writeObject(request);
-      outputStream.flush();
-
-      LOGGER.info("Request sent: " + request.getAction());
-      return true;
-
-    } catch (IOException e) {
-      LOGGER.log(Level.SEVERE, "Error sending request", e);
-      handleConnectionError();
-      return false;
-    }
-  }
+  // No direct send helper needed; use sendCSVRequestAndWait() for sync flows
 
   /**
    * Gửi yêu cầu và chờ phản hồi (synchronous)
    */
-  public Message sendRequestAndWait(Message request, long timeoutSeconds) {
-    if (!sendRequest(request)) {
-      return Message.createErrorResponse(request.getAction(), "Failed to send request");
-    }
-
-    try {
-      // Wait for response with timeout
-      CompletableFuture<Message> future = new CompletableFuture<>();
-
-      // Temporary handler for this request
-      ResponseHandler originalHandler = responseHandler;
-      responseHandler = new ResponseHandler() {
-        @Override
-        public void onResponse(Message response) {
-          if (response.getAction().equals(request.getAction())) {
-            future.complete(response);
-            responseHandler = originalHandler; // Restore original handler
-          } else if (originalHandler != null) {
-            originalHandler.onResponse(response);
-          }
-        }
-
-        @Override
-        public void onError(String error) {
-          future.complete(Message.createErrorResponse(request.getAction(), error));
-          responseHandler = originalHandler;
-        }
-
-        @Override
-        public void onDisconnected() {
-          future.complete(Message.createErrorResponse(request.getAction(), "Connection lost"));
-          responseHandler = originalHandler;
-        }
-      };
-
-      return future.get(timeoutSeconds, TimeUnit.SECONDS);
-
-    } catch (Exception e) {
-      LOGGER.log(Level.SEVERE, "Error waiting for response", e);
-      return Message.createErrorResponse(request.getAction(), "Timeout or error waiting for response");
-    }
+  private Message sendCSVRequestAndWait(Message request, long timeoutSeconds) {
+    return super.sendRequestAndWait(request, timeoutSeconds);
   }
 
   /**
-   * Đăng nhập - sử dụng server database
+   * Đăng nhập - sử dụng server database, không lưu về CSV
    */
   public Message login(String username, String password) {
     try {
@@ -186,17 +65,7 @@ public class CSVServerConnection {
       request.addData(Constants.KEY_USERNAME, username);
       request.addData(Constants.KEY_PASSWORD, password);
 
-      Message response = sendRequestAndWait(request, 60);
-
-      if (response.isSuccess()) {
-        // Đồng bộ thông tin user về CSV local
-        User user = response.getData(Constants.KEY_USER, User.class);
-        if (user != null) {
-          // Lưu user vào CSV local
-          csvDataService.saveUser(user);
-          LOGGER.info("User synced to CSV: " + user.getUsername());
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 60);
 
       return response;
 
@@ -214,7 +83,7 @@ public class CSVServerConnection {
   }
 
   /**
-   * Lấy thông tin sinh viên - từ server database
+   * Lấy thông tin sinh viên - từ server database, không đồng bộ về CSV
    */
   public Message getStudentInfo(Integer studentId) {
     try {
@@ -224,15 +93,7 @@ public class CSVServerConnection {
         request.addData(Constants.KEY_STUDENT_ID, studentId);
       }
 
-      Message response = sendRequestAndWait(request, 60);
-
-      if (response.isSuccess()) {
-        // Đồng bộ sinh viên về CSV local
-        Student student = response.getData(Constants.KEY_STUDENT, Student.class);
-        if (student != null) {
-          csvDataService.saveStudent(student);
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 60);
 
       return response;
 
@@ -243,22 +104,13 @@ public class CSVServerConnection {
   }
 
   /**
-   * Lấy tất cả sinh viên - từ server database (để hiển thị)
+   * Lấy tất cả sinh viên - từ server database, không đồng bộ về CSV
    */
   public Message getAllStudents() {
     try {
       // Gửi yêu cầu đến server để lấy dữ liệu từ database
       Message request = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
-      Message response = sendRequestAndWait(request, 120);
-
-      if (response.isSuccess()) {
-        // Đồng bộ dữ liệu từ server về CSV local
-        @SuppressWarnings("unchecked")
-        List<Student> students = (List<Student>) response.getData(Constants.KEY_STUDENTS);
-        if (students != null) {
-          syncStudentsToCSV(students);
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 120);
 
       return response;
 
@@ -269,7 +121,7 @@ public class CSVServerConnection {
   }
 
   /**
-   * Tìm kiếm sinh viên - từ server database
+   * Tìm kiếm sinh viên - từ server database, không đồng bộ về CSV
    */
   public Message searchStudents(String keyword) {
     try {
@@ -277,16 +129,7 @@ public class CSVServerConnection {
       Message request = Message.createRequest(Constants.ACTION_SEARCH_STUDENTS);
       request.addData(Constants.KEY_SEARCH_KEYWORD, keyword);
 
-      Message response = sendRequestAndWait(request, 60);
-
-      if (response.isSuccess()) {
-        // Đồng bộ kết quả tìm kiếm về CSV local
-        @SuppressWarnings("unchecked")
-        List<Student> students = (List<Student>) response.getData(Constants.KEY_STUDENTS);
-        if (students != null) {
-          syncStudentsToCSV(students);
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 60);
 
       return response;
 
@@ -297,22 +140,13 @@ public class CSVServerConnection {
   }
 
   /**
-   * Lấy tất cả khóa học - từ server database (để hiển thị)
+   * Lấy tất cả khóa học - từ server database, không đồng bộ về CSV
    */
   public Message getAllCourses() {
     try {
       // Gửi yêu cầu đến server để lấy dữ liệu từ database
       Message request = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
-      Message response = sendRequestAndWait(request, 120);
-
-      if (response.isSuccess()) {
-        // Đồng bộ dữ liệu từ server về CSV local
-        @SuppressWarnings("unchecked")
-        List<Course> courses = (List<Course>) response.getData(Constants.KEY_COURSES);
-        if (courses != null) {
-          syncCoursesToCSV(courses);
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 120);
 
       return response;
 
@@ -323,14 +157,14 @@ public class CSVServerConnection {
   }
 
   /**
-   * Lấy danh sách khóa học - từ server database
+   * Lấy danh sách khóa học - từ server database, không đồng bộ về CSV
    */
   public Message getCourses() {
     return getAllCourses(); // Sử dụng cùng method với getAllCourses
   }
 
   /**
-   * Lấy thông tin khóa học - từ server database
+   * Lấy thông tin khóa học - từ server database, không đồng bộ về CSV
    */
   public Message getCourseInfo(int courseId) {
     try {
@@ -338,16 +172,7 @@ public class CSVServerConnection {
       Message request = Message.createRequest(Constants.ACTION_GET_COURSE_INFO);
       request.addData(Constants.KEY_COURSE_ID, courseId);
 
-      Message response = sendRequestAndWait(request, 60);
-
-      if (response.isSuccess()) {
-        // Đồng bộ khóa học về CSV local
-        Course course = response.getData(Constants.KEY_COURSE, Course.class);
-        if (course != null) {
-          // Có thể cần tạo method saveCourse trong CSVDataService
-          LOGGER.info("Synced course to CSV: " + course.getCourseCode());
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 60);
 
       return response;
 
@@ -358,22 +183,13 @@ public class CSVServerConnection {
   }
 
   /**
-   * Lấy tất cả đăng ký - từ server database
+   * Lấy tất cả đăng ký - từ server database, không đồng bộ về CSV
    */
   public Message getAllEnrollments() {
     try {
       // Gửi yêu cầu đến server để lấy dữ liệu từ database
       Message request = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS);
-      Message response = sendRequestAndWait(request, 120);
-
-      if (response.isSuccess()) {
-        // Đồng bộ dữ liệu từ server về CSV local
-        @SuppressWarnings("unchecked")
-        List<Enrollment> enrollments = (List<Enrollment>) response.getData(Constants.KEY_ENROLLMENTS);
-        if (enrollments != null) {
-          syncEnrollmentsToCSV(enrollments);
-        }
-      }
+      Message response = sendCSVRequestAndWait(request, 120);
 
       return response;
 
@@ -384,31 +200,29 @@ public class CSVServerConnection {
   }
 
   /**
-   * Đổi mật khẩu - cập nhật CSV local
+   * Đổi mật khẩu - không lưu về CSV
    */
   public Message changePassword(String newPassword) {
-    // Trong thực tế cần cập nhật CSV và đồng bộ với server
     return Message.createSuccessResponse(Constants.ACTION_CHANGE_PASSWORD, "Password changed successfully");
   }
 
   /**
-   * Lưu sinh viên - gửi lên server trước, sau đó lưu vào CSV local
+   * Lưu sinh viên - gửi lên server, không lưu vào CSV local
    */
   public Message saveStudent(Student student) {
     try {
-      // Gửi yêu cầu lên server trước
+      // Gửi yêu cầu lên server
       Message request = Message.createRequest(Constants.ACTION_UPDATE_STUDENT);
       request.addData(Constants.KEY_STUDENT, student);
 
-      Message response = sendRequestAndWait(request, 60);
+      Message response = sendCSVRequestAndWait(request, 60);
 
       if (response.isSuccess()) {
-        // Nếu server lưu thành công, mới lưu vào CSV local
-        boolean csvSuccess = csvDataService.saveStudent(student);
-        if (csvSuccess) {
-          LOGGER.info("Student saved to both server and CSV: " + student.getStudentCode());
-        } else {
-          LOGGER.warning("Student saved to server but failed to save to CSV: " + student.getStudentCode());
+        LOGGER.info("Student saved to server: " + student.getStudentCode());
+        // Lưu đồng bộ vào CSV local
+        boolean ok = csvDataService.saveStudent(student);
+        if (ok) {
+          LOGGER.info("Student saved to local CSV: " + student.getStudentCode());
         }
       }
 
@@ -420,25 +234,45 @@ public class CSVServerConnection {
     }
   }
 
+  public Message addStudent(Student student) {
+    try {
+      Message request = Message.createRequest(Constants.ACTION_ADD_STUDENT);
+      request.addData(Constants.KEY_STUDENT, student);
+      Message response = sendCSVRequestAndWait(request, 60);
+      if (response.isSuccess()) {
+        // Server sẽ gán studentId mới; sau khi nhận, lưu local
+        csvDataService.saveStudent(student);
+      }
+      return response;
+    } catch (Exception e) {
+      LOGGER.severe("Error adding student: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Error: " + e.getMessage());
+    }
+  }
+
+  public Message updateStudent(Student student) {
+    return saveStudent(student);
+  }
+
   /**
-   * Xóa sinh viên - gửi lên server trước, sau đó xóa khỏi CSV local
+   * Xóa sinh viên - gửi lên server, không xóa khỏi CSV local
    */
   public Message deleteStudent(int studentId) {
     try {
-      // Gửi yêu cầu lên server trước
-      Message request = Message.createRequest(Constants.ACTION_UPDATE_STUDENT);
+      // Gửi yêu cầu xóa student lên server
+      Message request = Message.createRequest(Constants.ACTION_DELETE_STUDENT);
       request.addData(Constants.KEY_STUDENT_ID, studentId);
-      request.addData("action", "delete");
 
-      Message response = sendRequestAndWait(request, 60);
+      Message response = sendCSVRequestAndWait(request, 60);
 
       if (response.isSuccess()) {
-        // Nếu server xóa thành công, mới xóa khỏi CSV local
-        boolean csvSuccess = csvDataService.deleteStudent(studentId);
-        if (csvSuccess) {
-          LOGGER.info("Student deleted from both server and CSV: " + studentId);
+        LOGGER.info("Student deleted from server: " + studentId);
+        // Xóa đồng thời trên CSV local để đồng bộ dữ liệu client-side
+        boolean removed = csvDataService.deleteStudent(studentId);
+        if (removed) {
+          LOGGER.info("Student deleted from local CSV: " + studentId);
         } else {
-          LOGGER.warning("Student deleted from server but failed to delete from CSV: " + studentId);
+          LOGGER.warning("Student not found in local CSV: " + studentId);
         }
       }
 
@@ -453,73 +287,28 @@ public class CSVServerConnection {
   /**
    * Bắt đầu lắng nghe tin nhắn từ server
    */
-  private void startMessageListener() {
-    Thread listenerThread = new Thread(() -> {
-      while (isConnected && !socket.isClosed()) {
-        try {
-          Message message = (Message) inputStream.readObject();
-
-          LOGGER.info("Received message: " + message.getType() + " - " + message.getAction());
-
-          // Handle message based on type
-          if (responseHandler != null) {
-            if (message.getType() == Message.MessageType.RESPONSE) {
-              responseHandler.onResponse(message);
-            } else if (message.getType() == Message.MessageType.NOTIFICATION) {
-              // Handle notifications - có thể cập nhật CSV local
-              handleNotification(message);
-            }
-          }
-
-        } catch (SocketException e) {
-          LOGGER.info("Server connection closed");
-          break;
-        } catch (EOFException e) {
-          LOGGER.info("Server disconnected");
-          break;
-        } catch (IOException | ClassNotFoundException e) {
-          LOGGER.log(Level.SEVERE, "Error reading message from server", e);
-          handleConnectionError();
-          break;
-        }
-      }
-    });
-
-    listenerThread.setDaemon(true);
-    listenerThread.setName("CSVServerMessageListener");
-    listenerThread.start();
-  }
+  // Listener đã có ở BaseServerConnection; chỉ override xử lý NOTIFICATION nếu
+  // cần qua handler phía trên.
 
   /**
-   * Xử lý thông báo từ server - cập nhật dữ liệu CSV local
+   * Xử lý thông báo từ server
    */
+  @SuppressWarnings("unused")
   private void handleNotification(Message notification) {
     try {
       String action = notification.getAction();
 
       switch (action) {
         case "STUDENT_UPDATED":
-          Student student = notification.getData(Constants.KEY_STUDENT, Student.class);
-          if (student != null) {
-            csvDataService.saveStudent(student);
-            LOGGER.info("Student updated from server notification");
-          }
+          LOGGER.info("Student updated from server notification");
           break;
 
         case "STUDENT_DELETED":
-          Integer studentId = notification.getData(Constants.KEY_STUDENT_ID, Integer.class);
-          if (studentId != null) {
-            csvDataService.deleteStudent(studentId);
-            LOGGER.info("Student deleted from server notification");
-          }
+          LOGGER.info("Student deleted from server notification");
           break;
 
         case "COURSE_UPDATED":
-          Course course = notification.getData(Constants.KEY_COURSE, Course.class);
-          if (course != null) {
-            // Cập nhật course trong CSV nếu cần
-            LOGGER.info("Course updated from server notification");
-          }
+          LOGGER.info("Course updated from server notification");
           break;
 
         default:
@@ -535,59 +324,34 @@ public class CSVServerConnection {
   /**
    * Xử lý lỗi kết nối
    */
-  private void handleConnectionError() {
-    isConnected = false;
-
-    if (responseHandler != null) {
-      responseHandler.onError("Connection error occurred");
-    }
-
-    // Try to reconnect after a delay
-    CompletableFuture.runAsync(() -> {
-      try {
-        Thread.sleep(5000); // Wait 5 seconds
-        if (!isConnected) {
-          LOGGER.info("Attempting to reconnect...");
-          connect();
-        }
-      } catch (InterruptedException e) {
-        Thread.currentThread().interrupt();
-      }
-    });
-  }
+  // handleConnectionError dùng chung ở lớp cơ sở.
 
   /**
    * Kiểm tra trạng thái kết nối
    */
   public boolean isConnected() {
-    return isConnected && socket != null && !socket.isClosed();
+    return super.isConnected();
   }
 
   /**
    * Đặt response handler
    */
-  public void setResponseHandler(ResponseHandler handler) {
-    this.responseHandler = handler;
+  public void setResponseHandler(com.university.sms.client.IServerConnection.ResponseHandler handler) {
+    super.setResponseHandler(handler);
   }
 
   /**
    * Lấy thông tin server
    */
   public String getServerInfo() {
-    return serverHost + ":" + serverPort;
+    return super.getServerInfo();
   }
 
   /**
    * Test kết nối
    */
   public boolean testConnection() {
-    try {
-      Socket testSocket = new Socket(serverHost, serverPort);
-      testSocket.close();
-      return true;
-    } catch (IOException e) {
-      return false;
-    }
+    return super.testConnection();
   }
 
   /**
@@ -598,48 +362,288 @@ public class CSVServerConnection {
   }
 
   /**
-   * Đồng bộ danh sách sinh viên từ server về CSV
+   * Gửi metadata lên server khi kết nối
    */
-  private void syncStudentsToCSV(List<Student> students) {
+  public Message sendMetadata() {
     try {
-      for (Student student : students) {
-        csvDataService.saveStudent(student);
-      }
-      LOGGER.info("Synced " + students.size() + " students to CSV");
+      Map<String, Object> metadata = csvDataService.getCSVMetadata();
+
+      Message request = Message.createRequest(Constants.ACTION_SYNC_CHECK);
+      request.addData("metadata", metadata);
+
+      Message response = sendCSVRequestAndWait(request, 30);
+
+      return response;
+
     } catch (Exception e) {
-      LOGGER.warning("Error syncing students to CSV: " + e.getMessage());
+      LOGGER.severe("Error sending metadata: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_SYNC_CHECK, "Error: " + e.getMessage());
     }
   }
 
   /**
-   * Đồng bộ danh sách khóa học từ server về CSV
+   * Đồng bộ dữ liệu dựa trên response từ server
    */
-  private void syncCoursesToCSV(List<Course> courses) {
+  public Message syncData(String syncAction) {
     try {
-      for (Course course : courses) {
-        // Lưu course vào CSV
-        csvDataService.saveCourse(course);
-        LOGGER.info("Synced course: " + course.getCourseCode());
+      switch (syncAction) {
+        case "UPLOAD_TO_SERVER":
+          // Server yêu cầu client upload data
+          return uploadAllCSVData();
+
+        case "DOWNLOAD_FROM_SERVER":
+          // Server gửi data về client
+          return downloadFromServer();
+
+        case "NO_SYNC_NEEDED":
+          // Không cần sync
+          return Message.createSuccessResponse(Constants.ACTION_SYNC_DATA, "Dữ liệu đã đồng bộ");
+
+        default:
+          return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Unknown sync action");
       }
-      LOGGER.info("Synced " + courses.size() + " courses to CSV");
     } catch (Exception e) {
-      LOGGER.warning("Error syncing courses to CSV: " + e.getMessage());
+      LOGGER.severe("Error syncing data: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Error: " + e.getMessage());
     }
   }
 
   /**
-   * Đồng bộ danh sách đăng ký từ server về CSV
+   * Download dữ liệu từ server về CSV (placeholder - cần implement later)
    */
-  private void syncEnrollmentsToCSV(List<Enrollment> enrollments) {
+  private Message downloadFromServer() {
     try {
-      for (Enrollment enrollment : enrollments) {
-        // Lưu enrollment vào CSV
-        csvDataService.saveEnrollment(enrollment);
-        LOGGER.info("Synced enrollment: " + enrollment.getEnrollmentId());
-      }
-      LOGGER.info("Synced " + enrollments.size() + " enrollments to CSV");
+      LOGGER.info("Downloading data from server to CSV...");
+
+      // TODO: Implement download logic
+      // Đây là placeholder, cần implement sau
+
+      Message response = Message.createSuccessResponse("DOWNLOAD_FROM_SERVER",
+          "Download feature not yet implemented");
+
+      return response;
     } catch (Exception e) {
-      LOGGER.warning("Error syncing enrollments to CSV: " + e.getMessage());
+      LOGGER.severe("Error downloading data: " + e.getMessage());
+      return Message.createErrorResponse("DOWNLOAD_FROM_SERVER", "Error: " + e.getMessage());
     }
+  }
+
+  /**
+   * Xử lý response từ server về metadata
+   */
+  private void handleMetadataResponse(Message response) {
+    if (response.isSuccess()) {
+      String syncAction = (String) response.getData("sync_action");
+      response.getData("server_version");
+
+      LOGGER.info("Sync action from server: " + syncAction);
+
+      if ("UPLOAD_TO_SERVER".equals(syncAction)) {
+        // Hiển thị thông báo cho user để manual sync
+        LOGGER.info("Server requires upload. User needs to click Sync button.");
+      } else if ("DOWNLOAD_FROM_SERVER".equals(syncAction)) {
+        // Tự động download
+        syncData("DOWNLOAD_FROM_SERVER");
+      }
+    }
+  }
+
+  /**
+   * Upload tất cả sinh viên từ CSV lên server
+   */
+  public Message uploadAllStudentsFromCSV() {
+    try {
+      // Lấy danh sách sinh viên từ CSV
+      List<Student> students = csvDataService.getAllStudents();
+
+      if (students.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_STUDENTS", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + students.size() + " students from CSV to server");
+
+      // Gửi yêu cầu upload lên server
+      Message request = Message.createRequest("UPLOAD_STUDENTS");
+      request.addData("students", students);
+      request.addData("total", students.size());
+
+      Message response = sendCSVRequestAndWait(request, 180);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + students.size() + " students from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload students from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading students from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_STUDENTS", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả khóa học từ CSV lên server
+   */
+  public Message uploadAllCoursesFromCSV() {
+    try {
+      // Lấy danh sách khóa học từ CSV
+      List<Course> courses = csvDataService.getAllCourses();
+
+      if (courses.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_COURSES", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + courses.size() + " courses from CSV to server");
+
+      // Gửi yêu cầu upload lên server
+      Message request = Message.createRequest("UPLOAD_COURSES");
+      request.addData("courses", courses);
+      request.addData("total", courses.size());
+
+      Message response = sendCSVRequestAndWait(request, 180);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + courses.size() + " courses from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload courses from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading courses from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_COURSES", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả đăng ký từ CSV lên server
+   */
+  public Message uploadAllEnrollmentsFromCSV() {
+    try {
+      // Lấy danh sách đăng ký từ CSV
+      List<Enrollment> enrollments = csvDataService.getAllEnrollments();
+
+      if (enrollments.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_ENROLLMENTS", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + enrollments.size() + " enrollments from CSV to server");
+
+      // Gửi yêu cầu upload lên server
+      Message request = Message.createRequest("UPLOAD_ENROLLMENTS");
+      request.addData("enrollments", enrollments);
+      request.addData("total", enrollments.size());
+
+      Message response = sendCSVRequestAndWait(request, 180);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + enrollments.size() + " enrollments from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload enrollments from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading enrollments from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_ENROLLMENTS", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả dữ liệu CSV lên server
+   */
+  public Message uploadAllCSVData() {
+    try {
+      LOGGER.info("Starting full CSV data upload to server");
+
+      // Upload users first to satisfy FK for students
+      Message usersResponse = uploadAllUsersFromCSV();
+      if (!usersResponse.isSuccess()) {
+        LOGGER.warning("Failed to upload users: " + usersResponse.getMessage());
+      }
+
+      // Upload students
+      Message studentsResponse = uploadAllStudentsFromCSV();
+      if (!studentsResponse.isSuccess()) {
+        LOGGER.warning("Failed to upload students: " + studentsResponse.getMessage());
+      }
+
+      // Upload courses
+      Message coursesResponse = uploadAllCoursesFromCSV();
+      if (!coursesResponse.isSuccess()) {
+        LOGGER.warning("Failed to upload courses: " + coursesResponse.getMessage());
+      }
+
+      // Upload enrollments
+      Message enrollmentsResponse = uploadAllEnrollmentsFromCSV();
+      if (!enrollmentsResponse.isSuccess()) {
+        LOGGER.warning("Failed to upload enrollments: " + enrollmentsResponse.getMessage());
+      }
+
+      // Return success if at least one upload succeeded
+      if (usersResponse.isSuccess() || studentsResponse.isSuccess() || coursesResponse.isSuccess()
+          || enrollmentsResponse.isSuccess()) {
+        LOGGER.info("CSV data upload completed with some successes");
+        return Message.createSuccessResponse("UPLOAD_ALL_CSV", "CSV data upload completed");
+      } else {
+        return Message.createErrorResponse("UPLOAD_ALL_CSV", "All uploads failed");
+      }
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading CSV data: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_ALL_CSV", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả users từ CSV lên server
+   */
+  public Message uploadAllUsersFromCSV() {
+    try {
+      java.util.List<com.university.sms.model.User> users = csvDataService.getAllUsers();
+      if (users.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_USERS", "CSV file is empty, nothing to upload");
+      }
+      LOGGER.info("Starting upload of " + users.size() + " users from CSV to server");
+      Message request = Message.createRequest(Constants.ACTION_UPLOAD_USERS);
+      request.addData("users", users);
+      request.addData("total", users.size());
+      Message response = sendCSVRequestAndWait(request, 180);
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + users.size() + " users from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload users from CSV: " + response.getMessage());
+      }
+      return response;
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading users from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_USERS", "Error: " + e.getMessage());
+    }
+  }
+
+  @Override
+  protected void onConnect() {
+    CompletableFuture.runAsync(() -> {
+      try {
+        Thread.sleep(500);
+        Message metadataResponse = sendMetadata();
+        handleMetadataResponse(metadataResponse);
+      } catch (Exception e) {
+        LOGGER.warning("Error checking metadata: " + e.getMessage());
+      }
+    });
+  }
+
+  public Message manualSync() {
+    Message metadataResponse = sendMetadata();
+    if (metadataResponse.isSuccess()) {
+      String syncAction = (String) metadataResponse.getData("sync_action");
+      return syncData(syncAction);
+    }
+    return metadataResponse;
   }
 }

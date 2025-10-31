@@ -21,10 +21,10 @@ public class UserDAO {
      */
     public boolean addUser(User user) {
         String sql = "INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?)";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
             stmt.setString(1, user.getUsername());
             stmt.setString(2, user.getPassword()); // Lưu plain text cho dễ test
             stmt.setString(3, user.getEmail());
@@ -32,9 +32,9 @@ public class UserDAO {
             stmt.setString(5, user.getRole().name().toLowerCase());
             stmt.setString(6, user.getPhone());
             stmt.setString(7, user.getAddress());
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 try (ResultSet rs = stmt.getGeneratedKeys()) {
                     if (rs.next()) {
@@ -44,12 +44,54 @@ public class UserDAO {
                 LOGGER.info("User added successfully: " + user.getUsername());
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error adding user: " + user.getUsername(), e);
         }
-        
+
         return false;
+    }
+
+    /**
+     * Thêm mới hoặc cập nhật theo username. Nếu chưa tồn tại và userId > 0, chèn
+     * giữ nguyên user_id.
+     */
+    public boolean addOrUpdatePreserveId(User user) {
+        try {
+            User existing = findByUsername(user.getUsername());
+            if (existing != null) {
+                user.setUserId(existing.getUserId());
+                return updateUser(user);
+            }
+
+            if (user.getUserId() > 0) {
+                String insertWithId = "INSERT INTO users (user_id, username, password, email, full_name, role, phone, address) "
+                        +
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                try (Connection conn = DatabaseConnection.getConnection();
+                        PreparedStatement stmt = conn.prepareStatement(insertWithId)) {
+                    stmt.setInt(1, user.getUserId());
+                    stmt.setString(2, user.getUsername());
+                    stmt.setString(3, user.getPassword());
+                    stmt.setString(4, user.getEmail());
+                    stmt.setString(5, user.getFullName());
+                    stmt.setString(6, user.getRole().name().toLowerCase());
+                    stmt.setString(7, user.getPhone());
+                    stmt.setString(8, user.getAddress());
+                    int result = stmt.executeUpdate();
+                    if (result > 0) {
+                        LOGGER.info("User added with explicit ID: " + user.getUserId());
+                        return true;
+                    }
+                }
+                return false;
+            }
+
+            return addUser(user);
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error addOrUpdatePreserveId user: " + user.getUsername(), e);
+            return false;
+        }
     }
 
     /**
@@ -57,12 +99,12 @@ public class UserDAO {
      */
     public User authenticate(String username, String password) {
         String sql = "SELECT * FROM users WHERE username = ? AND is_active = TRUE";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, username);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String storedPassword = rs.getString("password");
@@ -73,11 +115,11 @@ public class UserDAO {
                     }
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error authenticating user: " + username, e);
         }
-        
+
         return null;
     }
 
@@ -86,22 +128,22 @@ public class UserDAO {
      */
     public User findById(int userId) {
         String sql = "SELECT * FROM users WHERE user_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, userId);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToUser(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding user by ID: " + userId, e);
         }
-        
+
         return null;
     }
 
@@ -110,22 +152,22 @@ public class UserDAO {
      */
     public User findByUsername(String username) {
         String sql = "SELECT * FROM users WHERE username = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, username);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToUser(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding user by username: " + username, e);
         }
-        
+
         return null;
     }
 
@@ -135,22 +177,22 @@ public class UserDAO {
     public List<User> findByRole(User.UserRole role) {
         String sql = "SELECT * FROM users WHERE role = ? AND is_active = TRUE ORDER BY full_name";
         List<User> users = new ArrayList<>();
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, role.name().toLowerCase());
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     users.add(mapResultSetToUser(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding users by role: " + role, e);
         }
-        
+
         return users;
     }
 
@@ -159,27 +201,27 @@ public class UserDAO {
      */
     public boolean updateUser(User user) {
         String sql = "UPDATE users SET email = ?, full_name = ?, phone = ?, address = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, user.getEmail());
             stmt.setString(2, user.getFullName());
             stmt.setString(3, user.getPhone());
             stmt.setString(4, user.getAddress());
             stmt.setInt(5, user.getUserId());
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("User updated successfully: " + user.getUsername());
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating user: " + user.getUserId(), e);
         }
-        
+
         return false;
     }
 
@@ -188,24 +230,24 @@ public class UserDAO {
      */
     public boolean changePassword(int userId, String newPassword) {
         String sql = "UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, newPassword); // Lưu plain text
             stmt.setInt(2, userId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Password changed successfully for user ID: " + userId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error changing password for user ID: " + userId, e);
         }
-        
+
         return false;
     }
 
@@ -214,23 +256,23 @@ public class UserDAO {
      */
     public boolean deactivateUser(int userId) {
         String sql = "UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, userId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("User deactivated successfully: " + userId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error deactivating user: " + userId, e);
         }
-        
+
         return false;
     }
 
@@ -239,17 +281,17 @@ public class UserDAO {
      */
     public void logLogin(int userId, String ipAddress, String userAgent, String status) {
         String sql = "INSERT INTO login_history (user_id, ip_address, user_agent, login_status) VALUES (?, ?, ?, ?)";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, userId);
             stmt.setString(2, ipAddress);
             stmt.setString(3, userAgent);
             stmt.setString(4, status);
-            
+
             stmt.executeUpdate();
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.WARNING, "Error logging user login", e);
         }

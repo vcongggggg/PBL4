@@ -183,7 +183,7 @@ CREATE TABLE notifications (
     priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
     is_read BOOLEAN DEFAULT FALSE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    expires_at TIMESTAMP,
+    expires_at TIMESTAMP NULL DEFAULT NULL,
     FOREIGN KEY (sender_id) REFERENCES users(user_id)
 );
 
@@ -211,6 +211,19 @@ CREATE TABLE system_config (
     updated_by INT,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     FOREIGN KEY (updated_by) REFERENCES users(user_id)
+);
+
+-- ===============================================
+-- 13. BẢNG GẮN NGUỒN DỮ LIỆU (DATA_ORIGIN)
+--  Lưu provenance: mỗi bản ghi thuộc entity nào được tải lên từ nguồn nào
+-- ===============================================
+CREATE TABLE IF NOT EXISTS data_origin (
+    entity_type VARCHAR(32) NOT NULL, -- 'student' | 'course' | 'enrollment' | ...
+    entity_id INT NOT NULL,
+    source VARCHAR(32) NOT NULL,      -- 'CSV' | 'POSTGRES' | 'MYSQL' | 'REGULAR' | ...
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    PRIMARY KEY (entity_type, entity_id)
 );
 
 -- ===============================================
@@ -261,11 +274,13 @@ SELECT
     s.admission_year,
     s.gpa,
     s.total_credits,
-    s.student_status
+    s.student_status,
+    dor.source AS data_source
 FROM students s
 JOIN users u ON s.user_id = u.user_id
 JOIN departments d ON s.department_id = d.department_id
-LEFT JOIN classes c ON s.class_id = c.class_id;
+LEFT JOIN classes c ON s.class_id = c.class_id
+LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id;
 
 -- View thông tin khóa học
 CREATE VIEW v_course_info AS
@@ -283,11 +298,13 @@ SELECT
     co.room,
     co.current_students,
     co.max_students,
-    co.course_status
+    co.course_status,
+    dor.source AS data_source
 FROM courses co
 JOIN subjects sub ON co.subject_id = sub.subject_id
 JOIN users u ON co.teacher_id = u.user_id
-LEFT JOIN classes cl ON co.class_id = cl.class_id;
+LEFT JOIN classes cl ON co.class_id = cl.class_id
+LEFT JOIN data_origin dor ON dor.entity_type = 'course' AND dor.entity_id = co.course_id;
 
 -- View bảng điểm sinh viên
 CREATE VIEW v_student_grades AS
@@ -353,6 +370,102 @@ BEGIN
         AND enrollment_status = 'enrolled'
     )
     WHERE course_id = OLD.course_id;
+END//
+DELIMITER ;
+
+-- ===============================================
+-- TRIGGERS ĐỂ TỰ ĐỘNG TĂNG VERSION KHI DATA THAY ĐỔI
+-- ===============================================
+
+DELIMITER //
+-- Trigger tăng version khi có INSERT vào students
+CREATE TRIGGER tr_students_insert_version
+AFTER INSERT ON students
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có UPDATE vào students
+CREATE TRIGGER tr_students_update_version
+AFTER UPDATE ON students
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có DELETE từ students
+CREATE TRIGGER tr_students_delete_version
+AFTER DELETE ON students
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có INSERT vào courses
+CREATE TRIGGER tr_courses_insert_version
+AFTER INSERT ON courses
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có UPDATE vào courses
+CREATE TRIGGER tr_courses_update_version
+AFTER UPDATE ON courses
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có DELETE từ courses
+CREATE TRIGGER tr_courses_delete_version
+AFTER DELETE ON courses
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có INSERT vào enrollments
+CREATE TRIGGER tr_enrollments_insert_version
+AFTER INSERT ON enrollments
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có UPDATE vào enrollments
+CREATE TRIGGER tr_enrollments_update_version
+AFTER UPDATE ON enrollments
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
+END//
+
+-- Trigger tăng version khi có DELETE từ enrollments
+CREATE TRIGGER tr_enrollments_delete_version
+AFTER DELETE ON enrollments
+FOR EACH ROW
+BEGIN
+    UPDATE system_config 
+    SET config_value = CAST(config_value AS UNSIGNED) + 1
+    WHERE config_key = 'db_version';
 END//
 DELIMITER ;
 
@@ -526,7 +639,8 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
 ('semester_current', '1', 'Học kỳ hiện tại'),
 ('max_credits_per_semester', '24', 'Số tín chỉ tối đa mỗi học kỳ'),
 ('min_attendance_rate', '80', 'Tỷ lệ điểm danh tối thiểu (%)'),
-('passing_grade', '5.0', 'Điểm đậu tối thiểu');
+('passing_grade', '5.0', 'Điểm đậu tối thiểu'),
+('db_version', '1', 'Database version cho sync mechanism');
 
 -- Thêm admin mặc định
 INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES

@@ -11,7 +11,7 @@ import java.util.logging.Logger;
  */
 public class CourseService {
     private static final Logger LOGGER = Logger.getLogger(CourseService.class.getName());
-    
+
     private CourseDAO courseDAO;
 
     public CourseService() {
@@ -121,11 +121,11 @@ public class CourseService {
 
         // Validate required fields
         if (course.getCourseCode() == null || course.getCourseCode().trim().isEmpty() ||
-            course.getSubjectId() <= 0 ||
-            course.getTeacherId() <= 0 ||
-            course.getAcademicYear() == null || course.getAcademicYear().trim().isEmpty() ||
-            course.getSemester() <= 0) {
-            
+                course.getSubjectId() <= 0 ||
+                course.getTeacherId() <= 0 ||
+                course.getAcademicYear() == null || course.getAcademicYear().trim().isEmpty() ||
+                course.getSemester() <= 0) {
+
             LOGGER.warning("Cannot add course: Missing required fields");
             return false;
         }
@@ -269,7 +269,7 @@ public class CourseService {
 
             // Check if course is in planning or ongoing status
             if (course.getCourseStatus() != Course.CourseStatus.PLANNING &&
-                course.getCourseStatus() != Course.CourseStatus.ONGOING) {
+                    course.getCourseStatus() != Course.CourseStatus.ONGOING) {
                 return false;
             }
 
@@ -329,35 +329,35 @@ public class CourseService {
     public CourseStatistics getCourseStatistics(String academicYear, int semester) {
         try {
             List<Course> courses = courseDAO.findByAcademicYearAndSemester(academicYear, semester);
-            
+
             CourseStatistics stats = new CourseStatistics();
             stats.setTotalCourses(courses.size());
-            
+
             long planningCount = courses.stream()
-                .filter(c -> c.getCourseStatus() == Course.CourseStatus.PLANNING)
-                .count();
+                    .filter(c -> c.getCourseStatus() == Course.CourseStatus.PLANNING)
+                    .count();
             stats.setPlanningCourses((int) planningCount);
-            
+
             long ongoingCount = courses.stream()
-                .filter(c -> c.getCourseStatus() == Course.CourseStatus.ONGOING)
-                .count();
+                    .filter(c -> c.getCourseStatus() == Course.CourseStatus.ONGOING)
+                    .count();
             stats.setOngoingCourses((int) ongoingCount);
-            
+
             long completedCount = courses.stream()
-                .filter(c -> c.getCourseStatus() == Course.CourseStatus.COMPLETED)
-                .count();
+                    .filter(c -> c.getCourseStatus() == Course.CourseStatus.COMPLETED)
+                    .count();
             stats.setCompletedCourses((int) completedCount);
-            
+
             long cancelledCount = courses.stream()
-                .filter(c -> c.getCourseStatus() == Course.CourseStatus.CANCELLED)
-                .count();
+                    .filter(c -> c.getCourseStatus() == Course.CourseStatus.CANCELLED)
+                    .count();
             stats.setCancelledCourses((int) cancelledCount);
-            
+
             int totalEnrollments = courses.stream()
-                .mapToInt(Course::getCurrentStudents)
-                .sum();
+                    .mapToInt(Course::getCurrentStudents)
+                    .sum();
             stats.setTotalEnrollments(totalEnrollments);
-            
+
             return stats;
         } catch (Exception e) {
             LOGGER.severe("Error getting course statistics: " + e.getMessage());
@@ -372,7 +372,7 @@ public class CourseService {
         if (courseCode == null || courseCode.trim().isEmpty()) {
             return false;
         }
-        
+
         // Course code format: SUBJECT_YEAR_SEMESTER (e.g., CNTT101_2024_1)
         String codeRegex = "^[A-Z]+\\d+_\\d{4}_\\d+$";
         return courseCode.matches(codeRegex);
@@ -390,22 +390,64 @@ public class CourseService {
         private int totalEnrollments;
 
         // Getters and setters
-        public int getTotalCourses() { return totalCourses; }
-        public void setTotalCourses(int totalCourses) { this.totalCourses = totalCourses; }
-        
-        public int getPlanningCourses() { return planningCourses; }
-        public void setPlanningCourses(int planningCourses) { this.planningCourses = planningCourses; }
-        
-        public int getOngoingCourses() { return ongoingCourses; }
-        public void setOngoingCourses(int ongoingCourses) { this.ongoingCourses = ongoingCourses; }
-        
-        public int getCompletedCourses() { return completedCourses; }
-        public void setCompletedCourses(int completedCourses) { this.completedCourses = completedCourses; }
-        
-        public int getCancelledCourses() { return cancelledCourses; }
-        public void setCancelledCourses(int cancelledCourses) { this.cancelledCourses = cancelledCourses; }
-        
-        public int getTotalEnrollments() { return totalEnrollments; }
-        public void setTotalEnrollments(int totalEnrollments) { this.totalEnrollments = totalEnrollments; }
+        public int getTotalCourses() {
+            return totalCourses;
+        }
+
+        public void setTotalCourses(int totalCourses) {
+            this.totalCourses = totalCourses;
+        }
+
+        public int getPlanningCourses() {
+            return planningCourses;
+        }
+
+        public void setPlanningCourses(int planningCourses) {
+            this.planningCourses = planningCourses;
+        }
+
+        public int getOngoingCourses() {
+            return ongoingCourses;
+        }
+
+        public void setOngoingCourses(int ongoingCourses) {
+            this.ongoingCourses = ongoingCourses;
+        }
+
+        public int getCompletedCourses() {
+            return completedCourses;
+        }
+
+        public void setCompletedCourses(int completedCourses) {
+            this.completedCourses = completedCourses;
+        }
+
+        public int getCancelledCourses() {
+            return cancelledCourses;
+        }
+
+        public void setCancelledCourses(int cancelledCourses) {
+            this.cancelledCourses = cancelledCourses;
+        }
+
+        public int getTotalEnrollments() {
+            return totalEnrollments;
+        }
+
+        public void setTotalEnrollments(int totalEnrollments) {
+            this.totalEnrollments = totalEnrollments;
+        }
+    }
+
+    /**
+     * Lấy tổng số lượng khóa học
+     */
+    public int getTotalCount() {
+        try {
+            return courseDAO.getTotalCount();
+        } catch (Exception e) {
+            LOGGER.severe("Error getting total course count: " + e.getMessage());
+            return 0;
+        }
     }
 }
