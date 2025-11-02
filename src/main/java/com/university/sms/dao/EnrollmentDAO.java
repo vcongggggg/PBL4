@@ -201,32 +201,6 @@ public class EnrollmentDAO {
     }
 
     /**
-     * Cập nhật tỷ lệ điểm danh
-     */
-    public boolean updateAttendanceRate(int enrollmentId, BigDecimal attendanceRate) {
-        String sql = "UPDATE enrollments SET attendance_rate = ? WHERE enrollment_id = ?";
-        
-        try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setBigDecimal(1, attendanceRate);
-            stmt.setInt(2, enrollmentId);
-            
-            int result = stmt.executeUpdate();
-            
-            if (result > 0) {
-                LOGGER.info("Attendance rate updated successfully: " + enrollmentId);
-                return true;
-            }
-            
-        } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error updating attendance rate: " + enrollmentId, e);
-        }
-        
-        return false;
-    }
-
-    /**
      * Xóa đăng ký
      */
     public boolean deleteEnrollment(int enrollmentId) {

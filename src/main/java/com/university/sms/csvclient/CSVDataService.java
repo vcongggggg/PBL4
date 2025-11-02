@@ -60,7 +60,7 @@ public class CSVDataService {
       Path studentsFile = dataDir.resolve(STUDENTS_FILE);
       if (!Files.exists(studentsFile)) {
         createEmptyCSVFile(studentsFile,
-            "studentId,userId,studentCode,classId,departmentId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
+            "studentId,userId,studentCode,classId,facultyId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
       }
 
       // Tạo file courses.csv trống
@@ -104,7 +104,7 @@ public class CSVDataService {
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
       // Header
       writer.println(
-          "studentId,userId,studentCode,classId,departmentId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
+          "studentId,userId,studentCode,classId,facultyId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
 
       // Sample data
       writer.println(
@@ -333,7 +333,7 @@ public class CSVDataService {
       student.setUserId(Integer.parseInt(fields[1]));
       student.setStudentCode(fields[2]);
       student.setClassId(fields[3].isEmpty() ? null : Integer.parseInt(fields[3]));
-      student.setDepartmentId(Integer.parseInt(fields[4]));
+      student.setFacultyId(Integer.parseInt(fields[4]));
       student.setAdmissionYear(Integer.parseInt(fields[5]));
       student.setStudentStatus(Student.StudentStatus.valueOf(fields[6]));
       student.setGpa(new java.math.BigDecimal(fields[7]));
@@ -447,7 +447,7 @@ public class CSVDataService {
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
       // Header
       writer.println(
-          "studentId,userId,studentCode,classId,departmentId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
+          "studentId,userId,studentCode,classId,facultyId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
 
       // Data
       for (Student student : students) {
@@ -456,7 +456,7 @@ public class CSVDataService {
             student.getUserId(),
             student.getStudentCode(),
             student.getClassId() != null ? student.getClassId() : "",
-            student.getDepartmentId(),
+            student.getFacultyId(),
             student.getAdmissionYear(),
             student.getStudentStatus(),
             student.getGpa(),

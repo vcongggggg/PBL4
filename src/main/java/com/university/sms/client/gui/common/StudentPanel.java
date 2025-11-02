@@ -1,4 +1,4 @@
-package com.university.sms.client.gui;
+package com.university.sms.client.gui.common;
 
 import com.university.sms.client.IServerConnection;
 import com.university.sms.common.Constants;
@@ -29,21 +29,13 @@ public class StudentPanel extends JPanel {
     private JButton searchButton;
     private JButton refreshButton;
     private JButton addButton;
-    private JButton editButton;
     private JButton deleteButton;
 
     private java.util.List<Student> currentStudents;
 
-    private JPanel studentInfoPanel;
-    private JTextField studentCodeField;
-    private JTextField fullNameField;
-    private JTextField emailField;
-    private JTextField phoneField;
-    private JTextField departmentField;
-    private JTextField classField;
-    private JTextField gpaField;
-    private JTextField creditsField;
-    private JTextField statusField;
+    // Log area components
+    private JTextArea logArea;
+    private JScrollPane logScrollPane;
 
     public StudentPanel(User currentUser, IServerConnection serverConnection, boolean isReadOnly) {
         this.currentUser = currentUser;
@@ -57,17 +49,26 @@ public class StudentPanel extends JPanel {
     }
 
     private void initializeComponents() {
-        // Create table
-        String[] columnNames = { "Mã SV", "Họ tên", "Email", "Khoa", "Lớp", "GPA", "Tín chỉ", "Trạng thái" };
+        // Create table with Edit button column
+        String[] columnNames = { "Mã SV", "Họ tên", "Email", "Khoa", "Lớp", "GPA", "Tín chỉ", "Trạng thái", "Thao tác" };
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return false;
+                return column == 8; // Only the "Thao tác" column is editable
+            }
+            
+            @Override
+            public Class<?> getColumnClass(int column) {
+                return column == 8 ? JButton.class : Object.class;
             }
         };
         studentTable = new JTable(tableModel);
         studentTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
-        studentTable.setRowHeight(25);
+        studentTable.setRowHeight(30);
+        
+        // Add button renderer and editor for Edit column
+        studentTable.getColumn("Thao tác").setCellRenderer(new ButtonRenderer());
+        studentTable.getColumn("Thao tác").setCellEditor(new ButtonEditor(new JCheckBox()));
 
         // Create search components
         searchField = new JTextField(20);
@@ -76,102 +77,19 @@ public class StudentPanel extends JPanel {
 
         // Create action buttons
         addButton = new JButton("Thêm");
-        editButton = new JButton("Sửa");
         deleteButton = new JButton("Xóa");
 
-        // Create student info panel
-        createStudentInfoPanel();
+        // Create log area
+        logArea = new JTextArea();
+        logArea.setEditable(false);
+        logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+        logScrollPane = new JScrollPane(logArea);
+        logScrollPane.setBorder(BorderFactory.createTitledBorder("Log hoạt động"));
 
         // Set button states based on user role and read-only mode
         setupButtonStates();
     }
 
-    private void createStudentInfoPanel() {
-        studentInfoPanel = new JPanel(new GridBagLayout());
-        studentInfoPanel.setBorder(BorderFactory.createTitledBorder("Thông tin sinh viên"));
-
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
-
-        // Create text fields
-        studentCodeField = new JTextField(15);
-        fullNameField = new JTextField(15);
-        emailField = new JTextField(15);
-        phoneField = new JTextField(15);
-        departmentField = new JTextField(15);
-        classField = new JTextField(15);
-        gpaField = new JTextField(15);
-        creditsField = new JTextField(15);
-        statusField = new JTextField(15);
-
-        // Make fields read-only if necessary
-        if (isReadOnly) {
-            setFieldsReadOnly(true);
-        }
-
-        // Layout components
-        int row = 0;
-
-        // Row 1
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        studentInfoPanel.add(new JLabel("Mã sinh viên:"), gbc);
-        gbc.gridx = 1;
-        studentInfoPanel.add(studentCodeField, gbc);
-        gbc.gridx = 2;
-        studentInfoPanel.add(new JLabel("Họ tên:"), gbc);
-        gbc.gridx = 3;
-        studentInfoPanel.add(fullNameField, gbc);
-
-        row++;
-
-        // Row 2
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        studentInfoPanel.add(new JLabel("Email:"), gbc);
-        gbc.gridx = 1;
-        studentInfoPanel.add(emailField, gbc);
-        gbc.gridx = 2;
-        studentInfoPanel.add(new JLabel("Số điện thoại:"), gbc);
-        gbc.gridx = 3;
-        studentInfoPanel.add(phoneField, gbc);
-
-        row++;
-
-        // Row 3
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        studentInfoPanel.add(new JLabel("Khoa:"), gbc);
-        gbc.gridx = 1;
-        studentInfoPanel.add(departmentField, gbc);
-        gbc.gridx = 2;
-        studentInfoPanel.add(new JLabel("Lớp:"), gbc);
-        gbc.gridx = 3;
-        studentInfoPanel.add(classField, gbc);
-
-        row++;
-
-        // Row 4
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        studentInfoPanel.add(new JLabel("GPA:"), gbc);
-        gbc.gridx = 1;
-        studentInfoPanel.add(gpaField, gbc);
-        gbc.gridx = 2;
-        studentInfoPanel.add(new JLabel("Tổng tín chỉ:"), gbc);
-        gbc.gridx = 3;
-        studentInfoPanel.add(creditsField, gbc);
-
-        row++;
-
-        // Row 5
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        studentInfoPanel.add(new JLabel("Trạng thái:"), gbc);
-        gbc.gridx = 1;
-        studentInfoPanel.add(statusField, gbc);
-    }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
@@ -190,23 +108,22 @@ public class StudentPanel extends JPanel {
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(addButton);
-        buttonPanel.add(editButton);
         buttonPanel.add(deleteButton);
         topPanel.add(buttonPanel, BorderLayout.EAST);
 
         add(topPanel, BorderLayout.NORTH);
 
-        // Center panel with table and info
+        // Center panel with table and log area
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setResizeWeight(0.6);
+        splitPane.setResizeWeight(0.7);
 
         // Table panel
         JScrollPane tableScrollPane = new JScrollPane(studentTable);
-        tableScrollPane.setPreferredSize(new Dimension(0, 300));
+        tableScrollPane.setPreferredSize(new Dimension(0, 400));
         splitPane.setTopComponent(tableScrollPane);
 
-        // Info panel
-        splitPane.setBottomComponent(studentInfoPanel);
+        // Log panel
+        splitPane.setBottomComponent(logScrollPane);
 
         add(splitPane, BorderLayout.CENTER);
     }
@@ -236,26 +153,11 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Edit button
-        editButton.addActionListener(new ActionListener() {
-            @Override
-            public void actionPerformed(ActionEvent e) {
-                editSelectedStudent();
-            }
-        });
-
         // Delete button
         deleteButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 deleteSelectedStudent();
-            }
-        });
-
-        // Table selection listener
-        studentTable.getSelectionModel().addListSelectionListener(e -> {
-            if (!e.getValueIsAdjusting()) {
-                displaySelectedStudentInfo();
             }
         });
 
@@ -271,15 +173,19 @@ public class StudentPanel extends JPanel {
     private void setupButtonStates() {
         if (isReadOnly) {
             addButton.setEnabled(false);
-            editButton.setEnabled(false);
             deleteButton.setEnabled(false);
         } else {
             // Enable buttons based on user role
             boolean canModify = currentUser.getRole() == User.UserRole.ADMIN;
             addButton.setEnabled(canModify);
             deleteButton.setEnabled(canModify);
-            editButton.setEnabled(canModify || currentUser.getRole() == User.UserRole.TEACHER);
         }
+    }
+    
+    private void addLog(String message) {
+        String timestamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
+        logArea.append("[" + timestamp + "] " + message + "\n");
+        logArea.setCaretPosition(logArea.getDocument().getLength());
     }
 
     private void loadInitialData() {
@@ -322,17 +228,15 @@ public class StudentPanel extends JPanel {
                 student.getStudentCode(),
                 student.getFullName(),
                 student.getEmail(),
-                "N/A", // Department name would need to be fetched
-                "N/A", // Class name would need to be fetched
+                student.getFacultyName() != null ? student.getFacultyName() : "N/A",
+                student.getClassName() != null ? student.getClassName() : "N/A",
                 student.getGpa(),
                 student.getTotalCredits(),
-                student.getStudentStatus()
+                student.getStudentStatus(),
+                "Xem/Sửa" // Button text
         };
         tableModel.addRow(rowData);
-
-        // Select the row and display info
-        studentTable.setRowSelectionInterval(0, 0);
-        displayStudentInfo(student);
+        addLog("Hiển thị thông tin sinh viên: " + student.getStudentCode());
     }
 
     public void refreshData() {
@@ -375,6 +279,7 @@ public class StudentPanel extends JPanel {
             return;
         }
 
+        addLog("Đang tìm kiếm: " + keyword);
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
@@ -410,60 +315,32 @@ public class StudentPanel extends JPanel {
                     student.getStudentCode(),
                     student.getFullName(),
                     student.getEmail(),
-                    "N/A", // Department name
-                    "N/A", // Class name
+                    student.getFacultyName() != null ? student.getFacultyName() : "N/A",
+                    student.getClassName() != null ? student.getClassName() : "N/A",
                     student.getGpa(),
                     student.getTotalCredits(),
-                    student.getStudentStatus()
+                    student.getStudentStatus(),
+                    "Xem/Sửa" // Button text
             };
             tableModel.addRow(rowData);
         }
+        addLog("Đã tải " + students.size() + " sinh viên");
     }
 
-    private void displaySelectedStudentInfo() {
-        int selectedRow = studentTable.getSelectedRow();
-        if (selectedRow >= 0) {
-            // Get student code from table
-            String studentCode = (String) tableModel.getValueAt(selectedRow, 0);
-
-            // For now, display basic info from table
-            // In a full implementation, you would fetch complete student info
-            studentCodeField.setText((String) tableModel.getValueAt(selectedRow, 0));
-            fullNameField.setText((String) tableModel.getValueAt(selectedRow, 1));
-            emailField.setText((String) tableModel.getValueAt(selectedRow, 2));
-            departmentField.setText((String) tableModel.getValueAt(selectedRow, 3));
-            classField.setText((String) tableModel.getValueAt(selectedRow, 4));
-            gpaField.setText(String.valueOf(tableModel.getValueAt(selectedRow, 5)));
-            creditsField.setText(String.valueOf(tableModel.getValueAt(selectedRow, 6)));
-            statusField.setText(String.valueOf(tableModel.getValueAt(selectedRow, 7)));
-        }
-    }
-
-    private void displayStudentInfo(Student student) {
-        studentCodeField.setText(student.getStudentCode());
-        fullNameField.setText(student.getFullName());
-        emailField.setText(student.getEmail());
-        phoneField.setText(student.getPhone());
-        departmentField.setText("N/A"); // Would need department name
-        classField.setText("N/A"); // Would need class name
-        gpaField.setText(student.getGpa().toString());
-        creditsField.setText(String.valueOf(student.getTotalCredits()));
-        statusField.setText(student.getStudentStatus().toString());
-    }
 
     private void showAddStudentDialog() {
         JTextField code = new JTextField();
         JTextField name = new JTextField();
         JTextField email = new JTextField();
         JTextField phone = new JTextField();
-        JTextField deptId = new JTextField();
+        JTextField facultyId = new JTextField();
         JTextField classId = new JTextField();
         Object[] fields = {
                 "Mã SV:", code,
                 "Họ tên:", name,
                 "Email:", email,
                 "SĐT:", phone,
-                "Khoa (ID):", deptId,
+                "Khoa (ID):", facultyId,
                 "Lớp (ID, có thể để trống):", classId
         };
         int res = JOptionPane.showConfirmDialog(this, fields, "Thêm sinh viên", JOptionPane.OK_CANCEL_OPTION);
@@ -476,9 +353,9 @@ public class StudentPanel extends JPanel {
         s.setEmail(email.getText().trim());
         s.setPhone(phone.getText().trim());
         try {
-            s.setDepartmentId(Integer.parseInt(deptId.getText().trim()));
+            s.setFacultyId(Integer.parseInt(facultyId.getText().trim()));
         } catch (Exception ignored) {
-            s.setDepartmentId(1);
+            s.setFacultyId(1);
         }
         try {
             s.setClassId(classId.getText().trim().isEmpty() ? null : Integer.parseInt(classId.getText().trim()));
@@ -488,6 +365,7 @@ public class StudentPanel extends JPanel {
         s.setAdmissionYear(java.time.LocalDate.now().getYear());
         s.setStudentStatus(com.university.sms.model.Student.StudentStatus.ACTIVE);
 
+        addLog("Đang thêm sinh viên: " + s.getStudentCode());
         addButton.setEnabled(false);
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
@@ -502,6 +380,7 @@ public class StudentPanel extends JPanel {
                     Message resp = get();
                     if (resp.isSuccess()) {
                         refreshData();
+                        addLog("Đã thêm sinh viên thành công");
                         JOptionPane.showMessageDialog(StudentPanel.this, "Đã thêm sinh viên.",
                                 "Thành công", JOptionPane.INFORMATION_MESSAGE);
                     } else {
@@ -509,81 +388,6 @@ public class StudentPanel extends JPanel {
                     }
                 } catch (Exception e) {
                     showErrorMessage("Lỗi khi thêm: " + e.getMessage());
-                }
-            }
-        };
-        worker.execute();
-    }
-
-    private void editSelectedStudent() {
-        int selectedRow = studentTable.getSelectedRow();
-        if (selectedRow < 0) {
-            JOptionPane.showMessageDialog(this, "Vui lòng chọn sinh viên cần sửa.",
-                    "Thông báo", JOptionPane.WARNING_MESSAGE);
-            return;
-        }
-
-        String studentCode = (String) tableModel.getValueAt(selectedRow, 0);
-        com.university.sms.model.Student existing = null;
-        if (currentStudents != null) {
-            for (Student s : currentStudents) {
-                if (studentCode.equals(s.getStudentCode())) {
-                    existing = s;
-                    break;
-                }
-            }
-        }
-        if (existing == null) {
-            showErrorMessage("Không tìm thấy dữ liệu chi tiết sinh viên.");
-            return;
-        }
-
-        JTextField name = new JTextField(existing.getFullName());
-        JTextField email = new JTextField(existing.getEmail());
-        JTextField phone = new JTextField(existing.getPhone());
-        Object[] fields = {
-                "Họ tên:", name,
-                "Email:", email,
-                "SĐT:", phone
-        };
-        int res = JOptionPane.showConfirmDialog(this, fields, "Sửa sinh viên", JOptionPane.OK_CANCEL_OPTION);
-        if (res != JOptionPane.OK_OPTION)
-            return;
-
-        com.university.sms.model.Student toUpdate = new com.university.sms.model.Student();
-        toUpdate.setStudentId(existing.getStudentId());
-        toUpdate.setStudentCode(existing.getStudentCode());
-        toUpdate.setFullName(name.getText().trim());
-        toUpdate.setEmail(email.getText().trim());
-        toUpdate.setPhone(phone.getText().trim());
-        toUpdate.setClassId(existing.getClassId());
-        toUpdate.setBirthDate(existing.getBirthDate());
-        toUpdate.setGender(existing.getGender());
-        toUpdate.setCitizenId(existing.getCitizenId());
-        toUpdate.setEmergencyContact(existing.getEmergencyContact());
-        toUpdate.setEmergencyPhone(existing.getEmergencyPhone());
-
-        editButton.setEnabled(false);
-        SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
-            @Override
-            protected Message doInBackground() throws Exception {
-                return serverConnection.updateStudent(toUpdate);
-            }
-
-            @Override
-            protected void done() {
-                editButton.setEnabled(true);
-                try {
-                    Message resp = get();
-                    if (resp.isSuccess()) {
-                        refreshData();
-                        JOptionPane.showMessageDialog(StudentPanel.this, "Đã cập nhật sinh viên.",
-                                "Thành công", JOptionPane.INFORMATION_MESSAGE);
-                    } else {
-                        showErrorMessage("Cập nhật thất bại: " + resp.getMessage());
-                    }
-                } catch (Exception e) {
-                    showErrorMessage("Lỗi khi cập nhật: " + e.getMessage());
                 }
             }
         };
@@ -619,6 +423,7 @@ public class StudentPanel extends JPanel {
                 return;
             }
 
+            addLog("Đang xóa sinh viên: " + studentCode);
             deleteButton.setEnabled(false);
             final int sid = studentId;
             SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
@@ -634,6 +439,7 @@ public class StudentPanel extends JPanel {
                         Message resp = get();
                         if (resp.isSuccess()) {
                             refreshData();
+                            addLog("Đã xóa sinh viên thành công");
                             JOptionPane.showMessageDialog(StudentPanel.this, "Đã xóa sinh viên.",
                                     "Thành công", JOptionPane.INFORMATION_MESSAGE);
                         } else {
@@ -648,19 +454,96 @@ public class StudentPanel extends JPanel {
         }
     }
 
-    private void setFieldsReadOnly(boolean readOnly) {
-        studentCodeField.setEditable(!readOnly);
-        fullNameField.setEditable(!readOnly);
-        emailField.setEditable(!readOnly);
-        phoneField.setEditable(!readOnly);
-        departmentField.setEditable(!readOnly);
-        classField.setEditable(!readOnly);
-        gpaField.setEditable(!readOnly);
-        creditsField.setEditable(!readOnly);
-        statusField.setEditable(!readOnly);
-    }
-
     private void showErrorMessage(String message) {
         JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
+        addLog("LỖI: " + message);
+    }
+    
+    // Button Renderer for table
+    class ButtonRenderer extends JButton implements javax.swing.table.TableCellRenderer {
+        public ButtonRenderer() {
+            setOpaque(true);
+        }
+        
+        @Override
+        public Component getTableCellRendererComponent(JTable table, Object value,
+                boolean isSelected, boolean hasFocus, int row, int column) {
+            setText((value == null) ? "Xem/Sửa" : value.toString());
+            return this;
+        }
+    }
+    
+    // Button Editor for table
+    class ButtonEditor extends DefaultCellEditor {
+        private JButton button;
+        private String label;
+        private boolean isPushed;
+        private int editingRow;
+        
+        public ButtonEditor(JCheckBox checkBox) {
+            super(checkBox);
+            button = new JButton();
+            button.setOpaque(true);
+            button.addActionListener(new ActionListener() {
+                @Override
+                public void actionPerformed(ActionEvent e) {
+                    fireEditingStopped();
+                }
+            });
+        }
+        
+        @Override
+        public Component getTableCellEditorComponent(JTable table, Object value,
+                boolean isSelected, int row, int column) {
+            label = (value == null) ? "Xem/Sửa" : value.toString();
+            button.setText(label);
+            isPushed = true;
+            editingRow = row;
+            return button;
+        }
+        
+        @Override
+        public Object getCellEditorValue() {
+            if (isPushed && editingRow >= 0 && editingRow < currentStudents.size()) {
+                Student student = currentStudents.get(editingRow);
+                // Use SwingUtilities.invokeLater to avoid issues with cell editing
+                SwingUtilities.invokeLater(new Runnable() {
+                    @Override
+                    public void run() {
+                        showStudentDetailDialog(student);
+                    }
+                });
+            }
+            isPushed = false;
+            return label;
+        }
+        
+        @Override
+        public boolean stopCellEditing() {
+            isPushed = false;
+            return super.stopCellEditing();
+        }
+        
+        @Override
+        protected void fireEditingStopped() {
+            super.fireEditingStopped();
+        }
+    }
+    
+    // Show Student Detail Dialog
+    private void showStudentDetailDialog(Student student) {
+        StudentDetailDialog dialog = new StudentDetailDialog(
+            (Frame) SwingUtilities.getWindowAncestor(this),
+            student,
+            serverConnection,
+            currentUser,
+            isReadOnly
+        );
+        dialog.setVisible(true);
+        
+        if (dialog.isDataChanged()) {
+            refreshData();
+            addLog("Đã cập nhật thông tin sinh viên: " + student.getStudentCode());
+        }
     }
 }

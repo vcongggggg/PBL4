@@ -3,13 +3,13 @@ package com.university.sms.model;
 import java.sql.Timestamp;
 
 /**
- * Model class cho bảng departments
+ * Model class cho bảng faculties
  */
-public class Department implements java.io.Serializable {
+public class Faculty implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
-    private int departmentId;
-    private String departmentCode;
-    private String departmentName;
+    private int facultyId;
+    private String facultyCode;
+    private String facultyName;
     private String description;
     private Integer headTeacherId;
     private Timestamp createdAt;
@@ -18,37 +18,37 @@ public class Department implements java.io.Serializable {
     private String headTeacherName;
 
     // Constructors
-    public Department() {}
+    public Faculty() {}
 
-    public Department(String departmentCode, String departmentName, String description) {
-        this.departmentCode = departmentCode;
-        this.departmentName = departmentName;
+    public Faculty(String facultyCode, String facultyName, String description) {
+        this.facultyCode = facultyCode;
+        this.facultyName = facultyName;
         this.description = description;
     }
 
     // Getters and Setters
-    public int getDepartmentId() {
-        return departmentId;
+    public int getFacultyId() {
+        return facultyId;
     }
 
-    public void setDepartmentId(int departmentId) {
-        this.departmentId = departmentId;
+    public void setFacultyId(int facultyId) {
+        this.facultyId = facultyId;
     }
 
-    public String getDepartmentCode() {
-        return departmentCode;
+    public String getFacultyCode() {
+        return facultyCode;
     }
 
-    public void setDepartmentCode(String departmentCode) {
-        this.departmentCode = departmentCode;
+    public void setFacultyCode(String facultyCode) {
+        this.facultyCode = facultyCode;
     }
 
-    public String getDepartmentName() {
-        return departmentName;
+    public String getFacultyName() {
+        return facultyName;
     }
 
-    public void setDepartmentName(String departmentName) {
-        this.departmentName = departmentName;
+    public void setFacultyName(String facultyName) {
+        this.facultyName = facultyName;
     }
 
     public String getDescription() {
@@ -85,11 +85,12 @@ public class Department implements java.io.Serializable {
 
     @Override
     public String toString() {
-        return "Department{" +
-                "departmentId=" + departmentId +
-                ", departmentCode='" + departmentCode + '\'' +
-                ", departmentName='" + departmentName + '\'' +
+        return "Faculty{" +
+                "facultyId=" + facultyId +
+                ", facultyCode='" + facultyCode + '\'' +
+                ", facultyName='" + facultyName + '\'' +
                 ", headTeacherName='" + headTeacherName + '\'' +
                 '}';
     }
 }
+

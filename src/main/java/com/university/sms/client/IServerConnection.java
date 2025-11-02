@@ -54,4 +54,7 @@ public interface IServerConnection {
 
   // User profile
   Message changePassword(String newPassword);
+
+  // Generic request sender for custom actions
+  Message sendRequest(Message request);
 }

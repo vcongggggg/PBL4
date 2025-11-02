@@ -1,7 +1,7 @@
 package com.university.sms.client;
 
 import com.formdev.flatlaf.FlatLightLaf;
-import com.university.sms.client.gui.LoginFrame;
+import com.university.sms.client.gui.common.LoginFrame;
 
 import javax.swing.*;
 import java.util.logging.Logger;

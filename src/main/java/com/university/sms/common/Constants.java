@@ -40,15 +40,10 @@ public class Constants {
     public static final String ACTION_GET_GRADES = "GET_GRADES";
     public static final String ACTION_CALCULATE_FINAL_GRADE = "CALCULATE_FINAL_GRADE";
 
-    // Attendance Actions
-    public static final String ACTION_MARK_ATTENDANCE = "MARK_ATTENDANCE";
-    public static final String ACTION_GET_ATTENDANCE = "GET_ATTENDANCE";
-    public static final String ACTION_UPDATE_ATTENDANCE = "UPDATE_ATTENDANCE";
-
-    // Department Actions
-    public static final String ACTION_GET_DEPARTMENTS = "GET_DEPARTMENTS";
-    public static final String ACTION_ADD_DEPARTMENT = "ADD_DEPARTMENT";
-    public static final String ACTION_UPDATE_DEPARTMENT = "UPDATE_DEPARTMENT";
+    // Faculty Actions
+    public static final String ACTION_GET_FACULTIES = "GET_FACULTIES";
+    public static final String ACTION_ADD_FACULTY = "ADD_FACULTY";
+    public static final String ACTION_UPDATE_FACULTY = "UPDATE_FACULTY";
 
     // Subject Actions
     public static final String ACTION_GET_SUBJECTS = "GET_SUBJECTS";
@@ -63,7 +58,7 @@ public class Constants {
     // Report Actions
     public static final String ACTION_GET_STUDENT_TRANSCRIPT = "GET_STUDENT_TRANSCRIPT";
     public static final String ACTION_GET_CLASS_REPORT = "GET_CLASS_REPORT";
-    public static final String ACTION_GET_DEPARTMENT_REPORT = "GET_DEPARTMENT_REPORT";
+    public static final String ACTION_GET_FACULTY_REPORT = "GET_FACULTY_REPORT";
 
     // Notification Actions
     public static final String ACTION_GET_NOTIFICATIONS = "GET_NOTIFICATIONS";
@@ -84,17 +79,44 @@ public class Constants {
     public static final String ACTION_UPLOAD_COURSES = "UPLOAD_COURSES";
     public static final String ACTION_UPLOAD_ENROLLMENTS = "UPLOAD_ENROLLMENTS";
 
+    // Class Opening Request Actions (Teacher & Admin)
+    public static final String ACTION_GET_ALL_CLASS_REQUESTS = "GET_ALL_CLASS_REQUESTS";
+    public static final String ACTION_GET_CLASS_REQUEST_BY_ID = "GET_CLASS_REQUEST_BY_ID";
+    public static final String ACTION_GET_MY_CLASS_REQUESTS = "GET_MY_CLASS_REQUESTS";
+    public static final String ACTION_GET_PENDING_CLASS_REQUESTS = "GET_PENDING_CLASS_REQUESTS";
+    public static final String ACTION_SUBMIT_CLASS_REQUEST = "SUBMIT_CLASS_REQUEST";
+    public static final String ACTION_UPDATE_CLASS_REQUEST = "UPDATE_CLASS_REQUEST";
+    public static final String ACTION_CANCEL_CLASS_REQUEST = "CANCEL_CLASS_REQUEST";
+    public static final String ACTION_APPROVE_CLASS_REQUEST = "APPROVE_CLASS_REQUEST";
+    public static final String ACTION_REJECT_CLASS_REQUEST = "REJECT_CLASS_REQUEST";
+    public static final String ACTION_GET_CLASS_REQUEST_STATS = "GET_CLASS_REQUEST_STATS";
+
+    // Course Registration Actions (Student & Admin)
+    public static final String ACTION_GET_ALL_REGISTRATIONS = "GET_ALL_REGISTRATIONS";
+    public static final String ACTION_GET_REGISTRATION_BY_ID = "GET_REGISTRATION_BY_ID";
+    public static final String ACTION_GET_MY_REGISTRATIONS = "GET_MY_REGISTRATIONS";
+    public static final String ACTION_GET_COURSE_REGISTRATIONS = "GET_COURSE_REGISTRATIONS";
+    public static final String ACTION_GET_PENDING_REGISTRATIONS = "GET_PENDING_REGISTRATIONS";
+    public static final String ACTION_REGISTER_COURSE = "REGISTER_COURSE";
+    public static final String ACTION_CANCEL_REGISTRATION = "CANCEL_REGISTRATION";
+    public static final String ACTION_APPROVE_REGISTRATION = "APPROVE_REGISTRATION";
+    public static final String ACTION_REJECT_REGISTRATION = "REJECT_REGISTRATION";
+    public static final String ACTION_VALIDATE_REGISTRATION = "VALIDATE_REGISTRATION";
+    public static final String ACTION_GET_STUDENT_CREDITS = "GET_STUDENT_CREDITS";
+    public static final String ACTION_GET_REGISTRATION_STATS = "GET_REGISTRATION_STATS";
+
     // Data Keys
     public static final String KEY_USER = "user";
     public static final String KEY_STUDENT = "student";
     public static final String KEY_COURSE = "course";
     public static final String KEY_ENROLLMENT = "enrollment";
     public static final String KEY_GRADE = "grade";
-    public static final String KEY_ATTENDANCE = "attendance";
-    public static final String KEY_DEPARTMENT = "department";
+    public static final String KEY_FACULTY = "faculty";
     public static final String KEY_SUBJECT = "subject";
     public static final String KEY_CLASS = "class";
     public static final String KEY_NOTIFICATION = "notification";
+    public static final String KEY_CLASS_REQUEST = "classRequest";
+    public static final String KEY_REGISTRATION = "registration";
 
     public static final String KEY_USERNAME = "username";
     public static final String KEY_PASSWORD = "password";
@@ -103,20 +125,30 @@ public class Constants {
     public static final String KEY_COURSE_ID = "courseId";
     public static final String KEY_SEARCH_KEYWORD = "searchKeyword";
     public static final String KEY_CLASS_ID = "classId";
-    public static final String KEY_DEPARTMENT_ID = "departmentId";
+    public static final String KEY_FACULTY_ID = "facultyId";
     public static final String KEY_ACADEMIC_YEAR = "academicYear";
     public static final String KEY_SEMESTER = "semester";
+    public static final String KEY_REQUEST_ID = "requestId";
+    public static final String KEY_REGISTRATION_ID = "registrationId";
+    public static final String KEY_TEACHER_ID = "teacherId";
+    public static final String KEY_SUBJECT_ID = "subjectId";
+    public static final String KEY_ADMIN_ID = "adminId";
+    public static final String KEY_NOTE = "note";
+    public static final String KEY_REASON = "reason";
+    public static final String KEY_STATUS = "status";
+    public static final String KEY_STATISTICS = "statistics";
 
     // Lists
     public static final String KEY_STUDENTS = "students";
     public static final String KEY_COURSES = "courses";
     public static final String KEY_ENROLLMENTS = "enrollments";
     public static final String KEY_GRADES = "grades";
-    public static final String KEY_ATTENDANCES = "attendances";
-    public static final String KEY_DEPARTMENTS = "departments";
+    public static final String KEY_FACULTIES = "faculties";
     public static final String KEY_SUBJECTS = "subjects";
     public static final String KEY_CLASSES = "classes";
     public static final String KEY_NOTIFICATIONS = "notifications";
+    public static final String KEY_CLASS_REQUESTS = "classRequests";
+    public static final String KEY_REGISTRATIONS = "registrations";
 
     // Response Messages
     public static final String MSG_SUCCESS = "Thao tác thành công";

@@ -646,4 +646,12 @@ public class CSVServerConnection extends BaseServerConnection {
     }
     return metadataResponse;
   }
+
+  /**
+   * Generic sendRequest implementation for IServerConnection interface
+   */
+  @Override
+  public Message sendRequest(Message request) {
+    return sendCSVRequestAndWait(request, 60);
+  }
 }

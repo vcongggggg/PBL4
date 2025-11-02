@@ -11,14 +11,14 @@ public class Subject implements java.io.Serializable {
     private String subjectCode;
     private String subjectName;
     private int credits;
-    private int departmentId;
+    private int facultyId;
     private Integer prerequisiteSubjectId;
     private String description;
     private boolean isRequired;
     private Timestamp createdAt;
 
-    // Department information (from join)
-    private String departmentName;
+    // Faculty information (from join)
+    private String facultyName;
     // Prerequisite subject information (from join)
     private String prerequisiteSubjectName;
 
@@ -28,12 +28,12 @@ public class Subject implements java.io.Serializable {
         this.isRequired = true;
     }
 
-    public Subject(String subjectCode, String subjectName, int credits, int departmentId) {
+    public Subject(String subjectCode, String subjectName, int credits, int facultyId) {
         this();
         this.subjectCode = subjectCode;
         this.subjectName = subjectName;
         this.credits = credits;
-        this.departmentId = departmentId;
+        this.facultyId = facultyId;
     }
 
     // Getters and Setters
@@ -69,12 +69,12 @@ public class Subject implements java.io.Serializable {
         this.credits = credits;
     }
 
-    public int getDepartmentId() {
-        return departmentId;
+    public int getFacultyId() {
+        return facultyId;
     }
 
-    public void setDepartmentId(int departmentId) {
-        this.departmentId = departmentId;
+    public void setFacultyId(int facultyId) {
+        this.facultyId = facultyId;
     }
 
     public Integer getPrerequisiteSubjectId() {
@@ -109,12 +109,12 @@ public class Subject implements java.io.Serializable {
         this.createdAt = createdAt;
     }
 
-    public String getDepartmentName() {
-        return departmentName;
+    public String getFacultyName() {
+        return facultyName;
     }
 
-    public void setDepartmentName(String departmentName) {
-        this.departmentName = departmentName;
+    public void setFacultyName(String facultyName) {
+        this.facultyName = facultyName;
     }
 
     public String getPrerequisiteSubjectName() {
@@ -132,7 +132,7 @@ public class Subject implements java.io.Serializable {
                 ", subjectCode='" + subjectCode + '\'' +
                 ", subjectName='" + subjectName + '\'' +
                 ", credits=" + credits +
-                ", departmentName='" + departmentName + '\'' +
+                ", facultyName='" + facultyName + '\'' +
                 '}';
     }
 }

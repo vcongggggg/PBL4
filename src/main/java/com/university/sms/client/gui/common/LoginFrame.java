@@ -1,4 +1,4 @@
-package com.university.sms.client.gui;
+package com.university.sms.client.gui.common;
 
 import com.formdev.flatlaf.FlatLightLaf;
 import com.university.sms.client.IServerConnection;
@@ -16,7 +16,7 @@ import java.awt.event.KeyAdapter;
 import java.awt.event.KeyEvent;
 
 /**
- * Giao diện đăng nhập
+ * Giao diện đăng nhập - Dùng chung cho tất cả roles
  */
 public class LoginFrame extends JFrame {
     // Factory pattern (inner types để tránh tạo file mới)
@@ -435,11 +435,27 @@ public class LoginFrame extends JFrame {
             // Hide login window
             setVisible(false);
 
-            // Open main application window
+            // Open main application window based on user role
             SwingUtilities.invokeLater(() -> {
-                MainFrame mainFrame = new MainFrame(user, serverConnection);
-                mainFrame.setVisible(true);
-
+                // Route to appropriate main frame based on user role
+                switch (user.getRole()) {
+                    case ADMIN:
+                        com.university.sms.client.gui.admin.AdminMainFrame adminFrame = 
+                            new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection);
+                        adminFrame.setVisible(true);
+                        break;
+                    case TEACHER:
+                        com.university.sms.client.gui.teacher.TeacherMainFrame teacherFrame = 
+                            new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection);
+                        teacherFrame.setVisible(true);
+                        break;
+                    case STUDENT:
+                        com.university.sms.client.gui.student.StudentMainFrame studentFrame = 
+                            new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection);
+                        studentFrame.setVisible(true);
+                        break;
+                }
+                
                 // Dispose login window
                 dispose();
             });
@@ -469,6 +485,8 @@ public class LoginFrame extends JFrame {
     private void showMessage(String message, String title, int messageType) {
         JOptionPane.showMessageDialog(this, message, title, messageType);
     }
-
-    // main() bị loại bỏ: sử dụng UnifiedClientMain làm entrypoint hợp nhất
 }
+
+
+
+

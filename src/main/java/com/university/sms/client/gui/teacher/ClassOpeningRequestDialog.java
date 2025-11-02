@@ -1,0 +1,316 @@
+package com.university.sms.client.gui.teacher;
+
+import com.university.sms.model.ClassOpeningRequest;
+import com.university.sms.model.ClassOpeningRequest.RequestStatus;
+import com.university.sms.model.Subject;
+
+import javax.swing.*;
+import java.awt.*;
+import java.util.List;
+
+/**
+ * Dialog for teacher to submit/edit class opening requests
+ */
+public class ClassOpeningRequestDialog extends JDialog {
+    private ClassOpeningRequest request;
+    private boolean confirmed = false;
+    
+    private JComboBox<Subject> subjectCombo;
+    private JTextField academicYearField;
+    private JComboBox<Integer> semesterCombo;
+    private JComboBox<String> dayCombo;
+    private JTextField timeField;
+    private JTextField roomField;
+    private JSpinner maxStudentsSpinner;
+    private JTextArea reasonArea;
+    
+    private List<Subject> subjects;
+    private int teacherId;
+
+    /**
+     * Constructor for new request
+     */
+    public ClassOpeningRequestDialog(Frame owner, int teacherId, List<Subject> subjects) {
+        super(owner, "Gửi Yêu Cầu Mở Lớp", true);
+        this.teacherId = teacherId;
+        this.subjects = subjects;
+        this.request = null;
+        
+        initComponents();
+        setLocationRelativeTo(owner);
+    }
+
+    /**
+     * Constructor for editing existing request
+     */
+    public ClassOpeningRequestDialog(Frame owner, ClassOpeningRequest request, List<Subject> subjects) {
+        super(owner, "Chỉnh Sửa Yêu Cầu Mở Lớp", true);
+        this.teacherId = request.getTeacherId();
+        this.subjects = subjects;
+        this.request = request;
+        
+        initComponents();
+        loadRequestData();
+        setLocationRelativeTo(owner);
+    }
+
+    private void initComponents() {
+        setLayout(new BorderLayout(10, 10));
+        setSize(600, 550);
+
+        // Main panel
+        JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+
+        // Form panel
+        JPanel formPanel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        gbc.insets = new Insets(5, 5, 5, 5);
+
+        // Row 0: Subject
+        gbc.gridx = 0; gbc.gridy = 0;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Môn học: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        subjectCombo = new JComboBox<>();
+        for (Subject subject : subjects) {
+            subjectCombo.addItem(subject);
+        }
+        subjectCombo.setRenderer(new SubjectComboRenderer());
+        formPanel.add(subjectCombo, gbc);
+
+        // Row 1: Academic Year
+        gbc.gridx = 0; gbc.gridy = 1;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Năm học: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        academicYearField = new JTextField();
+        academicYearField.setToolTipText("Ví dụ: 2024-2025");
+        formPanel.add(academicYearField, gbc);
+
+        // Row 2: Semester
+        gbc.gridx = 0; gbc.gridy = 2;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Học kỳ: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        semesterCombo = new JComboBox<>(new Integer[]{1, 2, 3});
+        formPanel.add(semesterCombo, gbc);
+
+        // Row 3: Schedule Day
+        gbc.gridx = 0; gbc.gridy = 3;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Thứ: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        String[] days = {"Thứ 2", "Thứ 3", "Thứ 4", "Thứ 5", "Thứ 6", "Thứ 7", "Chủ Nhật"};
+        dayCombo = new JComboBox<>(days);
+        formPanel.add(dayCombo, gbc);
+
+        // Row 4: Schedule Time
+        gbc.gridx = 0; gbc.gridy = 4;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Giờ học: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        timeField = new JTextField();
+        timeField.setToolTipText("Ví dụ: 07:00-09:00");
+        formPanel.add(timeField, gbc);
+
+        // Row 5: Room
+        gbc.gridx = 0; gbc.gridy = 5;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Phòng học: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        roomField = new JTextField();
+        roomField.setToolTipText("Ví dụ: A101, B202");
+        formPanel.add(roomField, gbc);
+
+        // Row 6: Max Students
+        gbc.gridx = 0; gbc.gridy = 6;
+        gbc.weightx = 0.3;
+        formPanel.add(new JLabel("Sĩ số tối đa: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        SpinnerNumberModel spinnerModel = new SpinnerNumberModel(30, 1, 100, 1);
+        maxStudentsSpinner = new JSpinner(spinnerModel);
+        formPanel.add(maxStudentsSpinner, gbc);
+
+        // Row 7: Reason (multi-line)
+        gbc.gridx = 0; gbc.gridy = 7;
+        gbc.weightx = 0.3;
+        gbc.anchor = GridBagConstraints.NORTHWEST;
+        formPanel.add(new JLabel("Lý do: *"), gbc);
+
+        gbc.gridx = 1;
+        gbc.weightx = 0.7;
+        gbc.fill = GridBagConstraints.BOTH;
+        gbc.weighty = 1.0;
+        reasonArea = new JTextArea(4, 20);
+        reasonArea.setLineWrap(true);
+        reasonArea.setWrapStyleWord(true);
+        reasonArea.setToolTipText("Nêu rõ lý do cần mở lớp này");
+        JScrollPane reasonScroll = new JScrollPane(reasonArea);
+        formPanel.add(reasonScroll, gbc);
+
+        mainPanel.add(formPanel, BorderLayout.CENTER);
+
+        // Info label
+        JLabel infoLabel = new JLabel("<html><i>* Các trường bắt buộc</i></html>");
+        infoLabel.setForeground(Color.GRAY);
+        mainPanel.add(infoLabel, BorderLayout.NORTH);
+
+        // Button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 10));
+        
+        JButton submitBtn = new JButton(request == null ? "Gửi Yêu Cầu" : "Cập Nhật");
+        submitBtn.addActionListener(e -> onSubmit());
+        
+        JButton cancelBtn = new JButton("Hủy");
+        cancelBtn.addActionListener(e -> onCancel());
+
+        buttonPanel.add(submitBtn);
+        buttonPanel.add(cancelBtn);
+        
+        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+        add(mainPanel, BorderLayout.CENTER);
+    }
+
+    private void loadRequestData() {
+        if (request == null) return;
+
+        // Find and select subject
+        for (int i = 0; i < subjectCombo.getItemCount(); i++) {
+            Subject subject = subjectCombo.getItemAt(i);
+            if (subject.getSubjectId() == request.getSubjectId()) {
+                subjectCombo.setSelectedIndex(i);
+                break;
+            }
+        }
+
+        academicYearField.setText(request.getAcademicYear());
+        semesterCombo.setSelectedItem(request.getSemester());
+        dayCombo.setSelectedItem(request.getScheduleDay());
+        timeField.setText(request.getScheduleTime());
+        roomField.setText(request.getRoom());
+        maxStudentsSpinner.setValue(request.getMaxStudents());
+        reasonArea.setText(request.getReason());
+    }
+
+    private void onSubmit() {
+        // Validate inputs
+        if (subjectCombo.getSelectedItem() == null) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn môn học!", 
+                "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        String academicYear = academicYearField.getText().trim();
+        if (academicYear.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập năm học!", 
+                "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            academicYearField.requestFocus();
+            return;
+        }
+
+        String time = timeField.getText().trim();
+        if (time.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập giờ học!", 
+                "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            timeField.requestFocus();
+            return;
+        }
+
+        String room = roomField.getText().trim();
+        if (room.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập phòng học!", 
+                "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            roomField.requestFocus();
+            return;
+        }
+
+        String reason = reasonArea.getText().trim();
+        if (reason.isEmpty()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng nhập lý do!", 
+                "Thiếu thông tin", JOptionPane.WARNING_MESSAGE);
+            reasonArea.requestFocus();
+            return;
+        }
+
+        if (reason.length() > 500) {
+            JOptionPane.showMessageDialog(this, "Lý do quá dài! Tối đa 500 ký tự.", 
+                "Lỗi", JOptionPane.ERROR_MESSAGE);
+            reasonArea.requestFocus();
+            return;
+        }
+
+        // Create or update request object
+        if (request == null) {
+            request = new ClassOpeningRequest();
+            request.setTeacherId(teacherId);
+            request.setRequestStatus(RequestStatus.PENDING);
+        }
+
+        Subject selectedSubject = (Subject) subjectCombo.getSelectedItem();
+        request.setSubjectId(selectedSubject.getSubjectId());
+        request.setAcademicYear(academicYear);
+        request.setSemester((Integer) semesterCombo.getSelectedItem());
+        request.setScheduleDay((String) dayCombo.getSelectedItem());
+        request.setScheduleTime(time);
+        request.setRoom(room);
+        request.setMaxStudents((Integer) maxStudentsSpinner.getValue());
+        request.setReason(reason);
+
+        confirmed = true;
+        dispose();
+    }
+
+    private void onCancel() {
+        confirmed = false;
+        dispose();
+    }
+
+    public boolean isConfirmed() {
+        return confirmed;
+    }
+
+    public ClassOpeningRequest getRequest() {
+        return request;
+    }
+
+    /**
+     * Custom renderer for Subject combo box
+     */
+    private static class SubjectComboRenderer extends DefaultListCellRenderer {
+        @Override
+        public Component getListCellRendererComponent(JList<?> list, Object value, 
+                int index, boolean isSelected, boolean cellHasFocus) {
+            super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
+            
+            if (value instanceof Subject) {
+                Subject subject = (Subject) value;
+                setText(subject.getSubjectCode() + " - " + subject.getSubjectName() + 
+                        " (" + subject.getCredits() + " TC)");
+            }
+            
+            return this;
+        }
+    }
+}
+
+
+
+
+

@@ -1,244 +1,233 @@
 # Hệ thống Quản lý Sinh viên (Student Management System)
 
-## Mô tả dự án
+## Giới thiệu
 
-Hệ thống Quản lý Sinh viên là một ứng dụng Java phân tán được xây dựng với kiến trúc Client-Server, sử dụng MySQL làm cơ sở dữ liệu. Hệ thống cho phép quản lý thông tin sinh viên, khóa học, điểm số và các hoạt động học tập khác.
+Hệ thống Quản lý Sinh viên là một ứng dụng Client-Server được phát triển bằng Java, sử dụng kiến trúc phân tầng và phân quyền theo vai trò người dùng.
 
-## Tính năng chính
+## Kiến trúc Hệ thống
 
-### Dành cho Sinh viên:
-- Xem thông tin cá nhân
-- Xem danh sách khóa học đã đăng ký
-- Xem điểm số và kết quả học tập
-- Đổi mật khẩu
+### 1. Kiến trúc Tổng quan
+- **Server**: Xử lý logic nghiệp vụ và kết nối database MySQL
+- **Client**: Giao diện người dùng (GUI) sử dụng Java Swing
+- **Database**: MySQL để lưu trữ dữ liệu
+- **Protocol**: TCP/IP Socket với Object Serialization
 
-### Dành cho Giảng viên:
-- Quản lý thông tin sinh viên trong lớp
-- Quản lý khóa học giảng dạy
-- Nhập và quản lý điểm số
-- Xem báo cáo và thống kê lớp học
-
-### Dành cho Quản trị viên:
-- Quản lý toàn bộ sinh viên trong hệ thống
-- Quản lý tất cả khóa học
-- Quản lý người dùng và phân quyền
-- Xem báo cáo tổng hợp
-- Quản trị hệ thống
-
-## Kiến trúc hệ thống
+### 2. Cấu trúc Package
 
 ```
-┌─────────────────┐    TCP/IP    ┌─────────────────┐    JDBC    ┌─────────────────┐
-│   Client GUI    │ ◄─────────► │     Server      │ ◄─────────► │   MySQL DB      │
-│   (Swing/AWT)   │             │   (Multi-thread)│             │                 │
-└─────────────────┘             └─────────────────┘             └─────────────────┘
+com.university.sms/
+├── server/              # Server-side code
+│   ├── ServerMain.java
+│   ├── StudentManagementServer.java
+│   └── ClientHandler.java
+│
+├── client/              # Client-side code
+│   ├── UnifiedClientMain.java
+│   ├── ServerConnection.java
+│   └── gui/
+│       ├── common/      # Shared GUI components
+│       ├── admin/       # Admin-specific UI
+│       ├── teacher/     # Teacher-specific UI
+│       └── student/     # Student-specific UI
+│
+├── service/             # Business logic layer
+│   ├── AuthenticationService.java
+│   ├── StudentService.java
+│   └── CourseService.java
+│
+├── dao/                 # Data Access Objects
+│   ├── UserDAO.java
+│   ├── StudentDAO.java
+│   └── CourseDAO.java
+│
+├── model/               # Domain models
+│   ├── User.java
+│   ├── Student.java
+│   └── Course.java
+│
+├── common/              # Shared utilities
+│   ├── Constants.java
+│   └── Message.java
+│
+└── util/                # Utilities
+    └── DatabaseConnection.java
 ```
 
-### Thành phần chính:
-1. **Server**: Xử lý logic nghiệp vụ, quản lý kết nối client, tương tác với database
-2. **Client**: Giao diện người dùng, giao tiếp với server qua TCP/IP
-3. **Database**: MySQL lưu trữ dữ liệu hệ thống
+## Yêu cầu Hệ thống
 
-## Yêu cầu hệ thống
+- **Java**: JDK 21 hoặc cao hơn
+- **Maven**: 3.6+ (để build project)
+- **MySQL**: 8.0+ 
+- **OS**: Windows/Linux/macOS
 
-### Phần mềm cần thiết:
-- **Java**: JDK 11 hoặc cao hơn
-- **Maven**: 3.6.0 hoặc cao hơn
-- **MySQL**: 8.0 hoặc cao hơn
-- **IDE**: IntelliJ IDEA, Eclipse, hoặc Visual Studio Code
+## Cài đặt và Chạy
 
-### Thư viện sử dụng:
-- MySQL Connector/J 8.0.33
-- FlatLaf 3.2.5 (Modern Look and Feel)
-- Jackson 2.15.2 (JSON processing)
-- BCrypt 0.4 (Password hashing)
-- Logback 1.4.11 (Logging)
-
-## Cài đặt và chạy
-
-### 1. Chuẩn bị Database
+### Bước 1: Chuẩn bị Database
 
 ```sql
 -- Tạo database
-CREATE DATABASE student_management_system;
+CREATE DATABASE student_management;
 
 -- Import schema và dữ liệu mẫu
-mysql -u root -p student_management_system < database_setup.sql
+mysql -u root -p student_management < database_setup.sql
 ```
 
-### 2. Cấu hình kết nối Database
+### Bước 2: Cấu hình Database
 
-Chỉnh sửa file `src/main/resources/database.properties`:
+Cập nhật thông tin kết nối trong file:
+`src/main/java/com/university/sms/util/DatabaseConnection.java`
 
-```properties
-db.url=jdbc:mysql://localhost:3306/student_management_system
-db.username=root
-db.password=your_password
-db.driver=com.mysql.cj.jdbc.Driver
+```java
+private static final String URL = "jdbc:mysql://localhost:3306/student_management";
+private static final String USER = "root";
+private static final String PASSWORD = "your_password";
 ```
 
-### 3. Build dự án
+### Bước 3: Build Project
 
 ```bash
-# Clone dự án
+# Clone repository
 git clone <repository-url>
-cd student-management-system
+cd PBL4
 
-# Build với Maven
-mvn clean compile
+# Build project
+mvn clean package -DskipTests
+
+# Copy dependencies
+mvn dependency:copy-dependencies
 ```
 
-### 4. Chạy Server
+### Bước 4: Chạy Ứng dụng
+
+#### Cách 1: Sử dụng Batch Scripts (Windows)
 
 ```bash
-# Chạy server (mặc định port 8888)
-mvn exec:java -Dexec.mainClass="com.university.sms.server.ServerMain"
+# Chạy Server
+start-server.bat
 
-# Hoặc chạy với port tùy chỉnh
-mvn exec:java -Dexec.mainClass="com.university.sms.server.ServerMain" -Dexec.args="9999"
+# Chạy Client (terminal mới)
+start-client.bat
 ```
 
-### 5. Chạy Client
+#### Cách 2: Chạy thủ công
 
 ```bash
-# Chạy client GUI
-mvn exec:java -Dexec.mainClass="com.university.sms.client.ClientMain"
+# Terminal 1: Chạy Server
+java -cp "target/classes;target/dependency/*" com.university.sms.server.ServerMain
+
+# Terminal 2: Chạy Client
+java -cp "target/classes;target/dependency/*" com.university.sms.client.UnifiedClientMain
 ```
 
-## Tài khoản mặc định
+## Tài khoản Đăng nhập
 
-Sau khi import database, bạn có thể sử dụng các tài khoản sau để đăng nhập:
+### Admin
+- **Username**: `admin`
+- **Password**: `password`
+- **Quyền**: Quản lý toàn bộ hệ thống
 
-| Loại tài khoản | Username | Password | Mô tả |
-|----------------|----------|----------|-------|
-| Admin | admin | password | Quản trị viên hệ thống |
-| Giảng viên | gv001 | password | Nguyễn Văn A |
-| Giảng viên | gv002 | password | Trần Thị B |
-| Sinh viên | sv001 | password | Lê Văn C |
-| Sinh viên | sv002 | password | Phạm Thị D |
+### Giảng viên
+- **Username**: `teacher1`
+- **Password**: `password`
+- **Quyền**: Quản lý lớp học, nhập điểm
 
-## Cấu trúc dự án
+### Sinh viên
+- **Username**: `student1`
+- **Password**: `password`
+- **Quyền**: Xem thông tin cá nhân, điểm số
 
-```
-src/
-├── main/
-│   ├── java/
-│   │   └── com/university/sms/
-│   │       ├── client/          # Client application
-│   │       │   ├── gui/         # Swing GUI components
-│   │       │   ├── ServerConnection.java
-│   │       │   └── ClientMain.java
-│   │       ├── server/          # Server application
-│   │       │   ├── StudentManagementServer.java
-│   │       │   ├── ClientHandler.java
-│   │       │   └── ServerMain.java
-│   │       ├── common/          # Shared classes
-│   │       │   ├── Message.java
-│   │       │   └── Constants.java
-│   │       ├── model/           # Data models
-│   │       ├── dao/             # Data Access Objects
-│   │       ├── service/         # Business logic services
-│   │       └── util/            # Utility classes
-│   └── resources/
-│       └── database.properties  # Database configuration
-├── database_setup.sql           # Database schema and sample data
-├── pom.xml                      # Maven configuration
-└── README.md                    # This file
-```
+## Chức năng Chính
 
-## Tính năng nổi bật
+### Admin
+- ✅ Quản lý người dùng (CRUD)
+- ✅ Quản lý sinh viên
+- ✅ Quản lý môn học
+- ✅ Duyệt yêu cầu mở lớp
+- ✅ Xem báo cáo tổng hợp
 
-### 1. Kiến trúc phân tán
-- Server đa luồng, hỗ trợ nhiều client đồng thời
-- Giao tiếp qua TCP/IP với protocol tùy chỉnh
-- Xử lý lỗi và tự động kết nối lại
+### Giảng viên
+- ✅ Xem danh sách sinh viên
+- ✅ Nhập và quản lý điểm
+- ✅ Xem lịch dạy
+- 🔄 Đăng ký mở lớp mới
+- ✅ Xem báo cáo lớp học
 
-### 2. Bảo mật
-- Mã hóa mật khẩu với BCrypt
-- Phân quyền người dùng (Admin, Teacher, Student)
-- Xác thực và phiên làm việc
+### Sinh viên
+- ✅ Xem thông tin cá nhân
+- ✅ Xem thời khóa biểu
+- ✅ Xem kết quả học tập
+- 🔄 Đăng ký tín chỉ
+- ✅ Xem lịch học
 
-### 3. Giao diện thân thiện
-- Modern Look and Feel với FlatLaf
-- Responsive design
-- Hỗ trợ đa vai trò người dùng
+*Chú thích: ✅ = Đã hoàn thành, 🔄 = Đang phát triển*
 
-### 4. Quản lý dữ liệu
-- ORM đơn giản với DAO pattern
-- Transaction support
-- Database connection pooling
+## Công nghệ Sử dụng
 
-## Lệnh Server Console
+- **Java 21**: Ngôn ngữ lập trình chính
+- **Java Swing**: Framework GUI
+- **FlatLaf**: Modern Look and Feel
+- **MySQL**: Database
+- **JDBC**: Database connectivity
+- **Maven**: Build tool và dependency management
+- **Socket Programming**: Client-Server communication
+- **Multi-threading**: Xử lý nhiều client đồng thời
 
-Khi server đang chạy, bạn có thể sử dụng các lệnh sau:
+## Tính năng Kỹ thuật
 
-- `status` - Hiển thị trạng thái server
-- `clients` - Danh sách client đang kết nối
-- `stats` - Thống kê chi tiết
-- `broadcast` - Gửi thông báo đến tất cả client
-- `db` - Test kết nối database
-- `stop` - Dừng server
-- `help` - Hiển thị trợ giúp
+### 1. Client-Server Architecture
+- Server xử lý nhiều client đồng thời (ThreadPool)
+- Giao tiếp qua TCP/IP Socket
+- Message-based protocol với Object Serialization
 
-## Phát triển tiếp
+### 2. Security
+- Phân quyền theo role (Admin, Teacher, Student)
+- Session management
+- Kiểm tra quyền ở cả client và server
 
-### Tính năng có thể mở rộng:
-- [ ] Quản lý điểm danh tự động
-- [ ] Hệ thống thông báo real-time
-- [ ] Export/Import dữ liệu Excel
-- [ ] API REST cho mobile app
-- [ ] Dashboard analytics
-- [ ] Email notifications
-- [ ] File upload/download
-- [ ] Multi-language support
+### 3. Database Design
+- Normalized database schema
+- Foreign key constraints
+- Indexed columns for performance
 
-### Cải tiến kỹ thuật:
-- [ ] Connection pooling optimization
-- [ ] Caching layer (Redis)
-- [ ] Microservices architecture
-- [ ] Docker containerization
-- [ ] Unit testing coverage
-- [ ] Performance monitoring
+### 4. Code Organization
+- Layered architecture (Presentation, Business, Data)
+- DAO pattern
+- Service layer pattern
+- MVC-like structure
+
+## Cấu trúc GUI
+
+Xem chi tiết trong file: [HUONG-DAN-CAU-TRUC-MOI.md](HUONG-DAN-CAU-TRUC-MOI.md)
 
 ## Troubleshooting
 
-### Lỗi thường gặp:
+### Server không khởi động được
+- Kiểm tra MySQL đã chạy chưa
+- Kiểm tra port 8888 có bị chiếm dụng không
+- Xem log để biết lỗi cụ thể
 
-1. **Không kết nối được database**
-   - Kiểm tra MySQL service đã chạy
-   - Xác nhận thông tin kết nối trong `database.properties`
-   - Đảm bảo database đã được tạo
+### Client không kết nối được
+- Đảm bảo Server đã chạy
+- Kiểm tra địa chỉ IP và port
+- Kiểm tra firewall
 
-2. **Client không kết nối được server**
-   - Kiểm tra server đã được khởi động
-   - Xác nhận port và địa chỉ IP
-   - Kiểm tra firewall settings
-
-3. **Lỗi Maven build**
-   - Đảm bảo JDK 11+ được cài đặt
-   - Chạy `mvn clean install` để tải dependencies
-   - Kiểm tra kết nối internet
+### Lỗi biên dịch
+```bash
+# Clean và rebuild
+mvn clean compile dependency:copy-dependencies
+```
 
 ## Đóng góp
 
-Để đóng góp vào dự án:
-
-1. Fork repository
-2. Tạo feature branch (`git checkout -b feature/AmazingFeature`)
-3. Commit changes (`git commit -m 'Add some AmazingFeature'`)
-4. Push to branch (`git push origin feature/AmazingFeature`)
-5. Tạo Pull Request
+Dự án được phát triển bởi Nhóm PBL4
 
 ## License
 
-Dự án này được phát triển cho mục đích học tập trong khóa học PBL4.
+Dự án này được phát triển cho mục đích học tập.
 
 ## Liên hệ
 
-- **Nhóm phát triển**: PBL4 Team
-- **Email**: [your-email@university.edu.vn]
-- **Năm**: 2024
+Nếu có vấn đề hoặc câu hỏi, vui lòng tạo issue trên repository.
 
 ---
-
-*Hệ thống Quản lý Sinh viên - Phiên bản 1.0*
+*© 2024 Student Management System - PBL4 Team*

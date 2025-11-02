@@ -1,4 +1,4 @@
-package com.university.sms.client.gui;
+package com.university.sms.client.gui.common;
 
 import com.university.sms.client.IServerConnection;
 import com.university.sms.common.Constants;

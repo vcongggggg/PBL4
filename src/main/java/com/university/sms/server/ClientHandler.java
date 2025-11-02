@@ -3,9 +3,15 @@ package com.university.sms.server;
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
+import com.university.sms.model.Student;
 import com.university.sms.service.AuthenticationService;
 import com.university.sms.service.StudentService;
 import com.university.sms.service.CourseService;
+import com.university.sms.service.SubjectService;
+import com.university.sms.service.ClassOpeningRequestService;
+import com.university.sms.service.CourseRegistrationService;
+import com.university.sms.model.ClassOpeningRequest;
+import com.university.sms.model.CourseRegistration;
 
 import java.io.*;
 import java.net.Socket;
@@ -36,6 +42,9 @@ public class ClientHandler implements Runnable {
     private AuthenticationService authService;
     private StudentService studentService;
     private CourseService courseService;
+    private SubjectService subjectService;
+    private ClassOpeningRequestService classRequestService;
+    private CourseRegistrationService registrationService;
 
     // Source/client provenance (e.g., CSV, POSTGRES, etc.) captured during sync
     private String clientSource = "UNKNOWN";
@@ -48,6 +57,9 @@ public class ClientHandler implements Runnable {
         this.authService = new AuthenticationService();
         this.studentService = new StudentService();
         this.courseService = new CourseService();
+        this.subjectService = new SubjectService();
+        this.classRequestService = new ClassOpeningRequestService();
+        this.registrationService = new CourseRegistrationService();
     }
 
     @Override
@@ -139,6 +151,10 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_DELETE_COURSE:
                     return handleDeleteCourse(request);
 
+                // Subject actions
+                case Constants.ACTION_GET_SUBJECTS:
+                    return handleGetSubjects(request);
+
                 // Enrollment actions
                 case Constants.ACTION_GET_ENROLLMENTS:
                     return handleGetEnrollments(request);
@@ -151,9 +167,6 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_ADD_GRADE:
                 case Constants.ACTION_UPDATE_GRADE:
                     return handleUpdateFinalGrade(request);
-                case Constants.ACTION_MARK_ATTENDANCE:
-                case Constants.ACTION_UPDATE_ATTENDANCE:
-                    return handleUpdateAttendanceRate(request);
 
                 // Sync actions
                 case Constants.ACTION_SYNC_CHECK:
@@ -166,6 +179,54 @@ public class ClientHandler implements Runnable {
                     return handleUploadEnrollments(request);
                 case Constants.ACTION_UPLOAD_USERS:
                     return handleUploadUsers(request);
+
+                // Class Opening Request actions
+                case Constants.ACTION_GET_ALL_CLASS_REQUESTS:
+                    return handleGetAllClassRequests(request);
+                case Constants.ACTION_GET_CLASS_REQUEST_BY_ID:
+                    return handleGetClassRequestById(request);
+                case Constants.ACTION_GET_MY_CLASS_REQUESTS:
+                    return handleGetMyClassRequests(request);
+                case Constants.ACTION_GET_PENDING_CLASS_REQUESTS:
+                    return handleGetPendingClassRequests(request);
+                case Constants.ACTION_SUBMIT_CLASS_REQUEST:
+                    return handleSubmitClassRequest(request);
+                case Constants.ACTION_UPDATE_CLASS_REQUEST:
+                    return handleUpdateClassRequest(request);
+                case Constants.ACTION_CANCEL_CLASS_REQUEST:
+                    return handleCancelClassRequest(request);
+                case Constants.ACTION_APPROVE_CLASS_REQUEST:
+                    return handleApproveClassRequest(request);
+                case Constants.ACTION_REJECT_CLASS_REQUEST:
+                    return handleRejectClassRequest(request);
+                case Constants.ACTION_GET_CLASS_REQUEST_STATS:
+                    return handleGetClassRequestStats(request);
+
+                // Course Registration actions
+                case Constants.ACTION_GET_ALL_REGISTRATIONS:
+                    return handleGetAllRegistrations(request);
+                case Constants.ACTION_GET_REGISTRATION_BY_ID:
+                    return handleGetRegistrationById(request);
+                case Constants.ACTION_GET_MY_REGISTRATIONS:
+                    return handleGetMyRegistrations(request);
+                case Constants.ACTION_GET_COURSE_REGISTRATIONS:
+                    return handleGetCourseRegistrations(request);
+                case Constants.ACTION_GET_PENDING_REGISTRATIONS:
+                    return handleGetPendingRegistrations(request);
+                case Constants.ACTION_REGISTER_COURSE:
+                    return handleRegisterCourse(request);
+                case Constants.ACTION_CANCEL_REGISTRATION:
+                    return handleCancelRegistration(request);
+                case Constants.ACTION_APPROVE_REGISTRATION:
+                    return handleApproveRegistration(request);
+                case Constants.ACTION_REJECT_REGISTRATION:
+                    return handleRejectRegistration(request);
+                case Constants.ACTION_VALIDATE_REGISTRATION:
+                    return handleValidateRegistration(request);
+                case Constants.ACTION_GET_STUDENT_CREDITS:
+                    return handleGetStudentCredits(request);
+                case Constants.ACTION_GET_REGISTRATION_STATS:
+                    return handleGetRegistrationStats(request);
 
                 default:
                     return Message.createErrorResponse(action, "Unknown action: " + action);
@@ -676,28 +737,6 @@ public class ClientHandler implements Runnable {
     }
 
     /**
-     * Cập nhật tỷ lệ điểm danh tổng hợp cho enrollment
-     */
-    private Message handleUpdateAttendanceRate(Message request) {
-        try {
-            Integer enrollmentId = request.getData("enrollmentId", Integer.class);
-            java.math.BigDecimal attendanceRate = request.getData("attendanceRate", java.math.BigDecimal.class);
-            if (enrollmentId == null || attendanceRate == null) {
-                return Message.createErrorResponse(Constants.ACTION_UPDATE_ATTENDANCE, Constants.MSG_INVALID_DATA);
-            }
-            com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
-            boolean ok = enrollmentDAO.updateAttendanceRate(enrollmentId, attendanceRate);
-            if (ok) {
-                return Message.createSuccessResponse(Constants.ACTION_UPDATE_ATTENDANCE, Constants.MSG_SUCCESS);
-            }
-            return Message.createErrorResponse(Constants.ACTION_UPDATE_ATTENDANCE, Constants.MSG_DATABASE_ERROR);
-        } catch (Exception e) {
-            LOGGER.severe("Error updating attendance: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPDATE_ATTENDANCE, Constants.MSG_SERVER_ERROR);
-        }
-    }
-
-    /**
      * Gửi phản hồi cho client
      */
     private void sendResponse(Message response) {
@@ -1085,6 +1124,410 @@ public class ClientHandler implements Runnable {
 
         if (currentUser != null) {
             LOGGER.info("Client disconnected: " + currentUser.getUsername());
+        }
+    }
+
+    // ========== CLASS OPENING REQUEST HANDLERS ==========
+
+    private Message handleGetAllClassRequests(Message request) {
+        try {
+            List<ClassOpeningRequest> requests = classRequestService.getAllRequests();
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_CLASS_REQUESTS, requests);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting all class requests: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetClassRequestById(Message request) {
+        try {
+            int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
+            ClassOpeningRequest classRequest = classRequestService.getRequestById(requestId);
+            
+            if (classRequest == null) {
+                return Message.createErrorResponse(request.getAction(), "Request not found");
+            }
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_CLASS_REQUEST, classRequest);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting class request by ID: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetMyClassRequests(Message request) {
+        try {
+            int teacherId = (Integer) request.getData(Constants.KEY_TEACHER_ID);
+            List<ClassOpeningRequest> requests = classRequestService.getRequestsByTeacher(teacherId);
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_CLASS_REQUESTS, requests);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting teacher's class requests: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetPendingClassRequests(Message request) {
+        try {
+            List<ClassOpeningRequest> requests = classRequestService.getPendingRequests();
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_CLASS_REQUESTS, requests);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting pending class requests: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleSubmitClassRequest(Message request) {
+        try {
+            ClassOpeningRequest classRequest = (ClassOpeningRequest) request.getData(Constants.KEY_CLASS_REQUEST);
+            boolean success = classRequestService.submitRequest(classRequest);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Request submitted successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to submit request");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error submitting class request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleUpdateClassRequest(Message request) {
+        try {
+            ClassOpeningRequest classRequest = (ClassOpeningRequest) request.getData(Constants.KEY_CLASS_REQUEST);
+            boolean success = classRequestService.updateRequest(classRequest);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Request updated successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to update request");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error updating class request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleCancelClassRequest(Message request) {
+        try {
+            int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
+            int teacherId = (Integer) request.getData(Constants.KEY_TEACHER_ID);
+            boolean success = classRequestService.cancelRequest(requestId, teacherId);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Request cancelled successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to cancel request");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error cancelling class request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleApproveClassRequest(Message request) {
+        try {
+            int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
+            int adminId = (Integer) request.getData(Constants.KEY_ADMIN_ID);
+            String note = (String) request.getData(Constants.KEY_NOTE);
+            
+            boolean success = classRequestService.approveRequest(requestId, adminId, note);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Request approved successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to approve request");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error approving class request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleRejectClassRequest(Message request) {
+        try {
+            int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
+            int adminId = (Integer) request.getData(Constants.KEY_ADMIN_ID);
+            String reason = (String) request.getData(Constants.KEY_REASON);
+            
+            boolean success = classRequestService.rejectRequest(requestId, adminId, reason);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Request rejected successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to reject request");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error rejecting class request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetClassRequestStats(Message request) {
+        try {
+            ClassOpeningRequestService.RequestStatistics stats = classRequestService.getStatistics();
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_STATISTICS, stats);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting class request stats: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    // ========== COURSE REGISTRATION HANDLERS ==========
+
+    private Message handleGetAllRegistrations(Message request) {
+        try {
+            List<CourseRegistration> registrations = registrationService.getAllRegistrations();
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_REGISTRATIONS, registrations);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting all registrations: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetRegistrationById(Message request) {
+        try {
+            int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
+            CourseRegistration registration = registrationService.getRegistrationById(registrationId);
+            
+            if (registration == null) {
+                return Message.createErrorResponse(request.getAction(), "Registration not found");
+            }
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_REGISTRATION, registration);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting registration by ID: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetMyRegistrations(Message request) {
+        try {
+            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
+            
+            // Try to get student by ID first, if not found try by user_id
+            Student student = studentService.getStudentById(studentIdOrUserId);
+            if (student == null) {
+                student = studentService.getStudentByUserId(studentIdOrUserId);
+            }
+            
+            int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
+            
+            List<CourseRegistration> registrations = registrationService.getRegistrationsByStudent(studentId);
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_REGISTRATIONS, registrations);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting student's registrations: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetCourseRegistrations(Message request) {
+        try {
+            int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
+            List<CourseRegistration> registrations = registrationService.getRegistrationsByCourse(courseId);
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_REGISTRATIONS, registrations);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting course registrations: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetPendingRegistrations(Message request) {
+        try {
+            List<CourseRegistration> registrations = registrationService.getPendingRegistrations();
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_REGISTRATIONS, registrations);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting pending registrations: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleRegisterCourse(Message request) {
+        try {
+            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
+            int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
+            String notes = (String) request.getData(Constants.KEY_NOTE);
+            
+            // Try to get student by ID first, if not found try by user_id
+            Student student = studentService.getStudentById(studentIdOrUserId);
+            if (student == null) {
+                LOGGER.info("Student not found by ID " + studentIdOrUserId + ", trying user_id lookup");
+                student = studentService.getStudentByUserId(studentIdOrUserId);
+            }
+            
+            if (student == null) {
+                LOGGER.severe("Student not found for ID/UserID: " + studentIdOrUserId);
+                return Message.createErrorResponse(request.getAction(), 
+                    "Student not found. Please ensure your profile is complete.");
+            }
+            
+            int studentId = student.getStudentId();
+            LOGGER.info("Registering course for student_id=" + studentId + " (from input=" + studentIdOrUserId + ")");
+            
+            boolean success = registrationService.registerCourse(studentId, courseId, notes);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Registration submitted successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to submit registration");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error registering course: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleCancelRegistration(Message request) {
+        try {
+            int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
+            int studentId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
+            
+            boolean success = registrationService.cancelRegistration(registrationId, studentId);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Registration cancelled successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to cancel registration");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error cancelling registration: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleApproveRegistration(Message request) {
+        try {
+            int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
+            boolean success = registrationService.approveRegistration(registrationId);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Registration approved successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to approve registration");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error approving registration: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleRejectRegistration(Message request) {
+        try {
+            int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
+            String reason = (String) request.getData(Constants.KEY_REASON);
+            
+            boolean success = registrationService.rejectRegistration(registrationId, reason);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Registration rejected successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to reject registration");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error rejecting registration: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleValidateRegistration(Message request) {
+        try {
+            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
+            int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
+            
+            // Try to get student by ID first, if not found try by user_id
+            Student student = studentService.getStudentById(studentIdOrUserId);
+            if (student == null) {
+                student = studentService.getStudentByUserId(studentIdOrUserId);
+            }
+            
+            int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
+            
+            CourseRegistrationService.RegistrationValidation validation = 
+                registrationService.validateRegistration(studentId, courseId);
+            
+            Message response = Message.createSuccessResponse(request.getAction(), validation.getMessage());
+            response.addData("valid", validation.isValid());
+            response.addData("message", validation.getMessage());
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error validating registration: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetStudentCredits(Message request) {
+        try {
+            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
+            String academicYear = (String) request.getData(Constants.KEY_ACADEMIC_YEAR);
+            int semester = (Integer) request.getData(Constants.KEY_SEMESTER);
+            
+            // Try to get student by ID first, if not found try by user_id
+            Student student = studentService.getStudentById(studentIdOrUserId);
+            if (student == null) {
+                student = studentService.getStudentByUserId(studentIdOrUserId);
+            }
+            
+            int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
+            
+            int credits = registrationService.getStudentCredits(studentId, academicYear, semester);
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData("credits", credits);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting student credits: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetRegistrationStats(Message request) {
+        try {
+            CourseRegistrationService.RegistrationStatistics stats = registrationService.getStatistics();
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_STATISTICS, stats);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting registration stats: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    // ==================== Subject Handlers ====================
+
+    private Message handleGetSubjects(Message request) {
+        try {
+            List<com.university.sms.model.Subject> subjects = subjectService.getAllSubjects();
+            
+            Message response = Message.createSuccessResponse(request.getAction(), 
+                "Found " + subjects.size() + " subjects");
+            response.addData(Constants.KEY_SUBJECTS, subjects);
+            
+            LOGGER.info("Retrieved " + subjects.size() + " subjects");
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting subjects", e);
+            return Message.createErrorResponse(request.getAction(), 
+                "Error retrieving subjects: " + e.getMessage());
         }
     }
 

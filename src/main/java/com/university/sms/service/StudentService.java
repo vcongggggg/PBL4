@@ -31,7 +31,7 @@ public class StudentService {
         // Validate required fields
         if (student.getUserId() <= 0 ||
                 student.getStudentCode() == null || student.getStudentCode().trim().isEmpty() ||
-                student.getDepartmentId() <= 0 ||
+                student.getFacultyId() <= 0 ||
                 student.getAdmissionYear() <= 0) {
 
             LOGGER.warning("Cannot add student: Missing required fields");
@@ -124,15 +124,15 @@ public class StudentService {
     /**
      * Lấy danh sách sinh viên theo khoa
      */
-    public List<Student> getStudentsByDepartment(int departmentId) {
-        if (departmentId <= 0) {
+    public List<Student> getStudentsByFaculty(int facultyId) {
+        if (facultyId <= 0) {
             return List.of();
         }
 
         try {
-            return studentDAO.findByDepartmentId(departmentId);
+            return studentDAO.findByFacultyId(facultyId);
         } catch (Exception e) {
-            LOGGER.severe("Error getting students by department: " + e.getMessage());
+            LOGGER.severe("Error getting students by faculty: " + e.getMessage());
             return List.of();
         }
     }
@@ -287,9 +287,9 @@ public class StudentService {
     /**
      * Lấy thống kê sinh viên theo khoa
      */
-    public StudentStatistics getStudentStatistics(int departmentId) {
+    public StudentStatistics getStudentStatistics(int facultyId) {
         try {
-            List<Student> students = studentDAO.findByDepartmentId(departmentId);
+            List<Student> students = studentDAO.findByFacultyId(facultyId);
 
             StudentStatistics stats = new StudentStatistics();
             stats.setTotalStudents(students.size());
@@ -337,7 +337,7 @@ public class StudentService {
     /**
      * Generate student code
      */
-    public String generateStudentCode(int admissionYear, int departmentId) {
+    public String generateStudentCode(int admissionYear, int facultyId) {
         // This is a simple implementation - in a real system, you'd want to ensure
         // uniqueness
         int sequence = 1;

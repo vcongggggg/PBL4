@@ -1,81 +1,63 @@
 package com.university.sms.model;
 
-import java.sql.Date;
+import java.io.Serializable;
 import java.sql.Timestamp;
 
 /**
- * Model class cho bảng courses
+ * Model cho yêu cầu mở lớp từ giảng viên
  */
-public class Course implements java.io.Serializable {
+public class ClassOpeningRequest implements Serializable {
     private static final long serialVersionUID = 1L;
-    private int courseId;
-    private String courseCode;
-    private int subjectId;
+
+    private int requestId;
     private int teacherId;
-    private Integer classId;
+    private int subjectId;
     private String academicYear;
     private int semester;
     private String scheduleDay;
     private String scheduleTime;
     private String room;
     private int maxStudents;
-    private int currentStudents;
-    private CourseStatus courseStatus;
-    private Date startDate;
-    private Date endDate;
+    private String reason;
+    private RequestStatus requestStatus;
+    private String adminNote;
+    private Integer approvedBy;
+    private Timestamp requestDate;
+    private Timestamp decisionDate;
     private Timestamp createdAt;
-    private String weeks; // e.g., "1-16" or "1-8,10-16"
 
     // Related information (from joins)
+    private String teacherName;
     private String subjectName;
     private String subjectCode;
     private int credits;
-    private String teacherName;
-    private String className;
+    private String approverName;
 
-    public enum CourseStatus {
-        PLANNING, ONGOING, COMPLETED, CANCELLED
+    public enum RequestStatus {
+        PENDING, APPROVED, REJECTED
     }
 
     // Constructors
-    public Course() {
+    public ClassOpeningRequest() {
+        this.requestStatus = RequestStatus.PENDING;
         this.maxStudents = 50;
-        this.currentStudents = 0;
-        this.courseStatus = CourseStatus.PLANNING;
     }
 
-    public Course(String courseCode, int subjectId, int teacherId, String academicYear, int semester) {
+    public ClassOpeningRequest(int teacherId, int subjectId, String academicYear, int semester) {
         this();
-        this.courseCode = courseCode;
-        this.subjectId = subjectId;
         this.teacherId = teacherId;
+        this.subjectId = subjectId;
         this.academicYear = academicYear;
         this.semester = semester;
     }
 
     // Getters and Setters
-    public int getCourseId() {
-        return courseId;
+    public int getRequestId() {
+        return requestId;
     }
 
-    public void setCourseId(int courseId) {
-        this.courseId = courseId;
-    }
-
-    public String getCourseCode() {
-        return courseCode;
-    }
-
-    public void setCourseCode(String courseCode) {
-        this.courseCode = courseCode;
-    }
-
-    public int getSubjectId() {
-        return subjectId;
-    }
-
-    public void setSubjectId(int subjectId) {
-        this.subjectId = subjectId;
+    public void setRequestId(int requestId) {
+        this.requestId = requestId;
     }
 
     public int getTeacherId() {
@@ -86,12 +68,12 @@ public class Course implements java.io.Serializable {
         this.teacherId = teacherId;
     }
 
-    public Integer getClassId() {
-        return classId;
+    public int getSubjectId() {
+        return subjectId;
     }
 
-    public void setClassId(Integer classId) {
-        this.classId = classId;
+    public void setSubjectId(int subjectId) {
+        this.subjectId = subjectId;
     }
 
     public String getAcademicYear() {
@@ -142,36 +124,52 @@ public class Course implements java.io.Serializable {
         this.maxStudents = maxStudents;
     }
 
-    public int getCurrentStudents() {
-        return currentStudents;
+    public String getReason() {
+        return reason;
     }
 
-    public void setCurrentStudents(int currentStudents) {
-        this.currentStudents = currentStudents;
+    public void setReason(String reason) {
+        this.reason = reason;
     }
 
-    public CourseStatus getCourseStatus() {
-        return courseStatus;
+    public RequestStatus getRequestStatus() {
+        return requestStatus;
     }
 
-    public void setCourseStatus(CourseStatus courseStatus) {
-        this.courseStatus = courseStatus;
+    public void setRequestStatus(RequestStatus requestStatus) {
+        this.requestStatus = requestStatus;
     }
 
-    public Date getStartDate() {
-        return startDate;
+    public String getAdminNote() {
+        return adminNote;
     }
 
-    public void setStartDate(Date startDate) {
-        this.startDate = startDate;
+    public void setAdminNote(String adminNote) {
+        this.adminNote = adminNote;
     }
 
-    public Date getEndDate() {
-        return endDate;
+    public Integer getApprovedBy() {
+        return approvedBy;
     }
 
-    public void setEndDate(Date endDate) {
-        this.endDate = endDate;
+    public void setApprovedBy(Integer approvedBy) {
+        this.approvedBy = approvedBy;
+    }
+
+    public Timestamp getRequestDate() {
+        return requestDate;
+    }
+
+    public void setRequestDate(Timestamp requestDate) {
+        this.requestDate = requestDate;
+    }
+
+    public Timestamp getDecisionDate() {
+        return decisionDate;
+    }
+
+    public void setDecisionDate(Timestamp decisionDate) {
+        this.decisionDate = decisionDate;
     }
 
     public Timestamp getCreatedAt() {
@@ -180,6 +178,15 @@ public class Course implements java.io.Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    // Related information getters/setters
+    public String getTeacherName() {
+        return teacherName;
+    }
+
+    public void setTeacherName(String teacherName) {
+        this.teacherName = teacherName;
     }
 
     public String getSubjectName() {
@@ -206,41 +213,28 @@ public class Course implements java.io.Serializable {
         this.credits = credits;
     }
 
-    public String getTeacherName() {
-        return teacherName;
+    public String getApproverName() {
+        return approverName;
     }
 
-    public void setTeacherName(String teacherName) {
-        this.teacherName = teacherName;
-    }
-
-    public String getClassName() {
-        return className;
-    }
-
-    public void setClassName(String className) {
-        this.className = className;
-    }
-
-    public String getWeeks() {
-        return weeks;
-    }
-
-    public void setWeeks(String weeks) {
-        this.weeks = weeks;
+    public void setApproverName(String approverName) {
+        this.approverName = approverName;
     }
 
     @Override
     public String toString() {
-        return "Course{" +
-                "courseId=" + courseId +
-                ", courseCode='" + courseCode + '\'' +
+        return "ClassOpeningRequest{" +
+                "requestId=" + requestId +
+                ", teacherId=" + teacherId +
                 ", subjectName='" + subjectName + '\'' +
-                ", teacherName='" + teacherName + '\'' +
                 ", academicYear='" + academicYear + '\'' +
                 ", semester=" + semester +
-                ", currentStudents=" + currentStudents +
-                ", maxStudents=" + maxStudents +
+                ", requestStatus=" + requestStatus +
                 '}';
     }
 }
+
+
+
+
+

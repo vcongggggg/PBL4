@@ -134,7 +134,8 @@ public abstract class BaseServerConnection implements IServerConnection {
     });
   }
 
-  protected boolean sendRequest(Message request) {
+  // Renamed to avoid conflict with IServerConnection.sendRequest()
+  protected boolean sendRequestInternal(Message request) {
     if (!isConnected() || outputStream == null)
       return false;
     try {
@@ -151,7 +152,7 @@ public abstract class BaseServerConnection implements IServerConnection {
   }
 
   protected Message sendRequestAndWait(Message request, long timeoutSeconds) {
-    if (!sendRequest(request)) {
+    if (!sendRequestInternal(request)) {
       return Message.createErrorResponse(request.getAction(), "Failed to send request");
     }
 

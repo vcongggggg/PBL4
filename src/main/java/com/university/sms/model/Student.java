@@ -13,7 +13,7 @@ public class Student implements java.io.Serializable {
     private int userId;
     private String studentCode;
     private Integer classId;
-    private int departmentId;
+    private int facultyId;
     private int admissionYear;
     private StudentStatus studentStatus;
     private BigDecimal gpa;
@@ -30,6 +30,10 @@ public class Student implements java.io.Serializable {
     private String email;
     private String phone;
     private String address;
+    
+    // Faculty and Class information (from join)
+    private String facultyName;
+    private String className;
 
     public enum StudentStatus {
         ACTIVE, SUSPENDED, GRADUATED, DROPPED
@@ -46,11 +50,11 @@ public class Student implements java.io.Serializable {
         this.studentStatus = StudentStatus.ACTIVE;
     }
 
-    public Student(int userId, String studentCode, int departmentId, int admissionYear) {
+    public Student(int userId, String studentCode, int facultyId, int admissionYear) {
         this();
         this.userId = userId;
         this.studentCode = studentCode;
-        this.departmentId = departmentId;
+        this.facultyId = facultyId;
         this.admissionYear = admissionYear;
     }
 
@@ -87,12 +91,12 @@ public class Student implements java.io.Serializable {
         this.classId = classId;
     }
 
-    public int getDepartmentId() {
-        return departmentId;
+    public int getFacultyId() {
+        return facultyId;
     }
 
-    public void setDepartmentId(int departmentId) {
-        this.departmentId = departmentId;
+    public void setFacultyId(int facultyId) {
+        this.facultyId = facultyId;
     }
 
     public int getAdmissionYear() {
@@ -205,6 +209,22 @@ public class Student implements java.io.Serializable {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getFacultyName() {
+        return facultyName;
+    }
+
+    public void setFacultyName(String facultyName) {
+        this.facultyName = facultyName;
+    }
+
+    public String getClassName() {
+        return className;
+    }
+
+    public void setClassName(String className) {
+        this.className = className;
     }
 
     @Override

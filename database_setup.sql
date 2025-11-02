@@ -24,12 +24,12 @@ CREATE TABLE users (
 );
 
 -- ===============================================
--- 2. BẢNG KHOA (DEPARTMENTS)
+-- 2. BẢNG KHOA (FACULTIES)
 -- ===============================================
-CREATE TABLE departments (
-    department_id INT PRIMARY KEY AUTO_INCREMENT,
-    department_code VARCHAR(10) UNIQUE NOT NULL,
-    department_name VARCHAR(100) NOT NULL,
+CREATE TABLE faculties (
+    faculty_id INT PRIMARY KEY AUTO_INCREMENT,
+    faculty_code VARCHAR(10) UNIQUE NOT NULL,
+    faculty_name VARCHAR(100) NOT NULL,
     description TEXT,
     head_teacher_id INT,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
@@ -43,13 +43,13 @@ CREATE TABLE classes (
     class_id INT PRIMARY KEY AUTO_INCREMENT,
     class_code VARCHAR(20) UNIQUE NOT NULL,
     class_name VARCHAR(100) NOT NULL,
-    department_id INT NOT NULL,
+    faculty_id INT NOT NULL,
     teacher_id INT,
     academic_year VARCHAR(20) NOT NULL,
     semester INT NOT NULL,
     max_students INT DEFAULT 50,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (department_id) REFERENCES departments(department_id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(faculty_id),
     FOREIGN KEY (teacher_id) REFERENCES users(user_id)
 );
 
@@ -61,7 +61,7 @@ CREATE TABLE students (
     user_id INT UNIQUE NOT NULL,
     student_code VARCHAR(20) UNIQUE NOT NULL,
     class_id INT,
-    department_id INT NOT NULL,
+    faculty_id INT NOT NULL,
     admission_year INT NOT NULL,
     student_status ENUM('active', 'suspended', 'graduated', 'dropped') DEFAULT 'active',
     gpa DECIMAL(3,2) DEFAULT 0.00,
@@ -74,7 +74,7 @@ CREATE TABLE students (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     FOREIGN KEY (user_id) REFERENCES users(user_id) ON DELETE CASCADE,
     FOREIGN KEY (class_id) REFERENCES classes(class_id),
-    FOREIGN KEY (department_id) REFERENCES departments(department_id)
+    FOREIGN KEY (faculty_id) REFERENCES faculties(faculty_id)
 );
 
 -- ===============================================
@@ -85,12 +85,12 @@ CREATE TABLE subjects (
     subject_code VARCHAR(20) UNIQUE NOT NULL,
     subject_name VARCHAR(100) NOT NULL,
     credits INT NOT NULL DEFAULT 3,
-    department_id INT NOT NULL,
+    faculty_id INT NOT NULL,
     prerequisite_subject_id INT,
     description TEXT,
     is_required BOOLEAN DEFAULT TRUE,
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (department_id) REFERENCES departments(department_id),
+    FOREIGN KEY (faculty_id) REFERENCES faculties(faculty_id),
     FOREIGN KEY (prerequisite_subject_id) REFERENCES subjects(subject_id)
 );
 
@@ -131,7 +131,6 @@ CREATE TABLE enrollments (
     final_grade DECIMAL(4,2),
     letter_grade VARCHAR(2),
     grade_points DECIMAL(3,2),
-    attendance_rate DECIMAL(5,2) DEFAULT 0.00,
     UNIQUE KEY unique_enrollment (student_id, course_id),
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
@@ -155,30 +154,14 @@ CREATE TABLE grades (
 );
 
 -- ===============================================
--- 9. BẢNG ĐIỂM DANH (ATTENDANCE)
--- ===============================================
-CREATE TABLE attendance (
-    attendance_id INT PRIMARY KEY AUTO_INCREMENT,
-    enrollment_id INT NOT NULL,
-    attendance_date DATE NOT NULL,
-    status ENUM('present', 'absent', 'late', 'excused') NOT NULL,
-    notes TEXT,
-    recorded_by INT,
-    recorded_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE KEY unique_attendance (enrollment_id, attendance_date),
-    FOREIGN KEY (enrollment_id) REFERENCES enrollments(enrollment_id) ON DELETE CASCADE,
-    FOREIGN KEY (recorded_by) REFERENCES users(user_id)
-);
-
--- ===============================================
--- 10. BẢNG THÔNG BÁO (NOTIFICATIONS)
+-- 9. BẢNG THÔNG BÁO (NOTIFICATIONS)
 -- ===============================================
 CREATE TABLE notifications (
     notification_id INT PRIMARY KEY AUTO_INCREMENT,
     title VARCHAR(200) NOT NULL,
     content TEXT NOT NULL,
     sender_id INT NOT NULL,
-    target_type ENUM('all', 'department', 'class', 'student') NOT NULL,
+    target_type ENUM('all', 'faculty', 'class', 'student') NOT NULL,
     target_id INT,
     priority ENUM('low', 'medium', 'high', 'urgent') DEFAULT 'medium',
     is_read BOOLEAN DEFAULT FALSE,
@@ -188,7 +171,7 @@ CREATE TABLE notifications (
 );
 
 -- ===============================================
--- 11. BẢNG LỊCH SỬ ĐĂNG NHẬP (LOGIN_HISTORY)
+-- 10. BẢNG LỊCH SỬ ĐĂNG NHẬP (LOGIN_HISTORY)
 -- ===============================================
 CREATE TABLE login_history (
     login_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -201,7 +184,7 @@ CREATE TABLE login_history (
 );
 
 -- ===============================================
--- 12. BẢNG CẤU HÌNH HỆ THỐNG (SYSTEM_CONFIG)
+-- 11. BẢNG CẤU HÌNH HỆ THỐNG (SYSTEM_CONFIG)
 -- ===============================================
 CREATE TABLE system_config (
     config_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -214,7 +197,7 @@ CREATE TABLE system_config (
 );
 
 -- ===============================================
--- 13. BẢNG GẮN NGUỒN DỮ LIỆU (DATA_ORIGIN)
+-- 12. BẢNG GẮN NGUỒN DỮ LIỆU (DATA_ORIGIN)
 --  Lưu provenance: mỗi bản ghi thuộc entity nào được tải lên từ nguồn nào
 -- ===============================================
 CREATE TABLE IF NOT EXISTS data_origin (
@@ -224,6 +207,54 @@ CREATE TABLE IF NOT EXISTS data_origin (
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
     PRIMARY KEY (entity_type, entity_id)
+);
+
+-- ===============================================
+-- 13. BẢNG YÊU CẦU MỞ LỚP (CLASS_OPENING_REQUESTS)
+-- Giảng viên gửi yêu cầu mở lớp, Admin duyệt
+-- ===============================================
+CREATE TABLE IF NOT EXISTS class_opening_requests (
+    request_id INT PRIMARY KEY AUTO_INCREMENT,
+    teacher_id INT NOT NULL,
+    subject_id INT NOT NULL,
+    academic_year VARCHAR(20) NOT NULL,
+    semester INT NOT NULL,
+    schedule_day VARCHAR(50),
+    schedule_time VARCHAR(50),
+    room VARCHAR(20),
+    max_students INT DEFAULT 50,
+    reason TEXT,
+    request_status ENUM('PENDING', 'APPROVED', 'REJECTED') DEFAULT 'PENDING',
+    admin_note TEXT,
+    approved_by INT,
+    approved_course_id INT,  -- ID của course được tạo sau khi duyệt
+    request_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    decision_date TIMESTAMP NULL,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    FOREIGN KEY (teacher_id) REFERENCES users(user_id),
+    FOREIGN KEY (subject_id) REFERENCES subjects(subject_id),
+    FOREIGN KEY (approved_by) REFERENCES users(user_id),
+    FOREIGN KEY (approved_course_id) REFERENCES courses(course_id) ON DELETE SET NULL
+);
+
+-- ===============================================
+-- 14. BẢNG ĐĂNG KÝ HỌC PHẦN CỦA SINH VIÊN (COURSE_REGISTRATIONS)
+-- Sinh viên đăng ký các khóa học đã được duyệt
+-- ===============================================
+CREATE TABLE IF NOT EXISTS course_registrations (
+    registration_id INT PRIMARY KEY AUTO_INCREMENT,
+    student_id INT NOT NULL,
+    course_id INT NOT NULL,
+    registration_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    registration_status ENUM('PENDING', 'APPROVED', 'CANCELLED') DEFAULT 'APPROVED',
+    cancel_date TIMESTAMP NULL,
+    notes TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    UNIQUE KEY unique_registration (student_id, course_id),
+    FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE
 );
 
 -- ===============================================
@@ -253,9 +284,16 @@ CREATE INDEX idx_enrollments_status ON enrollments(enrollment_status);
 CREATE INDEX idx_grades_enrollment ON grades(enrollment_id);
 CREATE INDEX idx_grades_type ON grades(grade_type);
 
--- Indexes cho bảng attendance
-CREATE INDEX idx_attendance_date ON attendance(attendance_date);
-CREATE INDEX idx_attendance_status ON attendance(status);
+-- Indexes cho bảng class_opening_requests
+CREATE INDEX idx_requests_teacher ON class_opening_requests(teacher_id);
+CREATE INDEX idx_requests_status ON class_opening_requests(request_status);
+CREATE INDEX idx_requests_subject ON class_opening_requests(subject_id);
+CREATE INDEX idx_requests_year_semester ON class_opening_requests(academic_year, semester);
+
+-- Indexes cho bảng course_registrations  
+CREATE INDEX idx_registrations_student ON course_registrations(student_id);
+CREATE INDEX idx_registrations_course ON course_registrations(course_id);
+CREATE INDEX idx_registrations_status ON course_registrations(registration_status);
 
 -- ===============================================
 -- VIEWS ĐỂ TRUY VẤN DỄ DÀNG
@@ -269,7 +307,7 @@ SELECT
     u.full_name,
     u.email,
     u.phone,
-    d.department_name,
+    f.faculty_name,
     c.class_name,
     s.admission_year,
     s.gpa,
@@ -278,7 +316,7 @@ SELECT
     dor.source AS data_source
 FROM students s
 JOIN users u ON s.user_id = u.user_id
-JOIN departments d ON s.department_id = d.department_id
+JOIN faculties f ON s.faculty_id = f.faculty_id
 LEFT JOIN classes c ON s.class_id = c.class_id
 LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id;
 
@@ -371,6 +409,32 @@ BEGIN
     )
     WHERE course_id = OLD.course_id;
 END//
+
+-- Trigger tự động tạo enrollment khi registration được approved
+CREATE TRIGGER tr_registration_approved
+AFTER INSERT ON course_registrations
+FOR EACH ROW
+BEGIN
+    IF NEW.registration_status = 'APPROVED' THEN
+        -- Tạo enrollment tương ứng
+        INSERT INTO enrollments (student_id, course_id, enrollment_status)
+        VALUES (NEW.student_id, NEW.course_id, 'enrolled')
+        ON DUPLICATE KEY UPDATE enrollment_status = 'enrolled';
+    END IF;
+END//
+
+-- Trigger xóa enrollment khi registration bị cancelled
+CREATE TRIGGER tr_registration_cancelled
+AFTER UPDATE ON course_registrations
+FOR EACH ROW
+BEGIN
+    IF NEW.registration_status = 'CANCELLED' AND OLD.registration_status != 'CANCELLED' THEN
+        -- Xóa enrollment tương ứng
+        DELETE FROM enrollments 
+        WHERE student_id = NEW.student_id AND course_id = NEW.course_id;
+    END IF;
+END//
+
 DELIMITER ;
 
 -- ===============================================
@@ -500,30 +564,7 @@ BEGIN
 END//
 DELIMITER ;
 
--- 2. Procedure tính tỷ lệ điểm danh (Tác vụ đơn giản)
-DELIMITER //
-CREATE PROCEDURE CalculateAttendanceRate(IN p_enrollment_id INT)
-BEGIN
-    DECLARE v_attendance_rate DECIMAL(5,2);
-    
-    -- Tính tỷ lệ điểm danh từ dữ liệu local
-    SELECT 
-        ROUND(
-            (SUM(CASE WHEN status IN ('present', 'late') THEN 1 ELSE 0 END) * 100.0) 
-            / COUNT(*), 2
-        )
-    INTO v_attendance_rate
-    FROM attendance 
-    WHERE enrollment_id = p_enrollment_id;
-    
-    -- Cập nhật trực tiếp
-    UPDATE enrollments 
-    SET attendance_rate = COALESCE(v_attendance_rate, 0.00)
-    WHERE enrollment_id = p_enrollment_id;
-END//
-DELIMITER ;
-
--- 3. Procedure tính điểm cuối kỳ (Logic tính toán cố định)
+-- 2. Procedure tính điểm cuối kỳ (Logic tính toán cố định)
 DELIMITER //
 CREATE PROCEDURE CalculateFinalGrade(IN p_enrollment_id INT)
 BEGIN
@@ -574,7 +615,7 @@ BEGIN
 END//
 DELIMITER ;
 
--- 4. Procedure cập nhật trạng thái sinh viên (Tác vụ đơn giản)
+-- 3. Procedure cập nhật trạng thái sinh viên (Tác vụ đơn giản)
 DELIMITER //
 CREATE PROCEDURE UpdateStudentStatus(
     IN p_student_id INT,
@@ -596,7 +637,7 @@ BEGIN
 END//
 DELIMITER ;
 
--- 5. Procedure ghi log đăng nhập (Tác vụ đơn giản)
+-- 4. Procedure ghi log đăng nhập (Tác vụ đơn giản)
 DELIMITER //
 CREATE PROCEDURE LogUserLogin(
     IN p_user_id INT,
@@ -638,7 +679,6 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
 ('academic_year_current', '2024-2025', 'Năm học hiện tại'),
 ('semester_current', '1', 'Học kỳ hiện tại'),
 ('max_credits_per_semester', '24', 'Số tín chỉ tối đa mỗi học kỳ'),
-('min_attendance_rate', '80', 'Tỷ lệ điểm danh tối thiểu (%)'),
 ('passing_grade', '5.0', 'Điểm đậu tối thiểu'),
 ('db_version', '1', 'Database version cho sync mechanism');
 
@@ -647,7 +687,7 @@ INSERT INTO users (username, password, email, full_name, role, phone, address) V
 ('admin', 'password', 'admin@university.edu.vn', 'Quản trị viên hệ thống', 'admin', '0123456789', 'Trường Đại học ABC');
 
 -- Thêm khoa mẫu
-INSERT INTO departments (department_code, department_name, description) VALUES
+INSERT INTO faculties (faculty_code, faculty_name, description) VALUES
 ('CNTT', 'Công nghệ thông tin', 'Khoa Công nghệ thông tin'),
 ('KT', 'Kinh tế', 'Khoa Kinh tế'),
 ('NN', 'Ngoại ngữ', 'Khoa Ngoại ngữ'),
@@ -659,7 +699,7 @@ INSERT INTO users (username, password, email, full_name, role, phone, address) V
 ('gv002', 'password', 'tranthib@university.edu.vn', 'Trần Thị B', 'teacher', '0987654322', 'Hà Nội');
 
 -- Thêm lớp học mẫu
-INSERT INTO classes (class_code, class_name, department_id, teacher_id, academic_year, semester) VALUES
+INSERT INTO classes (class_code, class_name, faculty_id, teacher_id, academic_year, semester) VALUES
 ('CNTT2024A', 'Công nghệ thông tin 2024A', 1, 2, '2024-2025', 1),
 ('KT2024A', 'Kinh tế 2024A', 2, 3, '2024-2025', 1);
 
@@ -668,21 +708,35 @@ INSERT INTO users (username, password, email, full_name, role, phone, address) V
 ('sv001', 'password', 'sv001@student.university.edu.vn', 'Lê Văn C', 'student', '0123456788', 'Hà Nội'),
 ('sv002', 'password', 'sv002@student.university.edu.vn', 'Phạm Thị D', 'student', '0123456787', 'Hà Nội');
 
-INSERT INTO students (user_id, student_code, class_id, department_id, admission_year, birth_date, gender, citizen_id) VALUES
+INSERT INTO students (user_id, student_code, class_id, faculty_id, admission_year, birth_date, gender, citizen_id) VALUES
 (4, 'SV2024001', 1, 1, 2024, '2002-05-15', 'male', '001202012345'),
 (5, 'SV2024002', 2, 2, 2024, '2002-08-20', 'female', '001202054321');
 
 -- Thêm môn học mẫu
-INSERT INTO subjects (subject_code, subject_name, credits, department_id, description) VALUES
+INSERT INTO subjects (subject_code, subject_name, credits, faculty_id, description) VALUES
 ('CNTT101', 'Nhập môn lập trình', 3, 1, 'Môn học cơ bản về lập trình'),
 ('CNTT201', 'Cấu trúc dữ liệu và giải thuật', 4, 1, 'Môn học về cấu trúc dữ liệu'),
 ('KT101', 'Kinh tế vi mô', 3, 2, 'Môn học cơ bản về kinh tế vi mô'),
 ('NN101', 'Tiếng Anh cơ bản', 2, 3, 'Môn học tiếng Anh cơ bản');
 
 -- Thêm khóa học mẫu
-INSERT INTO courses (course_code, subject_id, teacher_id, class_id, academic_year, semester, schedule_day, schedule_time, room) VALUES
-('CNTT101_2024_1', 1, 2, 1, '2024-2025', 1, 'Thứ 2, Thứ 4', '07:00-09:00', 'A101'),
-('KT101_2024_1', 3, 3, 2, '2024-2025', 1, 'Thứ 3, Thứ 5', '09:00-11:00', 'B201');
+INSERT INTO courses (course_code, subject_id, teacher_id, class_id, academic_year, semester, schedule_day, schedule_time, room, course_status) VALUES
+('CNTT101_2024_1', 1, 2, 1, '2024-2025', 1, 'Thứ 2, Thứ 4', '07:00-09:00', 'A101', 'ongoing'),
+('KT101_2024_1', 3, 3, 2, '2024-2025', 1, 'Thứ 3, Thứ 5', '09:00-11:00', 'B201', 'ongoing'),
+('CNTT201_2024_1', 2, 2, 1, '2024-2025', 1, 'Thứ 3, Thứ 6', '13:00-17:00', 'C305', 'ongoing');
+
+-- Thêm yêu cầu mở lớp mẫu
+INSERT INTO class_opening_requests (teacher_id, subject_id, academic_year, semester, schedule_day, schedule_time, room, max_students, reason, request_status) VALUES
+(2, 1, '2024-2025', 2, 'Thứ 2, Thứ 4', '07:00-09:00', 'A102', 40, 'Mở lớp học Nhập môn lập trình nâng cao cho sinh viên K18', 'PENDING'),
+(2, 2, '2024-2025', 2, 'Thứ 3, Thứ 5', '09:00-12:00', 'B202', 35, 'Lớp Cấu trúc dữ liệu và giải thuật - Thực hành', 'PENDING'),
+(3, 3, '2024-2025', 2, 'Thứ 6', '13:00-16:00', 'C303', 30, 'Lớp Kinh tế vi mô - Lớp bổ sung', 'APPROVED', 'Đã duyệt, sinh viên có thể đăng ký', 1, 1);
+
+-- Thêm đăng ký học phần mẫu
+INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
+(1, 1, 'APPROVED', 'Đăng ký thành công'),
+(1, 2, 'APPROVED', 'Đăng ký thành công'),
+(2, 2, 'APPROVED', 'Đăng ký thành công'),
+(2, 3, 'APPROVED', 'Đăng ký thành công');
 
 COMMIT;
 
@@ -694,16 +748,13 @@ COMMIT;
 -- 1. Tính GPA cho sinh viên
 CALL CalculateStudentGPA(1);
 
--- 2. Tính tỷ lệ điểm danh cho một enrollment
-CALL CalculateAttendanceRate(1);
-
--- 3. Tính điểm cuối kỳ
+-- 2. Tính điểm cuối kỳ
 CALL CalculateFinalGrade(1);
 
--- 4. Cập nhật trạng thái sinh viên
+-- 3. Cập nhật trạng thái sinh viên
 CALL UpdateStudentStatus(1, 'graduated');
 
--- 5. Ghi log đăng nhập
+-- 4. Ghi log đăng nhập
 CALL LogUserLogin(1, '192.168.1.100', 'Mozilla/5.0...', 'success');
 
 -- LƯU Ý: 
