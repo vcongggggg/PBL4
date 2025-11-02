@@ -230,6 +230,23 @@ public class Course implements java.io.Serializable {
         this.weeks = weeks;
     }
 
+    // Alias methods for compatibility
+    public String getCourseName() {
+        return subjectName;
+    }
+
+    public void setCourseName(String courseName) {
+        this.subjectName = courseName;
+    }
+
+    public int getCurrentEnrollment() {
+        return currentStudents;
+    }
+
+    public void setCurrentEnrollment(int currentEnrollment) {
+        this.currentStudents = currentEnrollment;
+    }
+
     @Override
     public String toString() {
         return "Course{" +
