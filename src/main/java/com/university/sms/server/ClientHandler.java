@@ -4,6 +4,8 @@ import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
 import com.university.sms.model.Student;
+import com.university.sms.model.Course;
+import com.university.sms.model.Enrollment;
 import com.university.sms.service.AuthenticationService;
 import com.university.sms.service.StudentService;
 import com.university.sms.service.CourseService;
@@ -12,6 +14,11 @@ import com.university.sms.service.ClassOpeningRequestService;
 import com.university.sms.service.CourseRegistrationService;
 import com.university.sms.model.ClassOpeningRequest;
 import com.university.sms.model.CourseRegistration;
+import com.university.sms.dao.UserDAO;
+import com.university.sms.dao.CourseDAO;
+import com.university.sms.dao.EnrollmentDAO;
+import com.university.sms.dao.StudentDAO;
+import com.university.sms.dao.CourseRegistrationDAO;
 
 import java.io.*;
 import java.net.Socket;
@@ -123,6 +130,20 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_CHANGE_PASSWORD:
                     return handleChangePassword(request);
 
+                // Teacher Management actions
+                case Constants.ACTION_ADD_TEACHER:
+                    return handleAddTeacher(request);
+                case Constants.ACTION_UPDATE_TEACHER:
+                    return handleUpdateTeacher(request);
+                case Constants.ACTION_DELETE_TEACHER:
+                    return handleDeleteTeacher(request);
+                case Constants.ACTION_ACTIVATE_USER:
+                    return handleActivateUser(request);
+                case Constants.ACTION_GET_ALL_TEACHERS_INCLUDE_INACTIVE:
+                    return handleGetAllTeachersIncludeInactive(request);
+                case Constants.ACTION_GET_ALL_STUDENTS_INCLUDE_INACTIVE:
+                    return handleGetAllStudentsIncludeInactive(request);
+
                 // Student actions
                 case Constants.ACTION_GET_STUDENT_INFO:
                     return handleGetStudentInfo(request);
@@ -151,11 +172,36 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_DELETE_COURSE:
                     return handleDeleteCourse(request);
 
+                // Teacher actions
+                case Constants.ACTION_GET_ALL_TEACHERS:
+                    return handleGetAllTeachers(request);
+                case Constants.ACTION_SEARCH_TEACHERS:
+                    return handleSearchTeachers(request);
+                case Constants.ACTION_GET_COURSES_BY_TEACHER:
+                    return handleGetCoursesByTeacher(request);
+
+                // Faculty actions
+                case Constants.ACTION_GET_FACULTIES:
+                case Constants.ACTION_GET_ALL_FACULTIES:
+                    return handleGetAllFaculties(request);
+
                 // Subject actions
                 case Constants.ACTION_GET_SUBJECTS:
                     return handleGetSubjects(request);
+                case Constants.ACTION_GET_ALL_SUBJECTS:
+                    return handleGetAllSubjects(request);
+                case Constants.ACTION_SEARCH_SUBJECTS:
+                    return handleSearchSubjects(request);
+                case Constants.ACTION_ADD_SUBJECT:
+                    return handleAddSubject(request);
+                case Constants.ACTION_UPDATE_SUBJECT:
+                    return handleUpdateSubject(request);
+                case Constants.ACTION_DELETE_SUBJECT:
+                    return handleDeleteSubject(request);
 
                 // Enrollment actions
+                case Constants.ACTION_GET_ENROLLMENTS_BY_COURSE:
+                    return handleGetEnrollmentsByCourse(request);
                 case Constants.ACTION_GET_ENROLLMENTS:
                     return handleGetEnrollments(request);
                 case Constants.ACTION_GET_STUDENT_GRADES:
@@ -352,6 +398,28 @@ public class ClientHandler implements Runnable {
     }
 
     /**
+     * Lấy tất cả sinh viên (bao gồm cả đã vô hiệu hóa)
+     */
+    private Message handleGetAllStudentsIncludeInactive(Message request) {
+        // Chỉ admin mới có quyền xem cả sinh viên đã vô hiệu hóa
+        if (currentUser.getRole() != User.UserRole.ADMIN) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+        }
+
+        try {
+            StudentDAO studentDAO = new StudentDAO();
+            List<Student> students = studentDAO.findAllIncludeInactive();
+            Message response = Message.createSuccessResponse(request.getAction(), "Lấy danh sách thành công");
+            response.addData(Constants.KEY_STUDENTS, students);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting all students (include inactive): " + e.getMessage());
+            e.printStackTrace();
+            return Message.createErrorResponse(request.getAction(), "Lỗi server: " + e.getMessage());
+        }
+    }
+
+    /**
      * Xử lý tìm kiếm sinh viên
      */
     private Message handleSearchStudents(Message request) {
@@ -453,19 +521,75 @@ public class ClientHandler implements Runnable {
     }
 
     private Message handleDeleteStudent(Message request) {
-        if (currentUser.getRole() != User.UserRole.ADMIN) {
-            return Message.createErrorResponse(Constants.ACTION_DELETE_STUDENT, Constants.MSG_UNAUTHORIZED);
+        try {
+            // Only admin can delete students
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền xóa sinh viên");
+            }
+
+            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+            if (studentId == null || studentId <= 0) {
+                return Message.createErrorResponse(request.getAction(), "ID sinh viên không hợp lệ");
+            }
+
+            // Get student info first
+            StudentDAO studentDAO = new StudentDAO();
+            Student student = studentDAO.findById(studentId);
+            if (student == null) {
+                return Message.createErrorResponse(request.getAction(), "Không tìm thấy sinh viên");
+            }
+
+            // Step 1: Remove student from all enrollments and update current_students
+            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+            List<Enrollment> enrollments = enrollmentDAO.findByStudentId(studentId);
+
+            CourseDAO courseDAO = new CourseDAO();
+            for (Enrollment enrollment : enrollments) {
+                // Delete enrollment
+                enrollmentDAO.deleteEnrollment(enrollment.getEnrollmentId());
+
+                // Decrease current_students count
+                Course course = courseDAO.findById(enrollment.getCourseId());
+                if (course != null && course.getCurrentStudents() > 0) {
+                    courseDAO.updateCurrentStudents(enrollment.getCourseId(), course.getCurrentStudents() - 1);
+                }
+            }
+
+            // Step 2: Remove student from all course registrations and update
+            // current_students
+            CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
+            List<CourseRegistration> registrations = registrationDAO.findByStudent(studentId);
+
+            for (CourseRegistration registration : registrations) {
+                // Only count APPROVED registrations
+                if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
+                    Course course = courseDAO.findById(registration.getCourseId());
+                    if (course != null && course.getCurrentStudents() > 0) {
+                        courseDAO.updateCurrentStudents(registration.getCourseId(), course.getCurrentStudents() - 1);
+                    }
+                }
+                // Delete registration
+                registrationDAO.delete(registration.getRegistrationId());
+            }
+
+            // Step 3: Deactivate user
+            UserDAO userDAO = new UserDAO();
+            boolean success = userDAO.deactivateUser(student.getUserId());
+
+            if (success) {
+                LOGGER.info("Student deactivated and removed from all courses: " + studentId + " ("
+                        + student.getStudentCode() + ") by "
+                        + currentUser.getUsername() + " - Removed " + enrollments.size() + " enrollments and "
+                        + registrations.size() + " registrations");
+                return Message.createSuccessResponse(request.getAction(),
+                        "Vô hiệu hóa sinh viên và xóa khỏi tất cả lớp học phần thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể vô hiệu hóa sinh viên");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error deactivating student", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
-        Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-        if (studentId == null || studentId <= 0) {
-            return Message.createErrorResponse(Constants.ACTION_DELETE_STUDENT, Constants.MSG_INVALID_DATA);
-        }
-        com.university.sms.dao.StudentDAO dao = new com.university.sms.dao.StudentDAO();
-        boolean ok = dao.deleteStudent(studentId);
-        if (ok) {
-            return Message.createSuccessResponse(Constants.ACTION_DELETE_STUDENT, Constants.MSG_SUCCESS);
-        }
-        return Message.createErrorResponse(Constants.ACTION_DELETE_STUDENT, Constants.MSG_DATABASE_ERROR);
     }
 
     /**
@@ -1145,11 +1269,11 @@ public class ClientHandler implements Runnable {
         try {
             int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
             ClassOpeningRequest classRequest = classRequestService.getRequestById(requestId);
-            
+
             if (classRequest == null) {
                 return Message.createErrorResponse(request.getAction(), "Request not found");
             }
-            
+
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData(Constants.KEY_CLASS_REQUEST, classRequest);
             return response;
@@ -1188,7 +1312,7 @@ public class ClientHandler implements Runnable {
         try {
             ClassOpeningRequest classRequest = (ClassOpeningRequest) request.getData(Constants.KEY_CLASS_REQUEST);
             boolean success = classRequestService.submitRequest(classRequest);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Request submitted successfully");
             } else {
@@ -1204,7 +1328,7 @@ public class ClientHandler implements Runnable {
         try {
             ClassOpeningRequest classRequest = (ClassOpeningRequest) request.getData(Constants.KEY_CLASS_REQUEST);
             boolean success = classRequestService.updateRequest(classRequest);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Request updated successfully");
             } else {
@@ -1221,7 +1345,7 @@ public class ClientHandler implements Runnable {
             int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
             int teacherId = (Integer) request.getData(Constants.KEY_TEACHER_ID);
             boolean success = classRequestService.cancelRequest(requestId, teacherId);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Request cancelled successfully");
             } else {
@@ -1235,39 +1359,73 @@ public class ClientHandler implements Runnable {
 
     private Message handleApproveClassRequest(Message request) {
         try {
-            int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
-            int adminId = (Integer) request.getData(Constants.KEY_ADMIN_ID);
-            String note = (String) request.getData(Constants.KEY_NOTE);
-            
-            boolean success = classRequestService.approveRequest(requestId, adminId, note);
-            
-            if (success) {
-                return Message.createSuccessResponse(request.getAction(), "Request approved successfully");
-            } else {
-                return Message.createErrorResponse(request.getAction(), "Failed to approve request");
+            // Kiểm tra quyền Admin
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ Admin mới có quyền duyệt yêu cầu");
             }
+
+            Integer requestId = request.getData(Constants.KEY_REQUEST_ID, Integer.class);
+            if (requestId == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu thông tin request ID");
+            }
+
+            // Lấy adminId từ currentUser thay vì từ request
+            int adminId = currentUser.getUserId();
+            String note = request.getData(Constants.KEY_NOTE, String.class);
+
+            boolean success = classRequestService.approveRequest(requestId, adminId, note);
+
+            if (success) {
+                LOGGER.info("Admin " + currentUser.getUsername() + " approved request " + requestId);
+                return Message.createSuccessResponse(request.getAction(), "Đã duyệt yêu cầu thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể duyệt yêu cầu");
+            }
+        } catch (IllegalStateException e) {
+            LOGGER.warning("Cannot approve request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), e.getMessage());
         } catch (Exception e) {
             LOGGER.severe("Error approving class request: " + e.getMessage());
-            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+            e.printStackTrace();
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
 
     private Message handleRejectClassRequest(Message request) {
         try {
-            int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
-            int adminId = (Integer) request.getData(Constants.KEY_ADMIN_ID);
-            String reason = (String) request.getData(Constants.KEY_REASON);
-            
-            boolean success = classRequestService.rejectRequest(requestId, adminId, reason);
-            
-            if (success) {
-                return Message.createSuccessResponse(request.getAction(), "Request rejected successfully");
-            } else {
-                return Message.createErrorResponse(request.getAction(), "Failed to reject request");
+            // Kiểm tra quyền Admin
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ Admin mới có quyền từ chối yêu cầu");
             }
+
+            Integer requestId = request.getData(Constants.KEY_REQUEST_ID, Integer.class);
+            if (requestId == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu thông tin request ID");
+            }
+
+            // Lấy adminId từ currentUser thay vì từ request
+            int adminId = currentUser.getUserId();
+            String reason = request.getData(Constants.KEY_REASON, String.class);
+
+            if (reason == null || reason.trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Vui lòng nhập lý do từ chối");
+            }
+
+            boolean success = classRequestService.rejectRequest(requestId, adminId, reason);
+
+            if (success) {
+                LOGGER.info("Admin " + currentUser.getUsername() + " rejected request " + requestId);
+                return Message.createSuccessResponse(request.getAction(), "Đã từ chối yêu cầu");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể từ chối yêu cầu");
+            }
+        } catch (IllegalStateException e) {
+            LOGGER.warning("Cannot reject request: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), e.getMessage());
         } catch (Exception e) {
             LOGGER.severe("Error rejecting class request: " + e.getMessage());
-            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+            e.printStackTrace();
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
 
@@ -1301,11 +1459,11 @@ public class ClientHandler implements Runnable {
         try {
             int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
             CourseRegistration registration = registrationService.getRegistrationById(registrationId);
-            
+
             if (registration == null) {
                 return Message.createErrorResponse(request.getAction(), "Registration not found");
             }
-            
+
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData(Constants.KEY_REGISTRATION, registration);
             return response;
@@ -1318,15 +1476,15 @@ public class ClientHandler implements Runnable {
     private Message handleGetMyRegistrations(Message request) {
         try {
             Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
-            
+
             // Try to get student by ID first, if not found try by user_id
             Student student = studentService.getStudentById(studentIdOrUserId);
             if (student == null) {
                 student = studentService.getStudentByUserId(studentIdOrUserId);
             }
-            
+
             int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
-            
+
             List<CourseRegistration> registrations = registrationService.getRegistrationsByStudent(studentId);
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
@@ -1367,25 +1525,25 @@ public class ClientHandler implements Runnable {
             Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
             int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
             String notes = (String) request.getData(Constants.KEY_NOTE);
-            
+
             // Try to get student by ID first, if not found try by user_id
             Student student = studentService.getStudentById(studentIdOrUserId);
             if (student == null) {
                 LOGGER.info("Student not found by ID " + studentIdOrUserId + ", trying user_id lookup");
                 student = studentService.getStudentByUserId(studentIdOrUserId);
             }
-            
+
             if (student == null) {
                 LOGGER.severe("Student not found for ID/UserID: " + studentIdOrUserId);
-                return Message.createErrorResponse(request.getAction(), 
-                    "Student not found. Please ensure your profile is complete.");
+                return Message.createErrorResponse(request.getAction(),
+                        "Student not found. Please ensure your profile is complete.");
             }
-            
+
             int studentId = student.getStudentId();
             LOGGER.info("Registering course for student_id=" + studentId + " (from input=" + studentIdOrUserId + ")");
-            
+
             boolean success = registrationService.registerCourse(studentId, courseId, notes);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Registration submitted successfully");
             } else {
@@ -1401,9 +1559,9 @@ public class ClientHandler implements Runnable {
         try {
             int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
             int studentId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
-            
+
             boolean success = registrationService.cancelRegistration(registrationId, studentId);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Registration cancelled successfully");
             } else {
@@ -1419,7 +1577,7 @@ public class ClientHandler implements Runnable {
         try {
             int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
             boolean success = registrationService.approveRegistration(registrationId);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Registration approved successfully");
             } else {
@@ -1435,9 +1593,9 @@ public class ClientHandler implements Runnable {
         try {
             int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
             String reason = (String) request.getData(Constants.KEY_REASON);
-            
+
             boolean success = registrationService.rejectRegistration(registrationId, reason);
-            
+
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Registration rejected successfully");
             } else {
@@ -1453,18 +1611,18 @@ public class ClientHandler implements Runnable {
         try {
             Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
             int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
-            
+
             // Try to get student by ID first, if not found try by user_id
             Student student = studentService.getStudentById(studentIdOrUserId);
             if (student == null) {
                 student = studentService.getStudentByUserId(studentIdOrUserId);
             }
-            
+
             int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
-            
-            CourseRegistrationService.RegistrationValidation validation = 
-                registrationService.validateRegistration(studentId, courseId);
-            
+
+            CourseRegistrationService.RegistrationValidation validation = registrationService
+                    .validateRegistration(studentId, courseId);
+
             Message response = Message.createSuccessResponse(request.getAction(), validation.getMessage());
             response.addData("valid", validation.isValid());
             response.addData("message", validation.getMessage());
@@ -1480,17 +1638,17 @@ public class ClientHandler implements Runnable {
             Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
             String academicYear = (String) request.getData(Constants.KEY_ACADEMIC_YEAR);
             int semester = (Integer) request.getData(Constants.KEY_SEMESTER);
-            
+
             // Try to get student by ID first, if not found try by user_id
             Student student = studentService.getStudentById(studentIdOrUserId);
             if (student == null) {
                 student = studentService.getStudentByUserId(studentIdOrUserId);
             }
-            
+
             int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
-            
+
             int credits = registrationService.getStudentCredits(studentId, academicYear, semester);
-            
+
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData("credits", credits);
             return response;
@@ -1512,22 +1670,439 @@ public class ClientHandler implements Runnable {
         }
     }
 
+    // ==================== Teacher Management Handlers ====================
+
+    private Message handleAddTeacher(Message request) {
+        try {
+            // Only admin can add teachers
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền thêm giảng viên");
+            }
+
+            String username = request.getData("username", String.class);
+            String password = request.getData("password", String.class);
+            String fullName = request.getData("fullName", String.class);
+            String email = request.getData("email", String.class);
+            String phone = request.getData("phone", String.class);
+            String address = request.getData("address", String.class);
+
+            if (username == null || password == null || fullName == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu thông tin bắt buộc");
+            }
+
+            // Create new teacher
+            User newTeacher = new User();
+            newTeacher.setUsername(username);
+            newTeacher.setPassword(password);
+            newTeacher.setFullName(fullName);
+            newTeacher.setEmail(email);
+            newTeacher.setPhone(phone);
+            newTeacher.setAddress(address);
+            newTeacher.setRole(User.UserRole.TEACHER);
+            newTeacher.setActive(true);
+
+            UserDAO userDAO = new UserDAO();
+            boolean success = userDAO.addUser(newTeacher);
+
+            if (success) {
+                LOGGER.info("Teacher added: " + username + " by " + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Thêm giảng viên thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể thêm giảng viên");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error adding teacher", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleUpdateTeacher(Message request) {
+        try {
+            // Only admin can update teachers
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền cập nhật giảng viên");
+            }
+
+            Integer userId = request.getData("userId", Integer.class);
+            if (userId == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu ID giảng viên");
+            }
+
+            UserDAO userDAO = new UserDAO();
+            User teacher = userDAO.findById(userId);
+            if (teacher == null || teacher.getRole() != User.UserRole.TEACHER) {
+                return Message.createErrorResponse(request.getAction(), "Không tìm thấy giảng viên");
+            }
+
+            // Update fields
+            String fullName = request.getData("fullName", String.class);
+            String email = request.getData("email", String.class);
+            String phone = request.getData("phone", String.class);
+            String address = request.getData("address", String.class);
+            String password = request.getData("password", String.class);
+
+            if (fullName != null)
+                teacher.setFullName(fullName);
+            if (email != null)
+                teacher.setEmail(email);
+            if (phone != null)
+                teacher.setPhone(phone);
+            if (address != null)
+                teacher.setAddress(address);
+
+            boolean success = userDAO.updateUser(teacher);
+
+            // Update password if provided
+            if (password != null && !password.isEmpty()) {
+                userDAO.changePassword(userId, password);
+            }
+
+            if (success) {
+                LOGGER.info("Teacher updated: " + teacher.getUsername() + " by " + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Cập nhật giảng viên thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể cập nhật giảng viên");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error updating teacher", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleDeleteTeacher(Message request) {
+        try {
+            // Only admin can delete teachers
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền xóa giảng viên");
+            }
+
+            Integer userId = request.getData("userId", Integer.class);
+            if (userId == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu ID giảng viên");
+            }
+
+            UserDAO userDAO = new UserDAO();
+            User teacher = userDAO.findById(userId);
+            if (teacher == null || teacher.getRole() != User.UserRole.TEACHER) {
+                return Message.createErrorResponse(request.getAction(), "Không tìm thấy giảng viên");
+            }
+
+            boolean success = userDAO.deactivateUser(userId);
+
+            if (success) {
+                LOGGER.info("Teacher deactivated: " + teacher.getUsername() + " by " + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Vô hiệu hóa giảng viên thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể vô hiệu hóa giảng viên");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error deactivating teacher", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== User Activation Handler ====================
+
+    private Message handleActivateUser(Message request) {
+        try {
+            // Only admin can activate users
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền kích hoạt người dùng");
+            }
+
+            Integer userId = request.getData("userId", Integer.class);
+            if (userId == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu ID người dùng");
+            }
+
+            UserDAO userDAO = new UserDAO();
+            User user = userDAO.findById(userId);
+            if (user == null) {
+                return Message.createErrorResponse(request.getAction(), "Không tìm thấy người dùng");
+            }
+
+            boolean success = userDAO.activateUser(userId);
+
+            if (success) {
+                String userType = user.getRole() == User.UserRole.TEACHER ? "giảng viên"
+                        : user.getRole() == User.UserRole.STUDENT ? "sinh viên" : "người dùng";
+                LOGGER.info("User activated: " + userId + " (" + user.getUsername() + ", " + userType + ") by "
+                        + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Kích hoạt " + userType + " thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể kích hoạt người dùng");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error activating user", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== Teacher Handlers ====================
+
+    private Message handleGetAllTeachers(Message request) {
+        try {
+            UserDAO userDAO = new UserDAO();
+            List<User> teachers = userDAO.findByRole(User.UserRole.TEACHER);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + teachers.size() + " teachers");
+            response.addData("teachers", teachers);
+
+            LOGGER.info("Retrieved " + teachers.size() + " teachers");
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting teachers", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error retrieving teachers: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetAllTeachersIncludeInactive(Message request) {
+        try {
+            UserDAO userDAO = new UserDAO();
+            List<User> teachers = userDAO.findByRoleIncludeInactive(User.UserRole.TEACHER);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + teachers.size() + " teachers (include inactive)");
+            response.addData("teachers", teachers);
+
+            LOGGER.info("Retrieved " + teachers.size() + " teachers (include inactive)");
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting teachers (include inactive)", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error retrieving teachers: " + e.getMessage());
+        }
+    }
+
+    private Message handleSearchTeachers(Message request) {
+        try {
+            String keyword = request.getData("keyword", String.class);
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return handleGetAllTeachers(request);
+            }
+
+            UserDAO userDAO = new UserDAO();
+            List<User> allTeachers = userDAO.findByRole(User.UserRole.TEACHER);
+            List<User> filteredTeachers = new java.util.ArrayList<>();
+
+            String lowerKeyword = keyword.toLowerCase();
+            for (User teacher : allTeachers) {
+                if ((teacher.getFullName() != null && teacher.getFullName().toLowerCase().contains(lowerKeyword)) ||
+                        (teacher.getUsername() != null && teacher.getUsername().toLowerCase().contains(lowerKeyword)) ||
+                        (teacher.getEmail() != null && teacher.getEmail().toLowerCase().contains(lowerKeyword))) {
+                    filteredTeachers.add(teacher);
+                }
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + filteredTeachers.size() + " teachers");
+            response.addData("teachers", filteredTeachers);
+
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error searching teachers", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error searching teachers: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetCoursesByTeacher(Message request) {
+        try {
+            Integer teacherId = request.getData("teacherId", Integer.class);
+            if (teacherId == null) {
+                return Message.createErrorResponse(request.getAction(), "Teacher ID is required");
+            }
+
+            CourseDAO courseDAO = new CourseDAO();
+            List<com.university.sms.model.Course> courses = courseDAO.findByTeacherId(teacherId);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + courses.size() + " courses");
+            response.addData("courses", courses);
+
+            LOGGER.info("Retrieved " + courses.size() + " courses for teacher " + teacherId);
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting courses by teacher", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error retrieving courses: " + e.getMessage());
+        }
+    }
+
     // ==================== Subject Handlers ====================
 
     private Message handleGetSubjects(Message request) {
         try {
             List<com.university.sms.model.Subject> subjects = subjectService.getAllSubjects();
-            
-            Message response = Message.createSuccessResponse(request.getAction(), 
-                "Found " + subjects.size() + " subjects");
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + subjects.size() + " subjects");
             response.addData(Constants.KEY_SUBJECTS, subjects);
-            
+
             LOGGER.info("Retrieved " + subjects.size() + " subjects");
             return response;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error getting subjects", e);
-            return Message.createErrorResponse(request.getAction(), 
-                "Error retrieving subjects: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(),
+                    "Error retrieving subjects: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetAllSubjects(Message request) {
+        return handleGetSubjects(request);
+    }
+
+    private Message handleSearchSubjects(Message request) {
+        try {
+            String keyword = request.getData("keyword", String.class);
+            if (keyword == null || keyword.trim().isEmpty()) {
+                return handleGetAllSubjects(request);
+            }
+
+            List<com.university.sms.model.Subject> allSubjects = subjectService.getAllSubjects();
+            List<com.university.sms.model.Subject> filteredSubjects = new java.util.ArrayList<>();
+
+            String lowerKeyword = keyword.toLowerCase();
+            for (com.university.sms.model.Subject subject : allSubjects) {
+                if ((subject.getSubjectName() != null && subject.getSubjectName().toLowerCase().contains(lowerKeyword))
+                        ||
+                        (subject.getSubjectCode() != null
+                                && subject.getSubjectCode().toLowerCase().contains(lowerKeyword))) {
+                    filteredSubjects.add(subject);
+                }
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + filteredSubjects.size() + " subjects");
+            response.addData("subjects", filteredSubjects);
+
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error searching subjects", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error searching subjects: " + e.getMessage());
+        }
+    }
+
+    private Message handleAddSubject(Message request) {
+        try {
+            // Only admin can add subjects
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền thêm môn học");
+            }
+
+            com.university.sms.model.Subject subject = request.getData("subject",
+                    com.university.sms.model.Subject.class);
+            if (subject == null) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu thông tin môn học");
+            }
+
+            boolean success = subjectService.addSubject(subject);
+            if (success) {
+                LOGGER.info("Subject added: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Thêm môn học thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể thêm môn học");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error adding subject", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleUpdateSubject(Message request) {
+        try {
+            // Only admin can update subjects
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền sửa môn học");
+            }
+
+            com.university.sms.model.Subject subject = request.getData("subject",
+                    com.university.sms.model.Subject.class);
+            if (subject == null || subject.getSubjectId() <= 0) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu thông tin môn học");
+            }
+
+            boolean success = subjectService.updateSubject(subject);
+            if (success) {
+                LOGGER.info("Subject updated: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Cập nhật môn học thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Không thể cập nhật môn học");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error updating subject", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleDeleteSubject(Message request) {
+        try {
+            // Only admin can delete subjects
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền xóa môn học");
+            }
+
+            Integer subjectId = request.getData("subjectId", Integer.class);
+            if (subjectId == null || subjectId <= 0) {
+                return Message.createErrorResponse(request.getAction(), "ID môn học không hợp lệ");
+            }
+
+            boolean success = subjectService.deleteSubject(subjectId);
+            if (success) {
+                LOGGER.info("Subject deleted: " + subjectId + " by " + currentUser.getUsername());
+                return Message.createSuccessResponse(request.getAction(), "Xóa môn học thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(),
+                        "Không thể xóa môn học (có thể đang được sử dụng)");
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error deleting subject", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== Faculty Handlers ====================
+
+    private Message handleGetAllFaculties(Message request) {
+        try {
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+            List<com.university.sms.model.Faculty> faculties = facultyDAO.findAll();
+
+            Message response = Message.createSuccessResponse(request.getAction(), "Lấy danh sách khoa thành công");
+            response.addData("faculties", faculties);
+
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting faculties", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== Enrollment Handlers (Additional) ====================
+
+    private Message handleGetEnrollmentsByCourse(Message request) {
+        try {
+            Integer courseId = request.getData("courseId", Integer.class);
+            if (courseId == null) {
+                return Message.createErrorResponse(request.getAction(), "Course ID is required");
+            }
+
+            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO.findByCourseId(courseId);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + enrollments.size() + " enrollments");
+            response.addData("enrollments", enrollments);
+
+            LOGGER.info("Retrieved " + enrollments.size() + " enrollments for course " + courseId);
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting enrollments by course", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error retrieving enrollments: " + e.getMessage());
         }
     }
 

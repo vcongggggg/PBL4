@@ -4,31 +4,24 @@ import com.university.sms.client.IServerConnection;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
 import com.university.sms.client.gui.common.*;
-
 import javax.swing.*;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 
-/**
- * Giao diện chính cho Admin
- * Quản lý: Người dùng, Môn học, Duyệt yêu cầu mở lớp
- */
 public class AdminMainFrame extends JFrame {
     private static final long serialVersionUID = 1L;
-
     private User currentUser;
     private IServerConnection serverConnection;
-
     private JTabbedPane tabbedPane;
     private JLabel userInfoLabel;
     private JLabel connectionStatusLabel;
-
-    // Admin-specific panels
     private StudentPanel studentPanel;
     private CoursePanel coursePanel;
     private AdminPanel adminPanel;
     private ReportPanel reportPanel;
+    private TeacherPanel teacherPanel;
+    private SubjectPanel subjectPanel;
 
     public AdminMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
@@ -38,8 +31,7 @@ public class AdminMainFrame extends JFrame {
         setupLayout();
         setupMenuBar();
         setupEventListeners();
-        
-        // Load initial data
+
         SwingUtilities.invokeLater(() -> refreshAllPanels());
     }
 
@@ -48,52 +40,53 @@ public class AdminMainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
 
-        // Create tabbed pane
         tabbedPane = new JTabbedPane();
 
-        // Create status labels
         userInfoLabel = new JLabel();
         connectionStatusLabel = new JLabel();
 
-        // Create admin-specific panels
         createAdminPanels();
     }
 
     private void createAdminPanels() {
-        // Admin quản lý sinh viên
+        JTabbedPane userManagementPane = new JTabbedPane();
+
         studentPanel = new StudentPanel(currentUser, serverConnection, false);
-        tabbedPane.addTab("Quản lý Sinh viên", createIcon("student"), studentPanel, 
-                         "Quản lý toàn bộ thông tin sinh viên");
+        userManagementPane.addTab("Quản lí sinh viên", createIcon("student"), studentPanel,
+                "Quản lý toàn bộ thông tin sinh viên");
 
-        // Admin quản lý môn học
+        teacherPanel = new TeacherPanel(currentUser, serverConnection);
+        userManagementPane.addTab("Quản lí giảng viên", createIcon("teacher"), teacherPanel,
+                "Quản lý giảng viên và xem lớp đang dạy");
+
+        tabbedPane.addTab("Quản lí người dùng", createIcon("users"), userManagementPane,
+                "Quản lý sinh viên và giảng viên");
+
         coursePanel = new CoursePanel(currentUser, serverConnection, false);
-        tabbedPane.addTab("Quản lý Môn học", createIcon("course"), coursePanel, 
-                         "Quản lý tất cả các môn học");
+        tabbedPane.addTab("Quản lí lớp học phần", createIcon("course"), coursePanel,
+                "Quản lý các lớp học phần");
 
-        // Admin panel cho quản trị hệ thống
+        subjectPanel = new SubjectPanel(currentUser, serverConnection);
+        tabbedPane.addTab("Khung chương trình đào tạo", createIcon("subject"), subjectPanel,
+                "Quản lý môn học cho chương trình đào tạo");
+
         adminPanel = new AdminPanel(currentUser, serverConnection);
-        tabbedPane.addTab("Quản trị Hệ thống", createIcon("admin"), adminPanel, 
-                         "Quản trị hệ thống");
+        tabbedPane.addTab("Quản trị Hệ thống", createIcon("admin"), adminPanel,
+                "Duyệt yêu cầu mở lớp");
 
-        // Admin xem báo cáo
         reportPanel = new ReportPanel(currentUser, serverConnection);
-        tabbedPane.addTab("Báo cáo & Thống kê", createIcon("report"), reportPanel, 
-                         "Xem báo cáo tổng hợp");
+        tabbedPane.addTab("Báo cáo & Thống kê", createIcon("report"), reportPanel,
+                "Xem báo cáo tổng hợp");
     }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
 
-        // Main content
         add(tabbedPane, BorderLayout.CENTER);
 
-        // Status bar
         JPanel statusBar = createStatusBar();
         add(statusBar, BorderLayout.SOUTH);
 
-        // Toolbar
-        JToolBar toolBar = createToolBar();
-        add(toolBar, BorderLayout.NORTH);
     }
 
     private JPanel createStatusBar() {
@@ -101,12 +94,10 @@ public class AdminMainFrame extends JFrame {
         statusPanel.setBorder(BorderFactory.createLoweredBevelBorder());
         statusPanel.setPreferredSize(new Dimension(0, 25));
 
-        // User info on the left
         userInfoLabel.setText("Người dùng: " + currentUser.getFullName() + " (Admin)");
         userInfoLabel.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
         statusPanel.add(userInfoLabel, BorderLayout.WEST);
 
-        // Connection status on the right
         connectionStatusLabel.setText("Trạng thái: Đã kết nối");
         connectionStatusLabel.setForeground(new Color(0, 150, 0));
         connectionStatusLabel.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
@@ -115,36 +106,9 @@ public class AdminMainFrame extends JFrame {
         return statusPanel;
     }
 
-    private JToolBar createToolBar() {
-        JToolBar toolBar = new JToolBar();
-        toolBar.setFloatable(false);
-
-        // Refresh button
-        JButton refreshButton = new JButton("Làm mới", createIcon("refresh"));
-        refreshButton.addActionListener(e -> refreshAllPanels());
-        toolBar.add(refreshButton);
-
-        toolBar.addSeparator();
-
-        // Change password button
-        JButton changePasswordButton = new JButton("Đổi mật khẩu", createIcon("password"));
-        changePasswordButton.addActionListener(e -> showChangePasswordDialog());
-        toolBar.add(changePasswordButton);
-
-        toolBar.addSeparator();
-
-        // Logout button
-        JButton logoutButton = new JButton("Đăng xuất", createIcon("logout"));
-        logoutButton.addActionListener(e -> logout());
-        toolBar.add(logoutButton);
-
-        return toolBar;
-    }
-
     private void setupMenuBar() {
         JMenuBar menuBar = new JMenuBar();
 
-        // File menu
         JMenu fileMenu = new JMenu("Tệp");
         fileMenu.setMnemonic('T');
 
@@ -167,7 +131,6 @@ public class AdminMainFrame extends JFrame {
 
         menuBar.add(fileMenu);
 
-        // Tools menu
         JMenu toolsMenu = new JMenu("Công cụ");
         toolsMenu.setMnemonic('C');
 
@@ -181,7 +144,6 @@ public class AdminMainFrame extends JFrame {
     }
 
     private void setupEventListeners() {
-        // Window closing event
         addWindowListener(new WindowAdapter() {
             @Override
             public void windowClosing(WindowEvent e) {
@@ -189,11 +151,9 @@ public class AdminMainFrame extends JFrame {
             }
         });
 
-        // Server connection handler
         serverConnection.setResponseHandler(new IServerConnection.ResponseHandler() {
             @Override
             public void onResponse(Message response) {
-                // Handle server responses if needed
             }
 
             @Override
@@ -227,10 +187,18 @@ public class AdminMainFrame extends JFrame {
     }
 
     private void refreshAllPanels() {
-        if (studentPanel != null) studentPanel.refreshData();
-        if (coursePanel != null) coursePanel.refreshData();
-        if (adminPanel != null) adminPanel.refreshData();
-        if (reportPanel != null) reportPanel.refreshData();
+        if (studentPanel != null)
+            studentPanel.refreshData();
+        if (coursePanel != null)
+            coursePanel.refreshData();
+        if (adminPanel != null)
+            adminPanel.refreshData();
+        if (reportPanel != null)
+            reportPanel.refreshData();
+        if (teacherPanel != null)
+            teacherPanel.refreshData();
+        if (subjectPanel != null)
+            subjectPanel.refreshData();
         updateConnectionStatus();
     }
 
@@ -238,7 +206,6 @@ public class AdminMainFrame extends JFrame {
         ChangePasswordDialog dialog = new ChangePasswordDialog(this, serverConnection);
         dialog.setVisible(true);
     }
-
 
     private void logout() {
         int result = JOptionPane.showConfirmDialog(this,
@@ -268,8 +235,7 @@ public class AdminMainFrame extends JFrame {
     private void returnToLogin() {
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
-            com.university.sms.client.gui.common.LoginFrame loginFrame = 
-                new com.university.sms.client.gui.common.LoginFrame();
+            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame();
             loginFrame.setVisible(true);
             dispose();
         });
@@ -303,4 +269,3 @@ public class AdminMainFrame extends JFrame {
         return serverConnection;
     }
 }
-

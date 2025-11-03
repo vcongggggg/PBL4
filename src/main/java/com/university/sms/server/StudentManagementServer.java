@@ -16,15 +16,15 @@ import java.util.logging.Logger;
  */
 public class StudentManagementServer {
     private static final Logger LOGGER = Logger.getLogger(StudentManagementServer.class.getName());
-    
+
     private static final int DEFAULT_PORT = 8888;
     private static final int MAX_THREADS = 100;
-    
+
     private ServerSocket serverSocket;
     private ExecutorService threadPool;
     private boolean isRunning;
     private int port;
-    
+
     // Quản lý các client đang kết nối
     private ConcurrentHashMap<String, ClientHandler> connectedClients;
 
@@ -49,25 +49,25 @@ public class StudentManagementServer {
                 LOGGER.severe("Cannot connect to database. Server startup aborted.");
                 return;
             }
-            
+
             serverSocket = new ServerSocket(port);
             isRunning = true;
-            
+
             LOGGER.info("Student Management Server started on port " + port);
             LOGGER.info("Waiting for client connections...");
-            
+
             // Accept client connections
             while (isRunning && !serverSocket.isClosed()) {
                 try {
                     Socket clientSocket = serverSocket.accept();
-                    
+
                     // Create client handler
                     ClientHandler clientHandler = new ClientHandler(clientSocket);
                     String clientId = clientSocket.getRemoteSocketAddress().toString();
-                    
+
                     // Store client handler
                     connectedClients.put(clientId, clientHandler);
-                    
+
                     // Handle client in separate thread
                     threadPool.execute(() -> {
                         try {
@@ -78,17 +78,17 @@ public class StudentManagementServer {
                             LOGGER.info("Client removed: " + clientId);
                         }
                     });
-                    
-                    LOGGER.info("New client connected: " + clientId + 
-                               " (Total clients: " + connectedClients.size() + ")");
-                    
+
+                    LOGGER.info("New client connected: " + clientId +
+                            " (Total clients: " + connectedClients.size() + ")");
+
                 } catch (IOException e) {
                     if (isRunning) {
                         LOGGER.log(Level.SEVERE, "Error accepting client connection", e);
                     }
                 }
             }
-            
+
         } catch (IOException e) {
             LOGGER.log(Level.SEVERE, "Error starting server", e);
         } finally {
@@ -101,13 +101,13 @@ public class StudentManagementServer {
      */
     public void stop() {
         LOGGER.info("Stopping Student Management Server...");
-        
+
         isRunning = false;
-        
+
         // Disconnect all clients
         connectedClients.values().forEach(ClientHandler::disconnect);
         connectedClients.clear();
-        
+
         // Shutdown thread pool
         if (threadPool != null && !threadPool.isShutdown()) {
             threadPool.shutdown();
@@ -119,7 +119,7 @@ public class StudentManagementServer {
                 threadPool.shutdownNow();
             }
         }
-        
+
         // Close server socket
         if (serverSocket != null && !serverSocket.isClosed()) {
             try {
@@ -128,7 +128,7 @@ public class StudentManagementServer {
                 LOGGER.log(Level.WARNING, "Error closing server socket", e);
             }
         }
-        
+
         LOGGER.info("Student Management Server stopped");
     }
 
@@ -144,14 +144,14 @@ public class StudentManagementServer {
      */
     public String[] getConnectedClientInfo() {
         return connectedClients.entrySet().stream()
-            .map(entry -> {
-                String clientId = entry.getKey();
-                ClientHandler handler = entry.getValue();
-                String username = handler.getCurrentUser() != null ? 
-                    handler.getCurrentUser().getUsername() : "Anonymous";
-                return clientId + " (" + username + ")";
-            })
-            .toArray(String[]::new);
+                .map(entry -> {
+                    String clientId = entry.getKey();
+                    ClientHandler handler = entry.getValue();
+                    String username = handler.getCurrentUser() != null ? handler.getCurrentUser().getUsername()
+                            : "Anonymous";
+                    return clientId + " (" + username + ")";
+                })
+                .toArray(String[]::new);
     }
 
     /**
@@ -173,7 +173,7 @@ public class StudentManagementServer {
      */
     public void broadcastMessage(String message) {
         LOGGER.info("Broadcasting message to " + connectedClients.size() + " clients: " + message);
-        
+
         connectedClients.values().forEach(client -> {
             try {
                 // Implementation for broadcasting will be added if needed
@@ -193,26 +193,26 @@ public class StudentManagementServer {
         stats.setIsRunning(isRunning);
         stats.setPort(port);
         stats.setUptime(System.currentTimeMillis()); // Simple implementation
-        
+
         // Count clients by role
         long adminCount = connectedClients.values().stream()
-            .filter(c -> c.getCurrentUser() != null && 
+                .filter(c -> c.getCurrentUser() != null &&
                         c.getCurrentUser().getRole().name().equals("ADMIN"))
-            .count();
+                .count();
         stats.setAdminClients((int) adminCount);
-        
+
         long teacherCount = connectedClients.values().stream()
-            .filter(c -> c.getCurrentUser() != null && 
+                .filter(c -> c.getCurrentUser() != null &&
                         c.getCurrentUser().getRole().name().equals("TEACHER"))
-            .count();
+                .count();
         stats.setTeacherClients((int) teacherCount);
-        
+
         long studentCount = connectedClients.values().stream()
-            .filter(c -> c.getCurrentUser() != null && 
+                .filter(c -> c.getCurrentUser() != null &&
                         c.getCurrentUser().getRole().name().equals("STUDENT"))
-            .count();
+                .count();
         stats.setStudentClients((int) studentCount);
-        
+
         return stats;
     }
 
@@ -239,27 +239,60 @@ public class StudentManagementServer {
         private int studentClients;
 
         // Getters and setters
-        public int getConnectedClients() { return connectedClients; }
-        public void setConnectedClients(int connectedClients) { this.connectedClients = connectedClients; }
-        
-        public boolean isRunning() { return isRunning; }
-        public void setIsRunning(boolean running) { isRunning = running; }
-        
-        public int getPort() { return port; }
-        public void setPort(int port) { this.port = port; }
-        
-        public long getUptime() { return uptime; }
-        public void setUptime(long uptime) { this.uptime = uptime; }
-        
-        public int getAdminClients() { return adminClients; }
-        public void setAdminClients(int adminClients) { this.adminClients = adminClients; }
-        
-        public int getTeacherClients() { return teacherClients; }
-        public void setTeacherClients(int teacherClients) { this.teacherClients = teacherClients; }
-        
-        public int getStudentClients() { return studentClients; }
-        public void setStudentClients(int studentClients) { this.studentClients = studentClients; }
+        public int getConnectedClients() {
+            return connectedClients;
+        }
+
+        public void setConnectedClients(int connectedClients) {
+            this.connectedClients = connectedClients;
+        }
+
+        public boolean isRunning() {
+            return isRunning;
+        }
+
+        public void setIsRunning(boolean running) {
+            isRunning = running;
+        }
+
+        public int getPort() {
+            return port;
+        }
+
+        public void setPort(int port) {
+            this.port = port;
+        }
+
+        public long getUptime() {
+            return uptime;
+        }
+
+        public void setUptime(long uptime) {
+            this.uptime = uptime;
+        }
+
+        public int getAdminClients() {
+            return adminClients;
+        }
+
+        public void setAdminClients(int adminClients) {
+            this.adminClients = adminClients;
+        }
+
+        public int getTeacherClients() {
+            return teacherClients;
+        }
+
+        public void setTeacherClients(int teacherClients) {
+            this.teacherClients = teacherClients;
+        }
+
+        public int getStudentClients() {
+            return studentClients;
+        }
+
+        public void setStudentClients(int studentClients) {
+            this.studentClients = studentClients;
+        }
     }
 }
-
-

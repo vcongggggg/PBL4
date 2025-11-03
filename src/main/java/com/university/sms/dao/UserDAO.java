@@ -197,6 +197,56 @@ public class UserDAO {
     }
 
     /**
+     * Lấy tất cả users theo role (bao gồm cả đã vô hiệu hóa)
+     */
+    public List<User> findByRoleIncludeInactive(User.UserRole role) {
+        String sql = "SELECT * FROM users WHERE role = ? ORDER BY is_active DESC, full_name";
+        List<User> users = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, role.name().toLowerCase());
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    users.add(mapResultSetToUser(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding users by role (include inactive): " + role, e);
+        }
+
+        return users;
+    }
+
+    /**
+     * Kích hoạt lại user
+     */
+    public boolean activateUser(int userId) {
+        String sql = "UPDATE users SET is_active = TRUE, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, userId);
+
+            int result = stmt.executeUpdate();
+
+            if (result > 0) {
+                LOGGER.info("User activated successfully: " + userId);
+                return true;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error activating user: " + userId, e);
+        }
+
+        return false;
+    }
+
+    /**
      * Cập nhật thông tin user
      */
     public boolean updateUser(User user) {

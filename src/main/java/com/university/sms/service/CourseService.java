@@ -1,6 +1,8 @@
 package com.university.sms.service;
 
 import com.university.sms.dao.CourseDAO;
+import com.university.sms.dao.EnrollmentDAO;
+import com.university.sms.dao.CourseRegistrationDAO;
 import com.university.sms.model.Course;
 
 import java.util.List;
@@ -207,19 +209,42 @@ public class CourseService {
                 return false;
             }
 
-            // Check if course has enrollments
-            if (course.getCurrentStudents() > 0) {
-                LOGGER.warning("Cannot delete course: Course has enrolled students - " + courseId);
-                return false;
-            }
+            LOGGER.info("Starting to delete course: " + courseId + " (Current students: " + course.getCurrentStudents()
+                    + ")");
 
+            // Bước 1: Xóa tất cả enrollments (điểm) của lớp này
+            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO.findByCourseId(courseId);
+            int enrollmentsDeleted = 0;
+            for (com.university.sms.model.Enrollment enrollment : enrollments) {
+                if (enrollmentDAO.deleteEnrollment(enrollment.getEnrollmentId())) {
+                    enrollmentsDeleted++;
+                }
+            }
+            LOGGER.info("Deleted " + enrollmentsDeleted + " enrollments for course " + courseId);
+
+            // Bước 2: Xóa tất cả course registrations của lớp này
+            CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
+            List<com.university.sms.model.CourseRegistration> registrations = registrationDAO.findByCourse(courseId);
+            int registrationsDeleted = 0;
+            for (com.university.sms.model.CourseRegistration registration : registrations) {
+                if (registrationDAO.delete(registration.getRegistrationId())) {
+                    registrationsDeleted++;
+                }
+            }
+            LOGGER.info("Deleted " + registrationsDeleted + " course registrations for course " + courseId);
+
+            // Bước 3: Xóa course
             boolean success = courseDAO.deleteCourse(courseId);
             if (success) {
-                LOGGER.info("Course deleted successfully: " + courseId);
+                LOGGER.info("Course deleted successfully: " + courseId +
+                        " (Removed " + enrollmentsDeleted + " enrollments, " +
+                        registrationsDeleted + " registrations)");
             }
             return success;
         } catch (Exception e) {
             LOGGER.severe("Error deleting course: " + e.getMessage());
+            e.printStackTrace();
             return false;
         }
     }

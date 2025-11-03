@@ -28,8 +28,10 @@ public class StudentPanel extends JPanel {
     private JTextField searchField;
     private JButton searchButton;
     private JButton refreshButton;
+    private JCheckBox showInactiveCheckbox;
     private JButton addButton;
     private JButton deleteButton;
+    private JButton activateButton;
 
     private java.util.List<Student> currentStudents;
 
@@ -50,13 +52,14 @@ public class StudentPanel extends JPanel {
 
     private void initializeComponents() {
         // Create table with Edit button column
-        String[] columnNames = { "Mã SV", "Họ tên", "Email", "Khoa", "Lớp", "GPA", "Tín chỉ", "Trạng thái", "Thao tác" };
+        String[] columnNames = { "Mã SV", "Họ tên", "Email", "Khoa", "Lớp", "GPA", "Tín chỉ", "Trạng thái",
+                "Thao tác" };
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
                 return column == 8; // Only the "Thao tác" column is editable
             }
-            
+
             @Override
             public Class<?> getColumnClass(int column) {
                 return column == 8 ? JButton.class : Object.class;
@@ -65,7 +68,7 @@ public class StudentPanel extends JPanel {
         studentTable = new JTable(tableModel);
         studentTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         studentTable.setRowHeight(30);
-        
+
         // Add button renderer and editor for Edit column
         studentTable.getColumn("Thao tác").setCellRenderer(new ButtonRenderer());
         studentTable.getColumn("Thao tác").setCellEditor(new ButtonEditor(new JCheckBox()));
@@ -74,10 +77,13 @@ public class StudentPanel extends JPanel {
         searchField = new JTextField(20);
         searchButton = new JButton("Tìm kiếm");
         refreshButton = new JButton("Làm mới");
+        showInactiveCheckbox = new JCheckBox("Hiển thị tài khoản đã vô hiệu hóa");
 
         // Create action buttons
         addButton = new JButton("Thêm");
         deleteButton = new JButton("Xóa");
+        activateButton = new JButton("Kích hoạt lại");
+        activateButton.setEnabled(false);
 
         // Create log area
         logArea = new JTextArea();
@@ -89,7 +95,6 @@ public class StudentPanel extends JPanel {
         // Set button states based on user role and read-only mode
         setupButtonStates();
     }
-
 
     private void setupLayout() {
         setLayout(new BorderLayout());
@@ -103,12 +108,14 @@ public class StudentPanel extends JPanel {
         searchPanel.add(searchField);
         searchPanel.add(searchButton);
         searchPanel.add(refreshButton);
+        searchPanel.add(showInactiveCheckbox);
         topPanel.add(searchPanel, BorderLayout.WEST);
 
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         buttonPanel.add(addButton);
         buttonPanel.add(deleteButton);
+        buttonPanel.add(activateButton);
         topPanel.add(buttonPanel, BorderLayout.EAST);
 
         add(topPanel, BorderLayout.NORTH);
@@ -145,6 +152,14 @@ public class StudentPanel extends JPanel {
             }
         });
 
+        // Show inactive checkbox
+        showInactiveCheckbox.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                refreshData();
+            }
+        });
+
         // Add button
         addButton.addActionListener(new ActionListener() {
             @Override
@@ -161,11 +176,26 @@ public class StudentPanel extends JPanel {
             }
         });
 
+        // Activate button
+        activateButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                activateSelectedStudent();
+            }
+        });
+
         // Search field enter key
         searchField.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 performSearch();
+            }
+        });
+
+        // Table selection listener
+        studentTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updateButtonStates();
             }
         });
     }
@@ -174,14 +204,35 @@ public class StudentPanel extends JPanel {
         if (isReadOnly) {
             addButton.setEnabled(false);
             deleteButton.setEnabled(false);
+            activateButton.setEnabled(false);
         } else {
             // Enable buttons based on user role
             boolean canModify = currentUser.getRole() == User.UserRole.ADMIN;
             addButton.setEnabled(canModify);
-            deleteButton.setEnabled(canModify);
+            deleteButton.setEnabled(false); // Will be enabled based on selection
+            activateButton.setEnabled(false); // Will be enabled based on selection
         }
     }
-    
+
+    private void updateButtonStates() {
+        int selectedRow = studentTable.getSelectedRow();
+        boolean hasSelection = selectedRow >= 0;
+
+        if (!isReadOnly && currentUser.getRole() == User.UserRole.ADMIN && hasSelection &&
+                currentStudents != null && selectedRow < currentStudents.size()) {
+
+            Student selectedStudent = currentStudents.get(selectedRow);
+            // Check if student's user is active
+            boolean isActive = selectedStudent.isActive(); // Assuming Student has isActive() method from User
+
+            deleteButton.setEnabled(isActive); // Chỉ cho xóa (vô hiệu hóa) nếu đang active
+            activateButton.setEnabled(!isActive); // Chỉ cho kích hoạt lại nếu đang inactive
+        } else {
+            deleteButton.setEnabled(false);
+            activateButton.setEnabled(false);
+        }
+    }
+
     private void addLog(String message) {
         String timestamp = new java.text.SimpleDateFormat("HH:mm:ss").format(new java.util.Date());
         logArea.append("[" + timestamp + "] " + message + "\n");
@@ -248,8 +299,13 @@ public class StudentPanel extends JPanel {
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
-                // Get all students
-                return serverConnection.getAllStudents();
+                // Get all students (with or without inactive)
+                if (showInactiveCheckbox.isSelected()) {
+                    Message request = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS_INCLUDE_INACTIVE);
+                    return serverConnection.sendRequest(request);
+                } else {
+                    return serverConnection.getAllStudents();
+                }
             }
 
             @Override
@@ -326,7 +382,6 @@ public class StudentPanel extends JPanel {
         }
         addLog("Đã tải " + students.size() + " sinh viên");
     }
-
 
     private void showAddStudentDialog() {
         JTextField code = new JTextField();
@@ -458,13 +513,13 @@ public class StudentPanel extends JPanel {
         JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
         addLog("LỖI: " + message);
     }
-    
+
     // Button Renderer for table
     class ButtonRenderer extends JButton implements javax.swing.table.TableCellRenderer {
         public ButtonRenderer() {
             setOpaque(true);
         }
-        
+
         @Override
         public Component getTableCellRendererComponent(JTable table, Object value,
                 boolean isSelected, boolean hasFocus, int row, int column) {
@@ -472,14 +527,14 @@ public class StudentPanel extends JPanel {
             return this;
         }
     }
-    
+
     // Button Editor for table
     class ButtonEditor extends DefaultCellEditor {
         private JButton button;
         private String label;
         private boolean isPushed;
         private int editingRow;
-        
+
         public ButtonEditor(JCheckBox checkBox) {
             super(checkBox);
             button = new JButton();
@@ -491,7 +546,7 @@ public class StudentPanel extends JPanel {
                 }
             });
         }
-        
+
         @Override
         public Component getTableCellEditorComponent(JTable table, Object value,
                 boolean isSelected, int row, int column) {
@@ -501,7 +556,7 @@ public class StudentPanel extends JPanel {
             editingRow = row;
             return button;
         }
-        
+
         @Override
         public Object getCellEditorValue() {
             if (isPushed && editingRow >= 0 && editingRow < currentStudents.size()) {
@@ -517,33 +572,89 @@ public class StudentPanel extends JPanel {
             isPushed = false;
             return label;
         }
-        
+
         @Override
         public boolean stopCellEditing() {
             isPushed = false;
             return super.stopCellEditing();
         }
-        
+
         @Override
         protected void fireEditingStopped() {
             super.fireEditingStopped();
         }
     }
-    
+
     // Show Student Detail Dialog
     private void showStudentDetailDialog(Student student) {
         StudentDetailDialog dialog = new StudentDetailDialog(
-            (Frame) SwingUtilities.getWindowAncestor(this),
-            student,
-            serverConnection,
-            currentUser,
-            isReadOnly
-        );
+                (Frame) SwingUtilities.getWindowAncestor(this),
+                student,
+                serverConnection,
+                currentUser,
+                isReadOnly);
         dialog.setVisible(true);
-        
+
         if (dialog.isDataChanged()) {
             refreshData();
             addLog("Đã cập nhật thông tin sinh viên: " + student.getStudentCode());
         }
+    }
+
+    private void activateSelectedStudent() {
+        int selectedRow = studentTable.getSelectedRow();
+        if (selectedRow < 0 || currentStudents == null || selectedRow >= currentStudents.size()) {
+            JOptionPane.showMessageDialog(this, "Vui lòng chọn sinh viên để kích hoạt lại.",
+                    "Thông báo", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Student student = currentStudents.get(selectedRow);
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Bạn có chắc chắn muốn kích hoạt lại sinh viên:\n" + student.getStudentCode() + " - "
+                        + student.getFullName() + "?",
+                "Xác nhận kích hoạt",
+                JOptionPane.YES_NO_OPTION,
+                JOptionPane.QUESTION_MESSAGE);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        addLog("Đang kích hoạt sinh viên: " + student.getStudentCode());
+        activateButton.setEnabled(false);
+        SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
+            @Override
+            protected Message doInBackground() throws Exception {
+                Message request = Message.createRequest(Constants.ACTION_ACTIVATE_USER);
+                request.addData("userId", student.getUserId());
+                return serverConnection.sendRequest(request);
+            }
+
+            @Override
+            protected void done() {
+                activateButton.setEnabled(true);
+                try {
+                    Message response = get();
+                    if (response != null && response.isSuccess()) {
+                        JOptionPane.showMessageDialog(StudentPanel.this,
+                                "Đã kích hoạt sinh viên thành công!",
+                                "Thành công",
+                                JOptionPane.INFORMATION_MESSAGE);
+                        addLog("Đã kích hoạt sinh viên: " + student.getStudentCode());
+                        refreshData();
+                    } else {
+                        String errorMsg = response != null ? response.getMessage() : "Không nhận được phản hồi";
+                        showErrorMessage("Không thể kích hoạt sinh viên: " + errorMsg);
+                        addLog("Lỗi: " + errorMsg);
+                    }
+                } catch (Exception e) {
+                    showErrorMessage("Lỗi khi kích hoạt sinh viên: " + e.getMessage());
+                    addLog("Lỗi: " + e.getMessage());
+                }
+            }
+        };
+
+        worker.execute();
     }
 }

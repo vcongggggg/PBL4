@@ -1,4 +1,2 @@
-studentId,userId,studentCode,classId,departmentId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address
-1,4,SV2024001,1,1,2024,ACTIVE,0.00,0,2002-05-15,MALE,001202012345,null,null,2025-09-26 22:16:05.0,Lê Văn C,sv001@student.university.edu.vn,0123456788,Hà Nội
-2,5,SV2024002,2,2,2024,ACTIVE,0.00,0,2002-08-20,FEMALE,001202054321,null,null,2025-09-26 22:16:05.0,Phạm Thị D,sv002@student.university.edu.vn,0123456787,Hà Nội
+studentId,userId,studentCode,classId,facultyId,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address
 4,0,SV2024999,1,1,2024,ACTIVE,0.00,0,2002-01-01,MALE,001999999999,null,null,2025-10-31 09:50:00.0,Nguyễn Test,sv999@student.university.edu.vn,0900000000,Hà Nội

@@ -232,16 +232,18 @@ public class StudentDAO {
     }
 
     /**
-     * Lấy tất cả sinh viên
+     * Lấy tất cả sinh viên (chỉ active)
      */
     public List<Student> findAll() {
-        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
+        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, f.faculty_name, c.class_name "
+                +
                 ", dor.source AS data_source " +
                 "FROM students s " +
                 "JOIN users u ON s.user_id = u.user_id " +
                 "JOIN faculties f ON s.faculty_id = f.faculty_id " +
                 "LEFT JOIN classes c ON s.class_id = c.class_id " +
                 "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
+                "WHERE u.is_active = TRUE " +
                 "ORDER BY CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
 
         List<Student> students = new ArrayList<>();
@@ -257,6 +259,38 @@ public class StudentDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding all students", e);
+        }
+
+        return students;
+    }
+
+    /**
+     * Lấy tất cả sinh viên (bao gồm cả đã vô hiệu hóa)
+     */
+    public List<Student> findAllIncludeInactive() {
+        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, f.faculty_name, c.class_name "
+                +
+                ", dor.source AS data_source " +
+                "FROM students s " +
+                "JOIN users u ON s.user_id = u.user_id " +
+                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
+                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
+                "ORDER BY u.is_active DESC, CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
+
+        List<Student> students = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    students.add(mapResultSetToStudent(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding all students (include inactive)", e);
         }
 
         return students;
@@ -305,7 +339,7 @@ public class StudentDAO {
         try {
             conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false); // Start transaction
-            
+
             // Update user information first (full_name, email, phone)
             String userSql = "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?";
             try (PreparedStatement userStmt = conn.prepareStatement(userSql)) {
@@ -315,12 +349,12 @@ public class StudentDAO {
                 userStmt.setInt(4, student.getUserId());
                 userStmt.executeUpdate();
             }
-            
+
             // Update student information
             String studentSql = "UPDATE students SET class_id = ?, admission_year = ?, birth_date = ?, " +
                     "gender = ?, citizen_id = ?, emergency_contact = ?, emergency_phone = ?, " +
                     "student_status = ? WHERE student_id = ?";
-            
+
             try (PreparedStatement studentStmt = conn.prepareStatement(studentSql)) {
                 if (student.getClassId() != null) {
                     studentStmt.setInt(1, student.getClassId());
@@ -329,31 +363,31 @@ public class StudentDAO {
                 }
                 studentStmt.setInt(2, student.getAdmissionYear());
                 studentStmt.setDate(3, student.getBirthDate());
-                
+
                 if (student.getGender() != null) {
                     studentStmt.setString(4, student.getGender().name().toLowerCase());
                 } else {
                     studentStmt.setNull(4, Types.VARCHAR);
                 }
-                
+
                 studentStmt.setString(5, student.getCitizenId());
                 studentStmt.setString(6, student.getEmergencyContact());
                 studentStmt.setString(7, student.getEmergencyPhone());
-                
+
                 if (student.getStudentStatus() != null) {
                     studentStmt.setString(8, student.getStudentStatus().name().toLowerCase());
                 } else {
                     studentStmt.setNull(8, Types.VARCHAR);
                 }
-                
+
                 studentStmt.setInt(9, student.getStudentId());
                 studentStmt.executeUpdate();
             }
-            
+
             conn.commit(); // Commit transaction
             LOGGER.info("Student updated successfully: " + student.getStudentCode());
             return true;
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating student: " + student.getStudentId(), e);
             if (conn != null) {
@@ -373,7 +407,7 @@ public class StudentDAO {
                 }
             }
         }
-        
+
         return false;
     }
 
@@ -490,7 +524,15 @@ public class StudentDAO {
         student.setEmail(rs.getString("email"));
         student.setPhone(rs.getString("phone"));
         student.setAddress(rs.getString("address"));
-        
+
+        // Check if is_active column exists in result set
+        try {
+            student.setActive(rs.getBoolean("is_active"));
+        } catch (SQLException e) {
+            // If column doesn't exist, default to true
+            student.setActive(true);
+        }
+
         // Faculty and Class information
         student.setFacultyName(rs.getString("faculty_name"));
         student.setClassName(rs.getString("class_name"));

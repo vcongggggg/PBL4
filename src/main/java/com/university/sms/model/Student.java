@@ -30,7 +30,8 @@ public class Student implements java.io.Serializable {
     private String email;
     private String phone;
     private String address;
-    
+    private boolean isActive = true; // From users table
+
     // Faculty and Class information (from join)
     private String facultyName;
     private String className;
@@ -225,6 +226,14 @@ public class Student implements java.io.Serializable {
 
     public void setClassName(String className) {
         this.className = className;
+    }
+
+    public boolean isActive() {
+        return isActive;
+    }
+
+    public void setActive(boolean active) {
+        isActive = active;
     }
 
     @Override

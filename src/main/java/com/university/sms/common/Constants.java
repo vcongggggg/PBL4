@@ -11,6 +11,12 @@ public class Constants {
     public static final String ACTION_REGISTER = "REGISTER";
     public static final String ACTION_CHANGE_PASSWORD = "CHANGE_PASSWORD";
 
+    // Teacher Management Actions
+    public static final String ACTION_ADD_TEACHER = "ADD_TEACHER";
+    public static final String ACTION_UPDATE_TEACHER = "UPDATE_TEACHER";
+    public static final String ACTION_DELETE_TEACHER = "DELETE_TEACHER";
+    public static final String ACTION_GET_ALL_TEACHERS_INCLUDE_INACTIVE = "GET_ALL_TEACHERS_INCLUDE_INACTIVE";
+
     // Student Actions
     public static final String ACTION_GET_STUDENT_INFO = "GET_STUDENT_INFO";
     public static final String ACTION_UPDATE_STUDENT = "UPDATE_STUDENT";
@@ -19,6 +25,15 @@ public class Constants {
     public static final String ACTION_GET_STUDENTS_BY_CLASS = "GET_STUDENTS_BY_CLASS";
     public static final String ACTION_ADD_STUDENT = "ADD_STUDENT";
     public static final String ACTION_DELETE_STUDENT = "DELETE_STUDENT";
+    public static final String ACTION_GET_ALL_STUDENTS_INCLUDE_INACTIVE = "GET_ALL_STUDENTS_INCLUDE_INACTIVE";
+
+    // User Activation (common for both teacher and student)
+    public static final String ACTION_ACTIVATE_USER = "ACTIVATE_USER";
+
+    // Teacher Actions
+    public static final String ACTION_GET_ALL_TEACHERS = "GET_ALL_TEACHERS";
+    public static final String ACTION_SEARCH_TEACHERS = "SEARCH_TEACHERS";
+    public static final String ACTION_GET_COURSES_BY_TEACHER = "GET_COURSES_BY_TEACHER";
 
     // Course Actions
     public static final String ACTION_GET_ALL_COURSES = "GET_ALL_COURSES";
@@ -32,6 +47,7 @@ public class Constants {
     public static final String ACTION_ENROLL_COURSE = "ENROLL_COURSE";
     public static final String ACTION_DROP_COURSE = "DROP_COURSE";
     public static final String ACTION_GET_ENROLLMENTS = "GET_ENROLLMENTS";
+    public static final String ACTION_GET_ENROLLMENTS_BY_COURSE = "GET_ENROLLMENTS_BY_COURSE";
     public static final String ACTION_GET_STUDENT_GRADES = "GET_STUDENT_GRADES";
 
     // Grade Actions
@@ -42,13 +58,17 @@ public class Constants {
 
     // Faculty Actions
     public static final String ACTION_GET_FACULTIES = "GET_FACULTIES";
+    public static final String ACTION_GET_ALL_FACULTIES = "GET_ALL_FACULTIES";
     public static final String ACTION_ADD_FACULTY = "ADD_FACULTY";
     public static final String ACTION_UPDATE_FACULTY = "UPDATE_FACULTY";
 
     // Subject Actions
     public static final String ACTION_GET_SUBJECTS = "GET_SUBJECTS";
+    public static final String ACTION_GET_ALL_SUBJECTS = "GET_ALL_SUBJECTS";
+    public static final String ACTION_SEARCH_SUBJECTS = "SEARCH_SUBJECTS";
     public static final String ACTION_ADD_SUBJECT = "ADD_SUBJECT";
     public static final String ACTION_UPDATE_SUBJECT = "UPDATE_SUBJECT";
+    public static final String ACTION_DELETE_SUBJECT = "DELETE_SUBJECT";
 
     // Class Actions
     public static final String ACTION_GET_CLASSES = "GET_CLASSES";

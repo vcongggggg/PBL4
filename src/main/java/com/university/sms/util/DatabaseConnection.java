@@ -14,16 +14,16 @@ import java.util.logging.Logger;
  */
 public class DatabaseConnection {
     private static final Logger LOGGER = Logger.getLogger(DatabaseConnection.class.getName());
-    
+
     private static String DB_URL;
     private static String DB_USERNAME;
     private static String DB_PASSWORD;
     private static String DB_DRIVER;
-    
+
     static {
         loadDatabaseConfig();
     }
-    
+
     /**
      * Tải cấu hình database từ file properties
      */
@@ -31,48 +31,51 @@ public class DatabaseConnection {
         Properties props = new Properties();
         try (InputStream input = DatabaseConnection.class.getClassLoader()
                 .getResourceAsStream("database.properties")) {
-            
+
             if (input == null) {
                 LOGGER.severe("Không tìm thấy file database.properties");
                 throw new RuntimeException("database.properties file not found");
             }
-            
+
             props.load(input);
-            
+
             DB_URL = props.getProperty("db.url");
             DB_USERNAME = props.getProperty("db.username");
             DB_PASSWORD = props.getProperty("db.password");
             DB_DRIVER = props.getProperty("db.driver");
-            
+
             // Load MySQL driver
             Class.forName(DB_DRIVER);
-            
+
             LOGGER.info("Database configuration loaded successfully");
-            
+
         } catch (IOException | ClassNotFoundException e) {
             LOGGER.log(Level.SEVERE, "Error loading database configuration", e);
             throw new RuntimeException("Failed to load database configuration", e);
         }
     }
-    
+
     /**
      * Tạo kết nối mới đến database
+     * 
      * @return Connection object
      * @throws SQLException if connection fails
      */
     public static Connection getConnection() throws SQLException {
         try {
             Connection conn = DriverManager.getConnection(DB_URL, DB_USERNAME, DB_PASSWORD);
-            // LOGGER.info("Database connection established successfully"); // Removed spam log
+            // LOGGER.info("Database connection established successfully"); // Removed spam
+            // log
             return conn;
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Failed to connect to database", e);
             throw e;
         }
     }
-    
+
     /**
      * Đóng kết nối database
+     * 
      * @param connection Connection to close
      */
     public static void closeConnection(Connection connection) {
@@ -85,9 +88,10 @@ public class DatabaseConnection {
             }
         }
     }
-    
+
     /**
      * Test kết nối database
+     * 
      * @return true nếu kết nối thành công
      */
     public static boolean testConnection() {
@@ -98,7 +102,7 @@ public class DatabaseConnection {
             return false;
         }
     }
-    
+
     /**
      * Lấy thông tin cấu hình database
      */
