@@ -157,6 +157,13 @@ public class Constants {
     public static final String KEY_REASON = "reason";
     public static final String KEY_STATUS = "status";
     public static final String KEY_STATISTICS = "statistics";
+    public static final String KEY_GRADE_ID = "gradeId";
+    public static final String KEY_GRADE_TYPE = "gradeType";
+    public static final String KEY_NOTIFICATION_ID = "notificationId";
+    public static final String KEY_UNREAD_COUNT = "unreadCount";
+    public static final String KEY_TARGET_TYPE = "targetType";
+    public static final String KEY_TARGET_ID = "targetId";
+    public static final String KEY_PRIORITY = "priority";
 
     // Lists
     public static final String KEY_STUDENTS = "students";

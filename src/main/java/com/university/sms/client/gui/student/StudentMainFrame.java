@@ -29,6 +29,7 @@ public class StudentMainFrame extends JFrame {
     private CoursePanel coursePanel;
     private CourseRegistrationPanel registrationPanel;
     private GradePanel gradePanel;
+    private NotificationPanel notificationPanel;
 
     public StudentMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
@@ -83,6 +84,11 @@ public class StudentMainFrame extends JFrame {
         gradePanel = new GradePanel(currentUser, serverConnection, true);
         tabbedPane.addTab("Kết quả Học tập", createIcon("grade"), gradePanel, 
                          "Xem điểm số và kết quả học tập của bạn");
+
+        // Thông báo
+        notificationPanel = new NotificationPanel(currentUser, serverConnection, true);
+        tabbedPane.addTab("Thông báo", createIcon("notification"), notificationPanel, 
+                         "Xem thông báo từ giảng viên");
     }
 
     private void setupLayout() {
@@ -247,6 +253,8 @@ public class StudentMainFrame extends JFrame {
         if (studentPanel != null) studentPanel.refreshData();
         if (coursePanel != null) coursePanel.refreshData();
         if (gradePanel != null) gradePanel.refreshData();
+        if (registrationPanel != null) registrationPanel.refreshData();
+        if (notificationPanel != null) notificationPanel.refreshData();
         updateConnectionStatus();
     }
 

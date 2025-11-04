@@ -12,8 +12,12 @@ import com.university.sms.service.CourseService;
 import com.university.sms.service.SubjectService;
 import com.university.sms.service.ClassOpeningRequestService;
 import com.university.sms.service.CourseRegistrationService;
+import com.university.sms.service.GradeService;
+import com.university.sms.service.NotificationService;
 import com.university.sms.model.ClassOpeningRequest;
 import com.university.sms.model.CourseRegistration;
+import com.university.sms.model.Grade;
+import com.university.sms.model.Notification;
 import com.university.sms.dao.UserDAO;
 import com.university.sms.dao.CourseDAO;
 import com.university.sms.dao.EnrollmentDAO;
@@ -52,6 +56,8 @@ public class ClientHandler implements Runnable {
     private SubjectService subjectService;
     private ClassOpeningRequestService classRequestService;
     private CourseRegistrationService registrationService;
+    private GradeService gradeService;
+    private NotificationService notificationService;
 
     // Source/client provenance (e.g., CSV, POSTGRES, etc.) captured during sync
     private String clientSource = "UNKNOWN";
@@ -67,6 +73,8 @@ public class ClientHandler implements Runnable {
         this.subjectService = new SubjectService();
         this.classRequestService = new ClassOpeningRequestService();
         this.registrationService = new CourseRegistrationService();
+        this.gradeService = new GradeService();
+        this.notificationService = new NotificationService();
     }
 
     @Override
@@ -210,9 +218,16 @@ public class ClientHandler implements Runnable {
                     return handleEnrollCourse(request);
                 case Constants.ACTION_DROP_COURSE:
                     return handleDropCourse(request);
+                
+                // Grade actions
                 case Constants.ACTION_ADD_GRADE:
+                    return handleAddGrade(request);
                 case Constants.ACTION_UPDATE_GRADE:
-                    return handleUpdateFinalGrade(request);
+                    return handleUpdateGrade(request);
+                case Constants.ACTION_GET_GRADES:
+                    return handleGetGrades(request);
+                case Constants.ACTION_CALCULATE_FINAL_GRADE:
+                    return handleCalculateFinalGrade(request);
 
                 // Sync actions
                 case Constants.ACTION_SYNC_CHECK:
@@ -273,6 +288,14 @@ public class ClientHandler implements Runnable {
                     return handleGetStudentCredits(request);
                 case Constants.ACTION_GET_REGISTRATION_STATS:
                     return handleGetRegistrationStats(request);
+
+                // Notification actions
+                case Constants.ACTION_GET_NOTIFICATIONS:
+                    return handleGetNotifications(request);
+                case Constants.ACTION_SEND_NOTIFICATION:
+                    return handleSendNotification(request);
+                case Constants.ACTION_MARK_NOTIFICATION_READ:
+                    return handleMarkNotificationRead(request);
 
                 default:
                     return Message.createErrorResponse(action, "Unknown action: " + action);
@@ -2103,6 +2126,197 @@ public class ClientHandler implements Runnable {
             LOGGER.log(Level.SEVERE, "Error getting enrollments by course", e);
             return Message.createErrorResponse(request.getAction(),
                     "Error retrieving enrollments: " + e.getMessage());
+        }
+    }
+
+    // ==================== Grade Handlers ====================
+
+    private Message handleAddGrade(Message request) {
+        try {
+            Grade grade = request.getData(Constants.KEY_GRADE, Grade.class);
+            if (grade == null) {
+                return Message.createErrorResponse(request.getAction(), "Grade data is required");
+            }
+
+            boolean result = gradeService.addGrade(grade);
+            
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Thêm điểm thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Thêm điểm thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error adding grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleUpdateGrade(Message request) {
+        try {
+            Grade grade = request.getData(Constants.KEY_GRADE, Grade.class);
+            if (grade == null) {
+                return Message.createErrorResponse(request.getAction(), "Grade data is required");
+            }
+
+            boolean result = gradeService.updateGrade(grade);
+            
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Cập nhật điểm thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Cập nhật điểm thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error updating grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetGrades(Message request) {
+        try {
+            Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
+            Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+            
+            List<Grade> grades;
+            
+            if (enrollmentId != null) {
+                grades = gradeService.getGradesByEnrollment(enrollmentId);
+            } else if (studentId != null && courseId != null) {
+                grades = gradeService.getGradesByStudentAndCourse(studentId, courseId);
+            } else if (studentId != null) {
+                grades = gradeService.getGradesByStudent(studentId);
+            } else if (courseId != null) {
+                grades = gradeService.getGradesByCourse(courseId);
+            } else {
+                return Message.createErrorResponse(request.getAction(), 
+                    "enrollment_id, student_id, hoặc course_id is required");
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(), 
+                "Lấy danh sách điểm thành công");
+            response.addData(Constants.KEY_GRADES, grades);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting grades", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleCalculateFinalGrade(Message request) {
+        try {
+            Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
+            if (enrollmentId == null) {
+                return Message.createErrorResponse(request.getAction(), "Enrollment ID is required");
+            }
+
+            boolean result = gradeService.finalizeCourseGrade(enrollmentId);
+            
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Tính điểm tổng kết thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Tính điểm tổng kết thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error calculating final grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== Notification Handlers ====================
+
+    private Message handleGetNotifications(Message request) {
+        try {
+            Integer userId = request.getData(Constants.KEY_USER_ID, Integer.class);
+            
+            List<Notification> notifications;
+            
+            if (userId != null) {
+                notifications = notificationService.getNotificationsByUser(userId);
+            } else if (currentUser != null) {
+                notifications = notificationService.getNotificationsByUser(currentUser.getUserId());
+            } else {
+                return Message.createErrorResponse(request.getAction(), "User ID is required");
+            }
+
+            // Count unread
+            int unreadCount = 0;
+            for (Notification n : notifications) {
+                if (!n.isRead()) {
+                    unreadCount++;
+                }
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(), 
+                "Lấy danh sách thông báo thành công");
+            response.addData(Constants.KEY_NOTIFICATIONS, notifications);
+            response.addData(Constants.KEY_UNREAD_COUNT, unreadCount);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting notifications", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleSendNotification(Message request) {
+        try {
+            Notification notification = request.getData(Constants.KEY_NOTIFICATION, Notification.class);
+            if (notification == null) {
+                return Message.createErrorResponse(request.getAction(), "Notification data is required");
+            }
+
+            // Set sender to current user if not set
+            if (notification.getSenderId() <= 0 && currentUser != null) {
+                notification.setSenderId(currentUser.getUserId());
+            }
+
+            boolean result = notificationService.createNotification(notification);
+            
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Gửi thông báo thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Gửi thông báo thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error sending notification", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleMarkNotificationRead(Message request) {
+        try {
+            Integer notificationId = request.getData(Constants.KEY_NOTIFICATION_ID, Integer.class);
+            
+            if (notificationId != null) {
+                // Mark single notification as read
+                boolean result = notificationService.markAsRead(notificationId);
+                if (result) {
+                    return Message.createSuccessResponse(request.getAction(), "Đánh dấu đã đọc thành công");
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Đánh dấu đã đọc thất bại");
+                }
+            } else if (currentUser != null) {
+                // Mark all notifications of user as read
+                boolean result = notificationService.markAllAsReadForUser(currentUser.getUserId());
+                if (result) {
+                    return Message.createSuccessResponse(request.getAction(), 
+                        "Đánh dấu tất cả thông báo đã đọc thành công");
+                } else {
+                    return Message.createErrorResponse(request.getAction(), 
+                        "Đánh dấu thông báo đã đọc thất bại");
+                }
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Notification ID is required");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error marking notification as read", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
 

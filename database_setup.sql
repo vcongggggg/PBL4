@@ -124,13 +124,13 @@ CREATE TABLE courses (
 -- ===============================================
 CREATE TABLE enrollments (
     enrollment_id INT PRIMARY KEY AUTO_INCREMENT,
-    student_id INT NOT NULL,
-    course_id INT NOT NULL,
+    student_id INT NOT NULL DEFAULT 0,
+    course_id INT NOT NULL DEFAULT 0,
     enrollment_date TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     enrollment_status ENUM('enrolled', 'completed', 'dropped', 'failed') DEFAULT 'enrolled',
-    final_grade DECIMAL(4,2),
-    letter_grade VARCHAR(2),
-    grade_points DECIMAL(3,2),
+    final_grade DECIMAL(4,2) DEFAULT 0.00,
+    letter_grade VARCHAR(2) DEFAULT '',
+    grade_points DECIMAL(3,2) DEFAULT 0.00,
     UNIQUE KEY unique_enrollment (student_id, course_id),
     FOREIGN KEY (student_id) REFERENCES students(student_id) ON DELETE CASCADE,
     FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE

@@ -30,6 +30,7 @@ public class TeacherMainFrame extends JFrame {
     private GradePanel gradePanel;
     private MyClassRequestsPanel classRequestsPanel;
     private ReportPanel reportPanel;
+    private NotificationPanel notificationPanel;
 
     public TeacherMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
@@ -87,6 +88,11 @@ public class TeacherMainFrame extends JFrame {
         reportPanel = new ReportPanel(currentUser, serverConnection);
         tabbedPane.addTab("Báo cáo", createIcon("report"), reportPanel, 
                          "Xem báo cáo và thống kê lớp học");
+
+        // Thông báo
+        notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
+        tabbedPane.addTab("Thông báo", createIcon("notification"), notificationPanel, 
+                         "Xem và gửi thông báo");
     }
 
     private void setupLayout() {
@@ -253,6 +259,7 @@ public class TeacherMainFrame extends JFrame {
         if (gradePanel != null) gradePanel.refreshData();
         if (classRequestsPanel != null) classRequestsPanel.refreshData();
         if (reportPanel != null) reportPanel.refreshData();
+        if (notificationPanel != null) notificationPanel.refreshData();
         updateConnectionStatus();
     }
 

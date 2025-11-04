@@ -22,6 +22,7 @@ public class AdminMainFrame extends JFrame {
     private ReportPanel reportPanel;
     private TeacherPanel teacherPanel;
     private SubjectPanel subjectPanel;
+    private NotificationPanel notificationPanel;
 
     public AdminMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
@@ -77,6 +78,10 @@ public class AdminMainFrame extends JFrame {
         reportPanel = new ReportPanel(currentUser, serverConnection);
         tabbedPane.addTab("Báo cáo & Thống kê", createIcon("report"), reportPanel,
                 "Xem báo cáo tổng hợp");
+
+        notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
+        tabbedPane.addTab("Thông báo", createIcon("notification"), notificationPanel,
+                "Quản lý thông báo hệ thống");
     }
 
     private void setupLayout() {
@@ -199,6 +204,8 @@ public class AdminMainFrame extends JFrame {
             teacherPanel.refreshData();
         if (subjectPanel != null)
             subjectPanel.refreshData();
+        if (notificationPanel != null)
+            notificationPanel.refreshData();
         updateConnectionStatus();
     }
 

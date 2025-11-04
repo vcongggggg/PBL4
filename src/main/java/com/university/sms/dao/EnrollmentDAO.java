@@ -49,6 +49,37 @@ public class EnrollmentDAO {
     }
 
     /**
+     * Lấy đăng ký theo ID
+     */
+    public Enrollment findById(int enrollmentId) {
+        String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
+                    "c.course_code, sub.subject_name, sub.credits " +
+                    "FROM enrollments e " +
+                    "JOIN students s ON e.student_id = s.student_id " +
+                    "JOIN users u ON s.user_id = u.user_id " +
+                    "JOIN courses c ON e.course_id = c.course_id " +
+                    "JOIN subjects sub ON c.subject_id = sub.subject_id " +
+                    "WHERE e.enrollment_id = ?";
+        
+        try (Connection conn = DatabaseConnection.getConnection();
+             PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setInt(1, enrollmentId);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToEnrollment(rs);
+                }
+            }
+            
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding enrollment by ID", e);
+        }
+        
+        return null;
+    }
+
+    /**
      * Lấy đăng ký theo sinh viên
      */
     public List<Enrollment> findByStudentId(int studentId) {
