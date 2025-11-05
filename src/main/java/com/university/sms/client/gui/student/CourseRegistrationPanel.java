@@ -212,8 +212,8 @@ public class CourseRegistrationPanel extends JPanel {
         this.currentUser = user;
         this.studentId = studentId;
         if (serverConnection != null) {
-            loadRegisteredCourses(); // Load courses already registered by student
-            loadAvailableCourses();  // Load all available courses
+            loadRegisteredCourses(); // Load courses already registered by student first
+            // loadAvailableCourses() will be called after registered courses are loaded
         }
     }
 
@@ -248,9 +248,15 @@ public class CourseRegistrationPanel extends JPanel {
             protected void done() {
                 try {
                     registeredCourseIds = get();
-                    updateAvailableTable(); // Refresh available table
+                    loadAvailableCourses(); // Load available courses AFTER registered courses are loaded
                 } catch (Exception e) {
                     e.printStackTrace();
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
+                            "Không thể tải danh sách môn đã đăng ký: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                    });
                 }
             }
         };
@@ -500,12 +506,14 @@ public class CourseRegistrationPanel extends JPanel {
                                     JOptionPane.INFORMATION_MESSAGE : 
                                     JOptionPane.WARNING_MESSAGE);
                     
-                    // Clear selected courses and reload
-                    selectedCourses.clear();
-                    selectedModel.setRowCount(0);
+                    // Clear selected courses and reload only if all succeeded
+                    if (successCount == results.size() && successCount > 0) {
+                        selectedCourses.clear();
+                        selectedModel.setRowCount(0);
+                        updateCreditsAndConflicts();
+                    }
+                    // Reload registered courses to update the filter
                     loadRegisteredCourses();
-                    loadAvailableCourses();
-                    updateCreditsAndConflicts();
                     
                 } catch (Exception e) {
                     e.printStackTrace();
@@ -540,25 +548,50 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     private boolean isTimeConflict(Course c1, Course c2) {
+        // Check NULL for scheduleDay
         if (c1.getScheduleDay() == null || c2.getScheduleDay() == null) {
             return false;
         }
         
+        // Different days = no conflict
         if (!c1.getScheduleDay().equals(c2.getScheduleDay())) {
             return false;
         }
         
-        // Parse time slots (e.g., "7:00-9:00")
-        String[] time1 = c1.getScheduleTime().split("-");
-        String[] time2 = c2.getScheduleTime().split("-");
+        // Check NULL for scheduleTime
+        if (c1.getScheduleTime() == null || c2.getScheduleTime() == null) {
+            return false;
+        }
+        
+        // Parse time slots (e.g., "7:00-9:00" or "Tiết 1-3 (07:00-09:30)")
+        String scheduleTime1 = c1.getScheduleTime().trim();
+        String scheduleTime2 = c2.getScheduleTime().trim();
+        
+        // Extract time range if format is "Tiết X-Y (HH:MM-HH:MM)"
+        if (scheduleTime1.contains("(") && scheduleTime1.contains(")")) {
+            int start = scheduleTime1.indexOf("(");
+            int end = scheduleTime1.indexOf(")");
+            scheduleTime1 = scheduleTime1.substring(start + 1, end).trim();
+        }
+        
+        if (scheduleTime2.contains("(") && scheduleTime2.contains(")")) {
+            int start = scheduleTime2.indexOf("(");
+            int end = scheduleTime2.indexOf(")");
+            scheduleTime2 = scheduleTime2.substring(start + 1, end).trim();
+        }
+        
+        // Split by "-" to get start and end time
+        String[] time1 = scheduleTime1.split("-");
+        String[] time2 = scheduleTime2.split("-");
         
         if (time1.length != 2 || time2.length != 2) {
             return false;
         }
         
         try {
-            // Simple overlap check (can be improved)
-            return !(time1[1].compareTo(time2[0]) <= 0 || time2[1].compareTo(time1[0]) <= 0);
+            // Simple overlap check: if end1 <= start2 OR end2 <= start1, no conflict
+            return !(time1[1].trim().compareTo(time2[0].trim()) <= 0 || 
+                     time2[1].trim().compareTo(time1[0].trim()) <= 0);
         } catch (Exception e) {
             return false;
         }

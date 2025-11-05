@@ -29,11 +29,12 @@ public class StudentPanel extends JPanel {
     private JButton searchButton;
     private JButton refreshButton;
     private JCheckBox showInactiveCheckbox;
+    private AdvancedSearchPanel advancedSearchPanel; // Optional advanced search
     private JButton addButton;
     private JButton deleteButton;
     private JButton activateButton;
 
-    private java.util.List<Student> currentStudents;
+    private java.util.List<Student> currentStudents = new java.util.ArrayList<>();
 
     // Log area components
     private JTextArea logArea;
@@ -102,14 +103,27 @@ public class StudentPanel extends JPanel {
         // Top panel with search and buttons
         JPanel topPanel = new JPanel(new BorderLayout());
 
-        // Search panel
+        // Search panel - có thể dùng AdvancedSearchPanel hoặc search đơn giản
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.add(new JLabel("Tìm kiếm:"));
         searchPanel.add(searchField);
         searchPanel.add(searchButton);
         searchPanel.add(refreshButton);
         searchPanel.add(showInactiveCheckbox);
+        
+        // Nút để toggle advanced search (tùy chọn)
+        JButton advancedSearchButton = new JButton("🔍 Nâng cao");
+        advancedSearchButton.addActionListener(e -> toggleAdvancedSearch());
+        searchPanel.add(advancedSearchButton);
+        
         topPanel.add(searchPanel, BorderLayout.WEST);
+        
+        // Advanced search panel (ẩn mặc định)
+        advancedSearchPanel = new AdvancedSearchPanel();
+        advancedSearchPanel.setVisible(false);
+        advancedSearchPanel.setSearchListener((searchText, filters) -> {
+            performAdvancedSearch(searchText, filters);
+        });
 
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -118,7 +132,12 @@ public class StudentPanel extends JPanel {
         buttonPanel.add(activateButton);
         topPanel.add(buttonPanel, BorderLayout.EAST);
 
-        add(topPanel, BorderLayout.NORTH);
+        // Container panel cho top panel và advanced search
+        JPanel topContainer = new JPanel(new BorderLayout());
+        topContainer.add(topPanel, BorderLayout.NORTH);
+        topContainer.add(advancedSearchPanel, BorderLayout.CENTER);
+        
+        add(topContainer, BorderLayout.NORTH);
 
         // Center panel with table and log area
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
@@ -436,8 +455,7 @@ public class StudentPanel extends JPanel {
                     if (resp.isSuccess()) {
                         refreshData();
                         addLog("Đã thêm sinh viên thành công");
-                        JOptionPane.showMessageDialog(StudentPanel.this, "Đã thêm sinh viên.",
-                                "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                        ToastNotification.showSuccess(StudentPanel.this, "Đã thêm sinh viên thành công!");
                     } else {
                         showErrorMessage("Thêm thất bại: " + resp.getMessage());
                     }
@@ -495,8 +513,7 @@ public class StudentPanel extends JPanel {
                         if (resp.isSuccess()) {
                             refreshData();
                             addLog("Đã xóa sinh viên thành công");
-                            JOptionPane.showMessageDialog(StudentPanel.this, "Đã xóa sinh viên.",
-                                    "Thành công", JOptionPane.INFORMATION_MESSAGE);
+                            ToastNotification.showSuccess(StudentPanel.this, "Đã xóa sinh viên thành công!");
                         } else {
                             showErrorMessage("Xóa thất bại: " + resp.getMessage());
                         }
@@ -512,6 +529,27 @@ public class StudentPanel extends JPanel {
     private void showErrorMessage(String message) {
         JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
         addLog("LỖI: " + message);
+    }
+    
+    private void toggleAdvancedSearch() {
+        if (advancedSearchPanel != null) {
+            boolean visible = !advancedSearchPanel.isVisible();
+            advancedSearchPanel.setVisible(visible);
+            revalidate();
+            repaint();
+        }
+    }
+    
+    private void performAdvancedSearch(String searchText, java.util.Map<String, String> filters) {
+        addLog("Đang tìm kiếm nâng cao: " + searchText);
+        // Nếu có filters, có thể thêm logic filter phức tạp hơn
+        // Hiện tại chỉ dùng search text như search đơn giản
+        if (searchText != null && !searchText.trim().isEmpty()) {
+            searchField.setText(searchText);
+            performSearch();
+        } else {
+            refreshData();
+        }
     }
 
     // Button Renderer for table
@@ -559,7 +597,7 @@ public class StudentPanel extends JPanel {
 
         @Override
         public Object getCellEditorValue() {
-            if (isPushed && editingRow >= 0 && editingRow < currentStudents.size()) {
+            if (isPushed && currentStudents != null && editingRow >= 0 && editingRow < currentStudents.size()) {
                 Student student = currentStudents.get(editingRow);
                 // Use SwingUtilities.invokeLater to avoid issues with cell editing
                 SwingUtilities.invokeLater(new Runnable() {

@@ -14,6 +14,8 @@ import com.university.sms.service.ClassOpeningRequestService;
 import com.university.sms.service.CourseRegistrationService;
 import com.university.sms.service.GradeService;
 import com.university.sms.service.NotificationService;
+import com.university.sms.service.TimetableService;
+import com.university.sms.service.TranscriptService;
 import com.university.sms.model.ClassOpeningRequest;
 import com.university.sms.model.CourseRegistration;
 import com.university.sms.model.Grade;
@@ -58,6 +60,8 @@ public class ClientHandler implements Runnable {
     private CourseRegistrationService registrationService;
     private GradeService gradeService;
     private NotificationService notificationService;
+    private TimetableService timetableService;
+    private TranscriptService transcriptService;
 
     // Source/client provenance (e.g., CSV, POSTGRES, etc.) captured during sync
     private String clientSource = "UNKNOWN";
@@ -75,6 +79,8 @@ public class ClientHandler implements Runnable {
         this.registrationService = new CourseRegistrationService();
         this.gradeService = new GradeService();
         this.notificationService = new NotificationService();
+        this.timetableService = new TimetableService();
+        this.transcriptService = new TranscriptService();
     }
 
     @Override
@@ -296,6 +302,25 @@ public class ClientHandler implements Runnable {
                     return handleSendNotification(request);
                 case Constants.ACTION_MARK_NOTIFICATION_READ:
                     return handleMarkNotificationRead(request);
+                
+                // Timetable & Transcript actions
+                case Constants.ACTION_GET_TIMETABLE:
+                    return handleGetTimetable(request);
+                
+                case Constants.ACTION_GET_TRANSCRIPT:
+                    return handleGetTranscript(request);
+                
+                case Constants.ACTION_GET_SEMESTER_TRANSCRIPT:
+                    return handleGetSemesterTranscript(request);
+                
+                case Constants.ACTION_GET_HONOR_STUDENTS:
+                    return handleGetHonorStudents(request);
+                
+                case Constants.ACTION_GET_FACULTY_STATISTICS:
+                    return handleGetFacultyStatistics(request);
+                
+                case Constants.ACTION_VALIDATE_SCHEDULE:
+                    return handleValidateSchedule(request);
 
                 default:
                     return Message.createErrorResponse(action, "Unknown action: " + action);
@@ -2316,6 +2341,172 @@ public class ClientHandler implements Runnable {
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error marking notification as read", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== TIMETABLE & TRANSCRIPT HANDLERS ====================
+    
+    private Message handleGetTimetable(Message request) {
+        try {
+            Integer userId = request.getData(Constants.KEY_USER_ID, Integer.class);
+            String userRole = request.getData(Constants.KEY_USER_ROLE, String.class);
+            
+            if (userId == null) {
+                userId = currentUser != null ? currentUser.getUserId() : null;
+                userRole = currentUser != null ? currentUser.getRole().toString() : null;
+            }
+            
+            if (userId == null || userRole == null) {
+                return Message.createErrorResponse(request.getAction(), "User information is required");
+            }
+            
+            List<?> timetable = null;
+            
+            if ("STUDENT".equalsIgnoreCase(userRole)) {
+                // Get student timetable
+                StudentDAO studentDAO = new StudentDAO();
+                Student student = studentDAO.findByUserId(userId);
+                if (student != null) {
+                    timetable = timetableService.getStudentTimetable(student.getStudentId());
+                }
+            } else if ("TEACHER".equalsIgnoreCase(userRole)) {
+                // Get teacher timetable
+                timetable = timetableService.getTeacherTimetable(userId);
+            }
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Timetable retrieved successfully");
+            response.addData(Constants.KEY_TIMETABLE, timetable);
+            return response;
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting timetable", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+    
+    private Message handleGetTranscript(Message request) {
+        try {
+            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+            
+            // If not provided, try to get from current user
+            if (studentId == null && currentUser != null && "STUDENT".equalsIgnoreCase(currentUser.getRole().toString())) {
+                StudentDAO studentDAO = new StudentDAO();
+                Student student = studentDAO.findByUserId(currentUser.getUserId());
+                if (student != null) {
+                    studentId = student.getStudentId();
+                }
+            }
+            
+            if (studentId == null) {
+                return Message.createErrorResponse(request.getAction(), "Student ID is required");
+            }
+            
+            var transcript = transcriptService.generateTranscript(studentId);
+            
+            if (transcript == null) {
+                return Message.createErrorResponse(request.getAction(), "Cannot generate transcript");
+            }
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Transcript retrieved successfully");
+            response.addData(Constants.KEY_TRANSCRIPT, transcript);
+            response.addData(Constants.KEY_CUMULATIVE_GPA, transcript.getCumulativeGPA());
+            response.addData(Constants.KEY_ACADEMIC_RANK, transcript.getAcademicRank());
+            response.addData(Constants.KEY_TOTAL_CREDITS, transcript.getTotalCreditsEarned());
+            return response;
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting transcript", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+    
+    private Message handleGetSemesterTranscript(Message request) {
+        try {
+            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+            String academicYear = request.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
+            Integer semester = request.getData(Constants.KEY_SEMESTER, Integer.class);
+            
+            if (studentId == null || academicYear == null || semester == null) {
+                return Message.createErrorResponse(request.getAction(), "Student ID, academic year and semester are required");
+            }
+            
+            var semesterRecord = transcriptService.getSemesterTranscript(studentId, academicYear, semester);
+            
+            if (semesterRecord == null) {
+                return Message.createErrorResponse(request.getAction(), "Semester transcript not found");
+            }
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Semester transcript retrieved successfully");
+            response.addData(Constants.KEY_SEMESTER_RECORDS, semesterRecord);
+            response.addData(Constants.KEY_SEMESTER_GPA, semesterRecord.getSemesterGPA());
+            return response;
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting semester transcript", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+    
+    private Message handleGetHonorStudents(Message request) {
+        try {
+            Integer facultyId = request.getData(Constants.KEY_FACULTY_ID, Integer.class);
+            
+            if (facultyId == null) {
+                return Message.createErrorResponse(request.getAction(), "Faculty ID is required");
+            }
+            
+            List<?> honorStudents = transcriptService.getHonorStudents(facultyId);
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Honor students retrieved successfully");
+            response.addData(Constants.KEY_HONOR_STUDENTS, honorStudents);
+            return response;
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting honor students", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+    
+    private Message handleGetFacultyStatistics(Message request) {
+        try {
+            Integer facultyId = request.getData(Constants.KEY_FACULTY_ID, Integer.class);
+            
+            if (facultyId == null) {
+                return Message.createErrorResponse(request.getAction(), "Faculty ID is required");
+            }
+            
+            Map<String, Object> statistics = transcriptService.getFacultyStatistics(facultyId);
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Faculty statistics retrieved successfully");
+            response.addData(Constants.KEY_STATISTICS, statistics);
+            return response;
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting faculty statistics", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+    
+    private Message handleValidateSchedule(Message request) {
+        try {
+            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+            Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+            
+            if (studentId == null || courseId == null) {
+                return Message.createErrorResponse(request.getAction(), "Student ID and Course ID are required");
+            }
+            
+            boolean isValid = timetableService.validateSchedule(studentId, courseId);
+            
+            if (isValid) {
+                return Message.createSuccessResponse(request.getAction(), "No schedule conflict");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Schedule conflict detected");
+            }
+            
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error validating schedule", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }

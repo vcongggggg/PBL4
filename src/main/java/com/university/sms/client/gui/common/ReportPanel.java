@@ -43,9 +43,16 @@ public class ReportPanel extends JPanel {
 
         tabbedPane = new JTabbedPane();
 
-        // Tab 1: Statistical Reports
-        JPanel statisticsPanel = createStatisticsPanel();
-        tabbedPane.addTab("Thống kê", statisticsPanel);
+        // Tab 1: Advanced Analytics Dashboard (cho Admin/Teacher)
+        if (currentUser.getRole() != User.UserRole.STUDENT) {
+            AnalyticsDashboard analyticsDashboard = new AnalyticsDashboard(serverConnection);
+            analyticsDashboard.setCurrentUser(currentUser);
+            tabbedPane.addTab("Thống kê", analyticsDashboard);
+        } else {
+            // Student chỉ thấy statistics đơn giản
+            JPanel statisticsPanel = createStatisticsPanel();
+            tabbedPane.addTab("Thống kê", statisticsPanel);
+        }
 
         // Tab 2: Detailed Reports
         JPanel detailReportPanel = createDetailReportPanel();

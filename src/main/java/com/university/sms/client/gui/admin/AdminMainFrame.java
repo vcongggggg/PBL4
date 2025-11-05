@@ -5,6 +5,7 @@ import com.university.sms.common.Message;
 import com.university.sms.model.User;
 import com.university.sms.client.gui.common.*;
 import javax.swing.*;
+import javax.swing.KeyStroke;
 import java.awt.*;
 import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
@@ -13,7 +14,8 @@ public class AdminMainFrame extends JFrame {
     private static final long serialVersionUID = 1L;
     private User currentUser;
     private IServerConnection serverConnection;
-    private JTabbedPane tabbedPane;
+    private ModernDashboard modernDashboard; // Thay thế JTabbedPane
+    private JTabbedPane tabbedPane; // Giữ lại để dễ rollback nếu cần
     private JLabel userInfoLabel;
     private JLabel connectionStatusLabel;
     private StudentPanel studentPanel;
@@ -41,7 +43,8 @@ public class AdminMainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
 
-        tabbedPane = new JTabbedPane();
+        // Create Modern Dashboard (thay thế JTabbedPane)
+        modernDashboard = new ModernDashboard(serverConnection, currentUser);
 
         userInfoLabel = new JLabel();
         connectionStatusLabel = new JLabel();
@@ -50,48 +53,43 @@ public class AdminMainFrame extends JFrame {
     }
 
     private void createAdminPanels() {
-        JTabbedPane userManagementPane = new JTabbedPane();
-
+        // Quản lý sinh viên
         studentPanel = new StudentPanel(currentUser, serverConnection, false);
-        userManagementPane.addTab("Quản lí sinh viên", createIcon("student"), studentPanel,
-                "Quản lý toàn bộ thông tin sinh viên");
+        modernDashboard.addNavItem("👥", "Quản lý Sinh viên", "student", studentPanel);
 
+        // Quản lý giảng viên
         teacherPanel = new TeacherPanel(currentUser, serverConnection);
-        userManagementPane.addTab("Quản lí giảng viên", createIcon("teacher"), teacherPanel,
-                "Quản lý giảng viên và xem lớp đang dạy");
+        modernDashboard.addNavItem("👨‍🏫", "Quản lý Giảng viên", "teacher", teacherPanel);
 
-        tabbedPane.addTab("Quản lí người dùng", createIcon("users"), userManagementPane,
-                "Quản lý sinh viên và giảng viên");
-
+        // Quản lý lớp học phần
         coursePanel = new CoursePanel(currentUser, serverConnection, false);
-        tabbedPane.addTab("Quản lí lớp học phần", createIcon("course"), coursePanel,
-                "Quản lý các lớp học phần");
+        modernDashboard.addNavItem("📚", "Quản lý Lớp học phần", "course", coursePanel);
 
+        // Khung chương trình đào tạo
         subjectPanel = new SubjectPanel(currentUser, serverConnection);
-        tabbedPane.addTab("Khung chương trình đào tạo", createIcon("subject"), subjectPanel,
-                "Quản lý môn học cho chương trình đào tạo");
+        modernDashboard.addNavItem("📖", "Khung chương trình", "subject", subjectPanel);
 
+        // Quản trị Hệ thống
         adminPanel = new AdminPanel(currentUser, serverConnection);
-        tabbedPane.addTab("Quản trị Hệ thống", createIcon("admin"), adminPanel,
-                "Duyệt yêu cầu mở lớp");
+        modernDashboard.addNavItem("⚙️", "Quản trị Hệ thống", "admin", adminPanel);
 
+        // Báo cáo & Thống kê
         reportPanel = new ReportPanel(currentUser, serverConnection);
-        tabbedPane.addTab("Báo cáo & Thống kê", createIcon("report"), reportPanel,
-                "Xem báo cáo tổng hợp");
+        modernDashboard.addNavItem("📈", "Báo cáo & Thống kê", "report", reportPanel);
 
+        // Thông báo (với badge)
         notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
-        tabbedPane.addTab("Thông báo", createIcon("notification"), notificationPanel,
-                "Quản lý thông báo hệ thống");
+        modernDashboard.addNavItemWithBadge("🔔", "Thông báo", "notification", notificationPanel);
     }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
 
-        add(tabbedPane, BorderLayout.CENTER);
+        // Main content - Sử dụng ModernDashboard
+        add(modernDashboard, BorderLayout.CENTER);
 
         JPanel statusBar = createStatusBar();
         add(statusBar, BorderLayout.SOUTH);
-
     }
 
     private JPanel createStatusBar() {
@@ -142,6 +140,19 @@ public class AdminMainFrame extends JFrame {
         JMenuItem changePasswordMenuItem = new JMenuItem("Đổi mật khẩu", createIcon("password"));
         changePasswordMenuItem.addActionListener(e -> showChangePasswordDialog());
         toolsMenu.add(changePasswordMenuItem);
+
+        toolsMenu.addSeparator();
+        
+        // Dark Mode Toggle in menu
+        JPanel darkModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        darkModePanel.setOpaque(false);
+        darkModePanel.add(new JLabel("Dark Mode:"));
+        DarkModeToggle darkModeToggle = new DarkModeToggle();
+        darkModePanel.add(darkModeToggle);
+        JMenuItem darkModeMenuItem = new JMenuItem();
+        darkModeMenuItem.setLayout(new BorderLayout());
+        darkModeMenuItem.add(darkModePanel, BorderLayout.CENTER);
+        toolsMenu.add(darkModeMenuItem);
 
         menuBar.add(toolsMenu);
 
@@ -276,3 +287,4 @@ public class AdminMainFrame extends JFrame {
         return serverConnection;
     }
 }
+

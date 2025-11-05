@@ -20,7 +20,8 @@ public class TeacherMainFrame extends JFrame {
     private User currentUser;
     private IServerConnection serverConnection;
 
-    private JTabbedPane tabbedPane;
+    private ModernDashboard modernDashboard; // Thay thế JTabbedPane
+    private JTabbedPane tabbedPane; // Giữ lại để dễ rollback nếu cần
     private JLabel userInfoLabel;
     private JLabel connectionStatusLabel;
 
@@ -28,6 +29,7 @@ public class TeacherMainFrame extends JFrame {
     private StudentPanel studentPanel;
     private CoursePanel coursePanel;
     private GradePanel gradePanel;
+    private TimetablePanel timetablePanel;
     private MyClassRequestsPanel classRequestsPanel;
     private ReportPanel reportPanel;
     private NotificationPanel notificationPanel;
@@ -50,8 +52,8 @@ public class TeacherMainFrame extends JFrame {
         setDefaultCloseOperation(JFrame.DO_NOTHING_ON_CLOSE);
         setExtendedState(JFrame.MAXIMIZED_BOTH);
 
-        // Create tabbed pane
-        tabbedPane = new JTabbedPane();
+        // Create Modern Dashboard (thay thế JTabbedPane)
+        modernDashboard = new ModernDashboard(serverConnection, currentUser);
 
         // Create status labels
         userInfoLabel = new JLabel();
@@ -64,42 +66,41 @@ public class TeacherMainFrame extends JFrame {
     private void createTeacherPanels() {
         // Giảng viên quản lý sinh viên của những lớp mình dạy
         studentPanel = new StudentPanel(currentUser, serverConnection, true);
-        tabbedPane.addTab("Danh sách Sinh viên", createIcon("student"), studentPanel, 
-                         "Xem danh sách sinh viên trong lớp của mình");
+        modernDashboard.addNavItem("👥", "Danh sách Sinh viên", "student", studentPanel);
 
         // Giảng viên quản lý các khóa học mình dạy
         coursePanel = new CoursePanel(currentUser, serverConnection, true);
-        tabbedPane.addTab("Khóa học của tôi", createIcon("course"), coursePanel, 
-                         "Xem các khóa học mình dạy");
+        modernDashboard.addNavItem("📚", "Khóa học của tôi", "course", coursePanel);
 
         // Giảng viên nhập điểm
         gradePanel = new GradePanel(currentUser, serverConnection, false);
-        tabbedPane.addTab("Nhập Điểm", createIcon("grade"), gradePanel, 
-                         "Nhập và cập nhật điểm cho sinh viên");
+        modernDashboard.addNavItem("📊", "Nhập Điểm", "grade", gradePanel);
+
+        // Thời khóa biểu
+        timetablePanel = new TimetablePanel(serverConnection);
+        timetablePanel.setCurrentUser(currentUser);
+        modernDashboard.addNavItem("📅", "Thời khóa biểu", "timetable", timetablePanel);
 
         // Yêu cầu mở lớp
         classRequestsPanel = new MyClassRequestsPanel();
         classRequestsPanel.setServerConnection(serverConnection);
         classRequestsPanel.setCurrentUser(currentUser);
-        tabbedPane.addTab("Yêu Cầu Mở Lớp", createIcon("request"), classRequestsPanel, 
-                         "Gửi và quản lý yêu cầu mở lớp");
+        modernDashboard.addNavItem("📝", "Yêu Cầu Mở Lớp", "classRequests", classRequestsPanel);
 
         // Báo cáo
         reportPanel = new ReportPanel(currentUser, serverConnection);
-        tabbedPane.addTab("Báo cáo", createIcon("report"), reportPanel, 
-                         "Xem báo cáo và thống kê lớp học");
+        modernDashboard.addNavItem("📈", "Báo cáo", "report", reportPanel);
 
-        // Thông báo
+        // Thông báo (với badge)
         notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
-        tabbedPane.addTab("Thông báo", createIcon("notification"), notificationPanel, 
-                         "Xem và gửi thông báo");
+        modernDashboard.addNavItemWithBadge("🔔", "Thông báo", "notification", notificationPanel);
     }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
 
-        // Main content
-        add(tabbedPane, BorderLayout.CENTER);
+        // Main content - Sử dụng ModernDashboard
+        add(modernDashboard, BorderLayout.CENTER);
 
         // Status bar
         JPanel statusBar = createStatusBar();
@@ -151,6 +152,12 @@ public class TeacherMainFrame extends JFrame {
         JButton changePasswordButton = new JButton("Đổi mật khẩu", createIcon("password"));
         changePasswordButton.addActionListener(e -> showChangePasswordDialog());
         toolBar.add(changePasswordButton);
+
+        toolBar.addSeparator();
+
+        // Dark Mode Toggle
+        DarkModeToggle darkModeToggle = new DarkModeToggle();
+        toolBar.add(darkModeToggle);
 
         toolBar.addSeparator();
 
@@ -257,6 +264,7 @@ public class TeacherMainFrame extends JFrame {
         if (studentPanel != null) studentPanel.refreshData();
         if (coursePanel != null) coursePanel.refreshData();
         if (gradePanel != null) gradePanel.refreshData();
+        if (timetablePanel != null) timetablePanel.refreshData();
         if (classRequestsPanel != null) classRequestsPanel.refreshData();
         if (reportPanel != null) reportPanel.refreshData();
         if (notificationPanel != null) notificationPanel.refreshData();

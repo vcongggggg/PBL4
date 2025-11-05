@@ -274,7 +274,14 @@ public class EnrollmentDAO {
         enrollment.setFinalGrade(rs.getBigDecimal("final_grade"));
         enrollment.setLetterGrade(rs.getString("letter_grade"));
         enrollment.setGradePoints(rs.getBigDecimal("grade_points"));
-        enrollment.setAttendanceRate(rs.getBigDecimal("attendance_rate"));
+        
+        // Check if attendance_rate column exists (may not exist in some database schemas)
+        try {
+            enrollment.setAttendanceRate(rs.getBigDecimal("attendance_rate"));
+        } catch (SQLException e) {
+            // If column doesn't exist, default to zero
+            enrollment.setAttendanceRate(java.math.BigDecimal.ZERO);
+        }
         
         // Related information
         enrollment.setStudentCode(rs.getString("student_code"));

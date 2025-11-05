@@ -198,6 +198,25 @@ public class Constants {
     public static final int DEFAULT_SESSION_TIMEOUT = 3600000; // 1 hour in milliseconds
     public static final int DEFAULT_MAX_CONNECTIONS = 100;
 
+    // Timetable & Transcript Actions
+    public static final String ACTION_GET_TIMETABLE = "GET_TIMETABLE";
+    public static final String ACTION_GET_TRANSCRIPT = "GET_TRANSCRIPT";
+    public static final String ACTION_GET_SEMESTER_TRANSCRIPT = "GET_SEMESTER_TRANSCRIPT";
+    public static final String ACTION_GET_HONOR_STUDENTS = "GET_HONOR_STUDENTS";
+    public static final String ACTION_GET_FACULTY_STATISTICS = "GET_FACULTY_STATISTICS";
+    public static final String ACTION_VALIDATE_SCHEDULE = "VALIDATE_SCHEDULE";
+    
+    // Timetable & Transcript Keys
+    public static final String KEY_TIMETABLE = "timetable";
+    public static final String KEY_TRANSCRIPT = "transcript";
+    public static final String KEY_SEMESTER_RECORDS = "semester_records";
+    public static final String KEY_HONOR_STUDENTS = "honor_students";
+    public static final String KEY_CUMULATIVE_GPA = "cumulative_gpa";
+    public static final String KEY_SEMESTER_GPA = "semester_gpa";
+    public static final String KEY_ACADEMIC_RANK = "academic_rank";
+    public static final String KEY_TOTAL_CREDITS = "total_credits";
+    public static final String KEY_USER_ROLE = "user_role";
+
     // File Paths
     public static final String CONFIG_FILE = "database.properties";
     public static final String LOG_FILE = "application.log";

@@ -148,6 +148,38 @@ public class CourseDAO {
     }
 
     /**
+     * Tìm khóa học theo lớp
+     */
+    public List<Course> findByClassId(int classId) {
+        String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
+                "u.full_name AS teacher_name, cl.class_name " +
+                "FROM courses c " +
+                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
+                "JOIN users u ON c.teacher_id = u.user_id " +
+                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "WHERE c.class_id = ? ORDER BY c.academic_year DESC, c.semester DESC";
+
+        List<Course> courses = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, classId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    courses.add(mapResultSetToCourse(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding courses by class ID: " + classId, e);
+        }
+
+        return courses;
+    }
+
+    /**
      * Tìm khóa học theo năm học và học kỳ
      */
     public List<Course> findByAcademicYearAndSemester(String academicYear, int semester) {

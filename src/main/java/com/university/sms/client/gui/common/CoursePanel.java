@@ -71,8 +71,11 @@ public class CoursePanel extends JPanel {
             deleteCourseButton.setForeground(Color.RED);
         }
 
-        // Teacher: "Nhập điểm"
+        // Teacher: "Nhập điểm" và "Xem danh sách sinh viên"
         if (currentUser.getRole() == User.UserRole.TEACHER) {
+            viewStudentsButton = new JButton("Xem danh sách sinh viên");
+            viewStudentsButton.setEnabled(false);
+            
             gradeEntryButton = new JButton("Nhập điểm");
             gradeEntryButton.setEnabled(false);
         }
@@ -94,8 +97,13 @@ public class CoursePanel extends JPanel {
             }
         }
 
-        if (currentUser.getRole() == User.UserRole.TEACHER && gradeEntryButton != null) {
-            topPanel.add(gradeEntryButton);
+        if (currentUser.getRole() == User.UserRole.TEACHER) {
+            if (viewStudentsButton != null) {
+                topPanel.add(viewStudentsButton);
+            }
+            if (gradeEntryButton != null) {
+                topPanel.add(gradeEntryButton);
+            }
         }
 
         add(topPanel, BorderLayout.NORTH);

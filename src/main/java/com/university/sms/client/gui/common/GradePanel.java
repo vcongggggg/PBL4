@@ -6,15 +6,20 @@ import com.university.sms.common.Message;
 import com.university.sms.model.Student;
 import com.university.sms.model.User;
 import com.university.sms.model.Course;
+import com.university.sms.model.Grade;
+import com.university.sms.model.Enrollment;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.MouseAdapter;
 import java.awt.event.MouseEvent;
+import java.math.BigDecimal;
+import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.stream.Collectors;
 
 /**
  * Panel quản lý điểm số
@@ -162,9 +167,117 @@ public class GradePanel extends JPanel {
         SwingWorker<List<Map<String, Object>>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<Map<String, Object>> doInBackground() throws Exception {
-                // TODO: Implement actual grade fetching from server
-                // For now, return empty list
-                return List.of();
+                List<Map<String, Object>> gradeList = new ArrayList<>();
+                
+                if (currentUser.getRole() == User.UserRole.STUDENT) {
+                    // Student: Get own grades
+                    Message request = Message.createRequest(Constants.ACTION_GET_STUDENT_GRADES);
+                    Message response = serverConnection.sendRequest(request);
+                    
+                    if (response != null && response.isSuccess()) {
+                        @SuppressWarnings("unchecked")
+                        List<Enrollment> enrollments = (List<Enrollment>) response.getData(Constants.KEY_GRADES);
+                        
+                        if (enrollments != null) {
+                            // Get detailed grades for each enrollment
+                            for (Enrollment enrollment : enrollments) {
+                                Map<String, Object> gradeMap = new HashMap<>();
+                                
+                                // Get course info from enrollment
+                                gradeMap.put("courseCode", enrollment.getCourseCode());
+                                gradeMap.put("courseName", enrollment.getSubjectName());
+                                gradeMap.put("credits", enrollment.getCredits());
+                                
+                                // Get grade details
+                                Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
+                                gradeRequest.addData(Constants.KEY_ENROLLMENT, enrollment.getEnrollmentId());
+                                Message gradeResponse = serverConnection.sendRequest(gradeRequest);
+                                
+                                BigDecimal midtermGrade = null;
+                                BigDecimal finalGrade = null;
+                                BigDecimal totalGrade = enrollment.getFinalGrade();
+                                
+                                if (gradeResponse != null && gradeResponse.isSuccess()) {
+                                    @SuppressWarnings("unchecked")
+                                    List<Grade> grades = (List<Grade>) gradeResponse.getData(Constants.KEY_GRADES);
+                                    
+                                    if (grades != null) {
+                                        for (Grade grade : grades) {
+                                            if (grade.getGradeType() == Grade.GradeType.MIDTERM) {
+                                                midtermGrade = grade.getScore();
+                                            } else if (grade.getGradeType() == Grade.GradeType.FINAL) {
+                                                finalGrade = grade.getScore();
+                                            }
+                                        }
+                                    }
+                                }
+                                
+                                gradeMap.put("midtermGrade", midtermGrade);
+                                gradeMap.put("finalGrade", finalGrade);
+                                gradeMap.put("totalGrade", totalGrade);
+                                gradeMap.put("classification", enrollment.getLetterGrade() != null ? 
+                                    enrollment.getLetterGrade() : calculateLetterGrade(totalGrade));
+                                
+                                gradeList.add(gradeMap);
+                            }
+                        }
+                    }
+                } else {
+                    // Admin/Teacher: Get grades by course filter
+                    int selectedIndex = courseFilterCombo.getSelectedIndex();
+                    if (selectedIndex > 0 && courses != null && selectedIndex <= courses.size()) {
+                        Course selectedCourse = courses.get(selectedIndex - 1);
+                        
+                        Message request = Message.createRequest(Constants.ACTION_GET_GRADES);
+                        request.addData(Constants.KEY_COURSE_ID, selectedCourse.getCourseId());
+                        Message response = serverConnection.sendRequest(request);
+                        
+                        if (response != null && response.isSuccess()) {
+                            @SuppressWarnings("unchecked")
+                            List<Grade> grades = (List<Grade>) response.getData(Constants.KEY_GRADES);
+                            
+                            if (grades != null) {
+                                // Group by enrollment/student
+                                Map<Integer, List<Grade>> gradesByEnrollment = grades.stream()
+                                    .collect(Collectors.groupingBy(Grade::getEnrollmentId));
+                                
+                                for (Map.Entry<Integer, List<Grade>> entry : gradesByEnrollment.entrySet()) {
+                                    List<Grade> studentGrades = entry.getValue();
+                                    if (!studentGrades.isEmpty()) {
+                                        Grade firstGrade = studentGrades.get(0);
+                                        
+                                        Map<String, Object> gradeMap = new HashMap<>();
+                                        gradeMap.put("studentId", firstGrade.getStudentCode());
+                                        gradeMap.put("studentName", firstGrade.getStudentName());
+                                        gradeMap.put("courseCode", firstGrade.getCourseCode());
+                                        gradeMap.put("courseName", firstGrade.getSubjectName());
+                                        
+                                        BigDecimal midtermGrade = null;
+                                        BigDecimal finalGrade = null;
+                                        
+                                        for (Grade grade : studentGrades) {
+                                            if (grade.getGradeType() == Grade.GradeType.MIDTERM) {
+                                                midtermGrade = grade.getScore();
+                                            } else if (grade.getGradeType() == Grade.GradeType.FINAL) {
+                                                finalGrade = grade.getScore();
+                                            }
+                                        }
+                                        
+                                        gradeMap.put("midtermGrade", midtermGrade);
+                                        gradeMap.put("finalGrade", finalGrade);
+                                        gradeMap.put("totalGrade", finalGrade != null ? finalGrade : midtermGrade);
+                                        gradeMap.put("classification", calculateLetterGrade(
+                                            finalGrade != null ? finalGrade : midtermGrade));
+                                        
+                                        gradeList.add(gradeMap);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                return gradeList;
             }
 
             @Override
@@ -173,6 +286,7 @@ public class GradePanel extends JPanel {
                     List<Map<String, Object>> grades = get();
                     updateTable(grades);
                 } catch (Exception e) {
+                    e.printStackTrace();
                     JOptionPane.showMessageDialog(GradePanel.this,
                             "Lỗi khi tải dữ liệu điểm: " + e.getMessage(),
                             "Lỗi",
@@ -182,6 +296,22 @@ public class GradePanel extends JPanel {
         };
 
         worker.execute();
+    }
+    
+    private String calculateLetterGrade(BigDecimal grade) {
+        if (grade == null) return "N/A";
+        
+        double score = grade.doubleValue();
+        if (score >= 9.0) return "A+";
+        if (score >= 8.5) return "A";
+        if (score >= 8.0) return "B+";
+        if (score >= 7.0) return "B";
+        if (score >= 6.5) return "C+";
+        if (score >= 6.0) return "C";
+        if (score >= 5.5) return "D+";
+        if (score >= 5.0) return "D";
+        if (score >= 4.0) return "F+";
+        return "F";
     }
 
     private void loadCourses() {

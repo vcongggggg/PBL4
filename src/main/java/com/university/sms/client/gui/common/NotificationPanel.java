@@ -31,6 +31,8 @@ public class NotificationPanel extends JPanel {
     private JButton markAllReadButton;
     private JButton refreshButton;
     private JLabel unreadCountLabel;
+    private JButton notificationButton; // Button with badge for dropdown
+    private NotificationDropdown notificationDropdown;
 
     private List<Notification> notifications;
 
@@ -139,6 +141,31 @@ public class NotificationPanel extends JPanel {
         unreadCountLabel = new JLabel("Chưa đọc: 0");
         unreadCountLabel.setFont(new Font("Arial", Font.BOLD, 14));
         unreadCountLabel.setForeground(Color.RED);
+        
+        // Notification dropdown button with badge
+        notificationButton = new JButton("🔔 Thông báo");
+        notificationButton.setFont(new Font("Arial", Font.PLAIN, 13));
+        notificationButton.addActionListener(e -> showNotificationDropdown());
+        
+        // Create dropdown
+        notificationDropdown = new NotificationDropdown();
+        notificationDropdown.setClickListener(new NotificationDropdown.NotificationClickListener() {
+            @Override
+            public void onNotificationClick(Notification notification) {
+                viewNotificationDetails(notification);
+            }
+            
+            @Override
+            public void onMarkAllRead() {
+                markAllAsRead();
+            }
+            
+            @Override
+            public void onViewAll() {
+                // Switch to notification tab if in MainFrame
+                // This will be handled by MainFrame if needed
+            }
+        });
     }
 
     private void setupLayout() {
@@ -156,6 +183,8 @@ public class NotificationPanel extends JPanel {
         toolBar.add(refreshButton);
         toolBar.addSeparator();
         toolBar.add(Box.createHorizontalGlue());
+        toolBar.add(notificationButton);
+        toolBar.addSeparator();
         toolBar.add(unreadCountLabel);
 
         add(toolBar, BorderLayout.NORTH);
@@ -185,29 +214,31 @@ public class NotificationPanel extends JPanel {
                     Message response = serverConnection.sendRequest(request);
                     
                     if (response.isSuccess()) {
-                        notifications = response.getData(Constants.KEY_NOTIFICATIONS, List.class);
+                        @SuppressWarnings("unchecked")
+                        List<Notification> notificationList = (List<Notification>) response.getData(Constants.KEY_NOTIFICATIONS, List.class);
+                        notifications = notificationList != null ? notificationList : new java.util.ArrayList<>();
                         Integer unreadCount = response.getData(Constants.KEY_UNREAD_COUNT, Integer.class);
                         
                         SwingUtilities.invokeLater(() -> {
                             updateTable();
                             if (unreadCount != null) {
                                 unreadCountLabel.setText("Chưa đọc: " + unreadCount);
+                                // Update dropdown
+                                if (notificationDropdown != null) {
+                                    notificationDropdown.updateNotifications(notifications);
+                                }
                             }
                         });
                     } else {
                         SwingUtilities.invokeLater(() -> {
-                            JOptionPane.showMessageDialog(NotificationPanel.this,
-                                    "Lỗi khi tải thông báo: " + response.getMessage(),
-                                    "Lỗi",
-                                    JOptionPane.ERROR_MESSAGE);
+                            ToastNotification.showError(NotificationPanel.this,
+                                    "Lỗi khi tải thông báo: " + response.getMessage());
                         });
                     }
                 } catch (Exception e) {
                     SwingUtilities.invokeLater(() -> {
-                        JOptionPane.showMessageDialog(NotificationPanel.this,
-                                "Lỗi kết nối: " + e.getMessage(),
-                                "Lỗi",
-                                JOptionPane.ERROR_MESSAGE);
+                        ToastNotification.showError(NotificationPanel.this,
+                                "Lỗi kết nối: " + e.getMessage());
                     });
                 }
                 return null;
@@ -236,6 +267,13 @@ public class NotificationPanel extends JPanel {
         }
     }
 
+    private void showNotificationDropdown() {
+        if (notificationDropdown != null && notifications != null) {
+            notificationDropdown.updateNotifications(notifications);
+            notificationDropdown.show(notificationButton, 0, notificationButton.getHeight());
+        }
+    }
+    
     private void viewNotificationDetails() {
         int selectedRow = notificationTable.getSelectedRow();
         if (selectedRow < 0 || selectedRow >= notifications.size()) {
@@ -243,6 +281,10 @@ public class NotificationPanel extends JPanel {
         }
 
         Notification notif = notifications.get(selectedRow);
+        viewNotificationDetails(notif);
+    }
+    
+    private void viewNotificationDetails(Notification notif) {
 
         // Mark as read if unread
         if (!notif.isRead()) {

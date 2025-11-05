@@ -193,10 +193,10 @@ public class Grade implements Serializable {
         }
         
         // weighted_score = (score / max_score) * weight * 10
-        return score.divide(maxScore, 4, BigDecimal.ROUND_HALF_UP)
+        return score.divide(maxScore, 4, java.math.RoundingMode.HALF_UP)
                    .multiply(weight)
                    .multiply(new BigDecimal("10"))
-                   .setScale(2, BigDecimal.ROUND_HALF_UP);
+                   .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     /**
@@ -208,9 +208,9 @@ public class Grade implements Serializable {
             return BigDecimal.ZERO;
         }
         
-        return score.divide(maxScore, 4, BigDecimal.ROUND_HALF_UP)
+        return score.divide(maxScore, 4, java.math.RoundingMode.HALF_UP)
                    .multiply(new BigDecimal("100"))
-                   .setScale(2, BigDecimal.ROUND_HALF_UP);
+                   .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     @Override
