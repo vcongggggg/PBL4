@@ -35,7 +35,21 @@ public class AdminMainFrame extends JFrame {
         setupMenuBar();
         setupEventListeners();
 
-        SwingUtilities.invokeLater(() -> refreshAllPanels());
+        // Refresh panel đầu tiên sau khi window được show
+        addWindowListener(new WindowAdapter() {
+            private boolean firstTime = true;
+
+            @Override
+            public void windowOpened(WindowEvent e) {
+                if (firstTime) {
+                    firstTime = false;
+                    SwingUtilities.invokeLater(() -> {
+                        if (studentPanel != null)
+                            studentPanel.refreshData();
+                    });
+                }
+            }
+        });
     }
 
     private void initializeComponents() {
@@ -71,7 +85,7 @@ public class AdminMainFrame extends JFrame {
 
         // Quản trị Hệ thống
         adminPanel = new AdminPanel(currentUser, serverConnection);
-        modernDashboard.addNavItem("⚙️", "Quản trị Hệ thống", "admin", adminPanel);
+        modernDashboard.addNavItem("🔧", "Quản trị Hệ thống", "admin", adminPanel);
 
         // Báo cáo & Thống kê
         reportPanel = new ReportPanel(currentUser, serverConnection);
@@ -142,7 +156,7 @@ public class AdminMainFrame extends JFrame {
         toolsMenu.add(changePasswordMenuItem);
 
         toolsMenu.addSeparator();
-        
+
         // Dark Mode Toggle in menu
         JPanel darkModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
         darkModePanel.setOpaque(false);
@@ -287,4 +301,3 @@ public class AdminMainFrame extends JFrame {
         return serverConnection;
     }
 }
-

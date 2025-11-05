@@ -9,6 +9,8 @@ import com.university.sms.model.Course;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.List;
 
 /**
@@ -34,6 +36,10 @@ public class TeacherPanel extends JPanel {
 
   private List<User> currentTeachers;
 
+  // Flag to prevent multiple simultaneous refresh
+  private boolean isRefreshing = false;
+  private boolean isInitialized = false;
+
   // Log area components
   private JTextArea logArea;
   private JScrollPane logScrollPane;
@@ -45,7 +51,8 @@ public class TeacherPanel extends JPanel {
     initializeComponents();
     setupLayout();
     setupEventListeners();
-    loadInitialData();
+    isInitialized = true; // Mark as initialized after setup
+    // loadInitialData(); // Bỏ - để ComponentListener handle auto-refresh
   }
 
   private void initializeComponents() {
@@ -151,6 +158,17 @@ public class TeacherPanel extends JPanel {
         updateButtonStates();
       }
     });
+
+    // Auto-refresh khi panel được hiển thị (chỉ sau khi đã khởi tạo xong)
+    addComponentListener(new ComponentAdapter() {
+      @Override
+      public void componentShown(ComponentEvent e) {
+        // Chỉ refresh nếu panel đã được khởi tạo hoàn toàn
+        if (isInitialized && !isRefreshing) {
+          refreshData();
+        }
+      }
+    });
   }
 
   private void loadInitialData() {
@@ -158,6 +176,12 @@ public class TeacherPanel extends JPanel {
   }
 
   public void refreshData() {
+    // Prevent multiple simultaneous refreshes
+    if (isRefreshing) {
+      return;
+    }
+
+    isRefreshing = true;
     addLog("Đang tải danh sách giảng viên...");
     SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
       @Override
@@ -190,6 +214,8 @@ public class TeacherPanel extends JPanel {
         } catch (Exception e) {
           showErrorMessage("Lỗi khi tải danh sách giảng viên: " + e.getMessage());
           addLog("Lỗi: " + e.getMessage());
+        } finally {
+          isRefreshing = false;
         }
       }
     };

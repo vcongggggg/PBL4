@@ -11,6 +11,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.List;
 
 /**
@@ -34,6 +36,10 @@ public class CoursePanel extends JPanel {
 
     private List<Course> currentCourses;
 
+    // Flag to prevent multiple simultaneous refresh
+    private boolean isRefreshing = false;
+    private boolean isInitialized = false;
+
     public CoursePanel(User currentUser, IServerConnection serverConnection, boolean isReadOnly) {
         this.currentUser = currentUser;
         this.serverConnection = serverConnection;
@@ -42,7 +48,8 @@ public class CoursePanel extends JPanel {
         initializeComponents();
         setupLayout();
         setupEventListeners();
-        loadInitialData();
+        isInitialized = true; // Mark as initialized after setup
+        // loadInitialData(); // Bỏ - để ComponentListener handle auto-refresh
     }
 
     private void initializeComponents() {
@@ -75,7 +82,7 @@ public class CoursePanel extends JPanel {
         if (currentUser.getRole() == User.UserRole.TEACHER) {
             viewStudentsButton = new JButton("Xem danh sách sinh viên");
             viewStudentsButton.setEnabled(false);
-            
+
             gradeEntryButton = new JButton("Nhập điểm");
             gradeEntryButton.setEnabled(false);
         }
@@ -138,6 +145,17 @@ public class CoursePanel extends JPanel {
         if (gradeEntryButton != null) {
             gradeEntryButton.addActionListener(e -> openGradeEntryDialog());
         }
+
+        // Auto-refresh khi panel được hiển thị (chỉ sau khi đã khởi tạo xong)
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                // Chỉ refresh nếu panel đã được khởi tạo hoàn toàn
+                if (isInitialized && !isRefreshing) {
+                    refreshData();
+                }
+            }
+        });
     }
 
     private void loadInitialData() {
@@ -145,6 +163,12 @@ public class CoursePanel extends JPanel {
     }
 
     public void refreshData() {
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) {
+            return;
+        }
+
+        isRefreshing = true;
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
@@ -164,6 +188,8 @@ public class CoursePanel extends JPanel {
                     }
                 } catch (Exception e) {
                     showErrorMessage("Lỗi khi tải dữ liệu: " + e.getMessage());
+                } finally {
+                    isRefreshing = false;
                 }
             }
         };

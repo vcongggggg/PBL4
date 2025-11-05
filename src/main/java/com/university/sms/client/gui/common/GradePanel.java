@@ -44,6 +44,9 @@ public class GradePanel extends JPanel {
 
     private List<Course> courses;
 
+    private boolean isRefreshing = false;
+    private boolean isInitialized = false;
+
     public GradePanel(User currentUser, IServerConnection serverConnection, boolean isReadOnly) {
         this.currentUser = currentUser;
         this.serverConnection = serverConnection;
@@ -51,7 +54,9 @@ public class GradePanel extends JPanel {
 
         initializeComponents();
         setupLayout();
-        loadInitialData();
+        setupEventListeners();
+        isInitialized = true;
+        // loadInitialData(); // Bỏ - để ComponentListener handle auto-refresh
     }
 
     private void initializeComponents() {
@@ -61,9 +66,11 @@ public class GradePanel extends JPanel {
         // Table
         String[] columnNames;
         if (currentUser.getRole() == User.UserRole.STUDENT) {
-            columnNames = new String[]{"Mã môn học", "Tên môn học", "Tín chỉ", "Điểm GK", "Điểm CK", "Điểm TK", "Xếp loại"};
+            columnNames = new String[] { "Mã môn học", "Tên môn học", "Tín chỉ", "Điểm GK", "Điểm CK", "Điểm TK",
+                    "Xếp loại" };
         } else {
-            columnNames = new String[]{"MSSV", "Tên SV", "Mã môn", "Tên môn", "Điểm GK", "Điểm CK", "Điểm TK", "Xếp loại"};
+            columnNames = new String[] { "MSSV", "Tên SV", "Mã môn", "Tên môn", "Điểm GK", "Điểm CK", "Điểm TK",
+                    "Xếp loại" };
         }
 
         tableModel = new DefaultTableModel(columnNames, 0) {
@@ -138,13 +145,13 @@ public class GradePanel extends JPanel {
         // Bottom - Buttons
         if (!isReadOnly || currentUser.getRole() == User.UserRole.STUDENT) {
             JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-            
+
             if (!isReadOnly) {
                 buttonPanel.add(addGradeButton);
                 buttonPanel.add(editGradeButton);
                 buttonPanel.add(deleteGradeButton);
             }
-            
+
             // Statistics for student
             if (currentUser.getRole() == User.UserRole.STUDENT) {
                 JButton statsButton = new JButton("Thống kê điểm");
@@ -156,51 +163,69 @@ public class GradePanel extends JPanel {
         }
     }
 
+    private void setupEventListeners() {
+        // Add component listener to refresh when panel is shown
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                if (isInitialized && !isRefreshing) {
+                    refreshData();
+                }
+            }
+        });
+    }
+
     private void loadInitialData() {
         refreshData();
         loadCourses();
     }
 
     public void refreshData() {
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) {
+            return;
+        }
+
+        isRefreshing = true;
         tableModel.setRowCount(0);
 
         SwingWorker<List<Map<String, Object>>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<Map<String, Object>> doInBackground() throws Exception {
                 List<Map<String, Object>> gradeList = new ArrayList<>();
-                
+
                 if (currentUser.getRole() == User.UserRole.STUDENT) {
                     // Student: Get own grades
                     Message request = Message.createRequest(Constants.ACTION_GET_STUDENT_GRADES);
                     Message response = serverConnection.sendRequest(request);
-                    
+
                     if (response != null && response.isSuccess()) {
                         @SuppressWarnings("unchecked")
                         List<Enrollment> enrollments = (List<Enrollment>) response.getData(Constants.KEY_GRADES);
-                        
+
                         if (enrollments != null) {
                             // Get detailed grades for each enrollment
                             for (Enrollment enrollment : enrollments) {
                                 Map<String, Object> gradeMap = new HashMap<>();
-                                
+
                                 // Get course info from enrollment
                                 gradeMap.put("courseCode", enrollment.getCourseCode());
                                 gradeMap.put("courseName", enrollment.getSubjectName());
                                 gradeMap.put("credits", enrollment.getCredits());
-                                
+
                                 // Get grade details
                                 Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
                                 gradeRequest.addData(Constants.KEY_ENROLLMENT, enrollment.getEnrollmentId());
                                 Message gradeResponse = serverConnection.sendRequest(gradeRequest);
-                                
+
                                 BigDecimal midtermGrade = null;
                                 BigDecimal finalGrade = null;
                                 BigDecimal totalGrade = enrollment.getFinalGrade();
-                                
+
                                 if (gradeResponse != null && gradeResponse.isSuccess()) {
                                     @SuppressWarnings("unchecked")
                                     List<Grade> grades = (List<Grade>) gradeResponse.getData(Constants.KEY_GRADES);
-                                    
+
                                     if (grades != null) {
                                         for (Grade grade : grades) {
                                             if (grade.getGradeType() == Grade.GradeType.MIDTERM) {
@@ -211,13 +236,14 @@ public class GradePanel extends JPanel {
                                         }
                                     }
                                 }
-                                
+
                                 gradeMap.put("midtermGrade", midtermGrade);
                                 gradeMap.put("finalGrade", finalGrade);
                                 gradeMap.put("totalGrade", totalGrade);
-                                gradeMap.put("classification", enrollment.getLetterGrade() != null ? 
-                                    enrollment.getLetterGrade() : calculateLetterGrade(totalGrade));
-                                
+                                gradeMap.put("classification",
+                                        enrollment.getLetterGrade() != null ? enrollment.getLetterGrade()
+                                                : calculateLetterGrade(totalGrade));
+
                                 gradeList.add(gradeMap);
                             }
                         }
@@ -227,34 +253,34 @@ public class GradePanel extends JPanel {
                     int selectedIndex = courseFilterCombo.getSelectedIndex();
                     if (selectedIndex > 0 && courses != null && selectedIndex <= courses.size()) {
                         Course selectedCourse = courses.get(selectedIndex - 1);
-                        
+
                         Message request = Message.createRequest(Constants.ACTION_GET_GRADES);
                         request.addData(Constants.KEY_COURSE_ID, selectedCourse.getCourseId());
                         Message response = serverConnection.sendRequest(request);
-                        
+
                         if (response != null && response.isSuccess()) {
                             @SuppressWarnings("unchecked")
                             List<Grade> grades = (List<Grade>) response.getData(Constants.KEY_GRADES);
-                            
+
                             if (grades != null) {
                                 // Group by enrollment/student
                                 Map<Integer, List<Grade>> gradesByEnrollment = grades.stream()
-                                    .collect(Collectors.groupingBy(Grade::getEnrollmentId));
-                                
+                                        .collect(Collectors.groupingBy(Grade::getEnrollmentId));
+
                                 for (Map.Entry<Integer, List<Grade>> entry : gradesByEnrollment.entrySet()) {
                                     List<Grade> studentGrades = entry.getValue();
                                     if (!studentGrades.isEmpty()) {
                                         Grade firstGrade = studentGrades.get(0);
-                                        
+
                                         Map<String, Object> gradeMap = new HashMap<>();
                                         gradeMap.put("studentId", firstGrade.getStudentCode());
                                         gradeMap.put("studentName", firstGrade.getStudentName());
                                         gradeMap.put("courseCode", firstGrade.getCourseCode());
                                         gradeMap.put("courseName", firstGrade.getSubjectName());
-                                        
+
                                         BigDecimal midtermGrade = null;
                                         BigDecimal finalGrade = null;
-                                        
+
                                         for (Grade grade : studentGrades) {
                                             if (grade.getGradeType() == Grade.GradeType.MIDTERM) {
                                                 midtermGrade = grade.getScore();
@@ -262,13 +288,13 @@ public class GradePanel extends JPanel {
                                                 finalGrade = grade.getScore();
                                             }
                                         }
-                                        
+
                                         gradeMap.put("midtermGrade", midtermGrade);
                                         gradeMap.put("finalGrade", finalGrade);
                                         gradeMap.put("totalGrade", finalGrade != null ? finalGrade : midtermGrade);
                                         gradeMap.put("classification", calculateLetterGrade(
-                                            finalGrade != null ? finalGrade : midtermGrade));
-                                        
+                                                finalGrade != null ? finalGrade : midtermGrade));
+
                                         gradeList.add(gradeMap);
                                     }
                                 }
@@ -276,7 +302,7 @@ public class GradePanel extends JPanel {
                         }
                     }
                 }
-                
+
                 return gradeList;
             }
 
@@ -291,26 +317,38 @@ public class GradePanel extends JPanel {
                             "Lỗi khi tải dữ liệu điểm: " + e.getMessage(),
                             "Lỗi",
                             JOptionPane.ERROR_MESSAGE);
+                } finally {
+                    isRefreshing = false;
                 }
             }
         };
 
         worker.execute();
     }
-    
+
     private String calculateLetterGrade(BigDecimal grade) {
-        if (grade == null) return "N/A";
-        
+        if (grade == null)
+            return "N/A";
+
         double score = grade.doubleValue();
-        if (score >= 9.0) return "A+";
-        if (score >= 8.5) return "A";
-        if (score >= 8.0) return "B+";
-        if (score >= 7.0) return "B";
-        if (score >= 6.5) return "C+";
-        if (score >= 6.0) return "C";
-        if (score >= 5.5) return "D+";
-        if (score >= 5.0) return "D";
-        if (score >= 4.0) return "F+";
+        if (score >= 9.0)
+            return "A+";
+        if (score >= 8.5)
+            return "A";
+        if (score >= 8.0)
+            return "B+";
+        if (score >= 7.0)
+            return "B";
+        if (score >= 6.5)
+            return "C+";
+        if (score >= 6.0)
+            return "C";
+        if (score >= 5.5)
+            return "D+";
+        if (score >= 5.0)
+            return "D";
+        if (score >= 4.0)
+            return "F+";
         return "F";
     }
 
@@ -350,7 +388,7 @@ public class GradePanel extends JPanel {
 
         for (Map<String, Object> grade : grades) {
             if (currentUser.getRole() == User.UserRole.STUDENT) {
-                tableModel.addRow(new Object[]{
+                tableModel.addRow(new Object[] {
                         grade.get("courseCode"),
                         grade.get("courseName"),
                         grade.get("credits"),
@@ -360,7 +398,7 @@ public class GradePanel extends JPanel {
                         grade.get("classification")
                 });
             } else {
-                tableModel.addRow(new Object[]{
+                tableModel.addRow(new Object[] {
                         grade.get("studentId"),
                         grade.get("studentName"),
                         grade.get("courseCode"),
@@ -451,10 +489,10 @@ public class GradePanel extends JPanel {
         // TODO: Show statistics dialog
         JOptionPane.showMessageDialog(this,
                 "Thống kê điểm:\n" +
-                "- Điểm TB tích lũy: Đang tính...\n" +
-                "- Số tín chỉ đã đạt: Đang tính...\n" +
-                "- Xếp loại: Đang tính...\n\n" +
-                "Chức năng đang được phát triển",
+                        "- Điểm TB tích lũy: Đang tính...\n" +
+                        "- Số tín chỉ đã đạt: Đang tính...\n" +
+                        "- Xếp loại: Đang tính...\n\n" +
+                        "Chức năng đang được phát triển",
                 "Thống kê điểm",
                 JOptionPane.INFORMATION_MESSAGE);
     }
@@ -467,7 +505,7 @@ public class GradePanel extends JPanel {
 
         public GradeInputDialog(Frame parent, IServerConnection serverConnection, Map<String, Object> gradeData) {
             super(parent, gradeData == null ? "Nhập điểm mới" : "Sửa điểm", true);
-            
+
             setLayout(new BorderLayout(10, 10));
             setSize(400, 300);
             setLocationRelativeTo(parent);

@@ -42,9 +42,22 @@ public class TeacherMainFrame extends JFrame {
         setupLayout();
         setupMenuBar();
         setupEventListeners();
-        
-        // Load initial data
-        SwingUtilities.invokeLater(() -> refreshAllPanels());
+
+        // Refresh panel đầu tiên sau khi window được show
+        addWindowListener(new WindowAdapter() {
+            private boolean firstTime = true;
+
+            @Override
+            public void windowOpened(WindowEvent e) {
+                if (firstTime) {
+                    firstTime = false;
+                    SwingUtilities.invokeLater(() -> {
+                        if (studentPanel != null)
+                            studentPanel.refreshData();
+                    });
+                }
+            }
+        });
     }
 
     private void initializeComponents() {
@@ -261,13 +274,20 @@ public class TeacherMainFrame extends JFrame {
     }
 
     private void refreshAllPanels() {
-        if (studentPanel != null) studentPanel.refreshData();
-        if (coursePanel != null) coursePanel.refreshData();
-        if (gradePanel != null) gradePanel.refreshData();
-        if (timetablePanel != null) timetablePanel.refreshData();
-        if (classRequestsPanel != null) classRequestsPanel.refreshData();
-        if (reportPanel != null) reportPanel.refreshData();
-        if (notificationPanel != null) notificationPanel.refreshData();
+        if (studentPanel != null)
+            studentPanel.refreshData();
+        if (coursePanel != null)
+            coursePanel.refreshData();
+        if (gradePanel != null)
+            gradePanel.refreshData();
+        if (timetablePanel != null)
+            timetablePanel.refreshData();
+        if (classRequestsPanel != null)
+            classRequestsPanel.refreshData();
+        if (reportPanel != null)
+            reportPanel.refreshData();
+        if (notificationPanel != null)
+            notificationPanel.refreshData();
         updateConnectionStatus();
     }
 
@@ -287,7 +307,6 @@ public class TeacherMainFrame extends JFrame {
         ChangePasswordDialog dialog = new ChangePasswordDialog(this, serverConnection);
         dialog.setVisible(true);
     }
-
 
     private void logout() {
         int result = JOptionPane.showConfirmDialog(this,
@@ -317,8 +336,7 @@ public class TeacherMainFrame extends JFrame {
     private void returnToLogin() {
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
-            com.university.sms.client.gui.common.LoginFrame loginFrame = 
-                new com.university.sms.client.gui.common.LoginFrame();
+            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame();
             loginFrame.setVisible(true);
             dispose();
         });
@@ -352,4 +370,3 @@ public class TeacherMainFrame extends JFrame {
         return serverConnection;
     }
 }
-

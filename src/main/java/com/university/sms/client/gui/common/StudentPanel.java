@@ -11,6 +11,8 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.List;
 
 /**
@@ -36,6 +38,10 @@ public class StudentPanel extends JPanel {
 
     private java.util.List<Student> currentStudents = new java.util.ArrayList<>();
 
+    // Flag to prevent multiple simultaneous refresh
+    private boolean isRefreshing = false;
+    private boolean isInitialized = false;
+
     // Log area components
     private JTextArea logArea;
     private JScrollPane logScrollPane;
@@ -48,7 +54,8 @@ public class StudentPanel extends JPanel {
         initializeComponents();
         setupLayout();
         setupEventListeners();
-        loadInitialData();
+        isInitialized = true; // Mark as initialized after setup
+        // loadInitialData(); // Bỏ - để ComponentListener handle auto-refresh
     }
 
     private void initializeComponents() {
@@ -110,14 +117,14 @@ public class StudentPanel extends JPanel {
         searchPanel.add(searchButton);
         searchPanel.add(refreshButton);
         searchPanel.add(showInactiveCheckbox);
-        
+
         // Nút để toggle advanced search (tùy chọn)
         JButton advancedSearchButton = new JButton("🔍 Nâng cao");
         advancedSearchButton.addActionListener(e -> toggleAdvancedSearch());
         searchPanel.add(advancedSearchButton);
-        
+
         topPanel.add(searchPanel, BorderLayout.WEST);
-        
+
         // Advanced search panel (ẩn mặc định)
         advancedSearchPanel = new AdvancedSearchPanel();
         advancedSearchPanel.setVisible(false);
@@ -136,7 +143,7 @@ public class StudentPanel extends JPanel {
         JPanel topContainer = new JPanel(new BorderLayout());
         topContainer.add(topPanel, BorderLayout.NORTH);
         topContainer.add(advancedSearchPanel, BorderLayout.CENTER);
-        
+
         add(topContainer, BorderLayout.NORTH);
 
         // Center panel with table and log area
@@ -215,6 +222,17 @@ public class StudentPanel extends JPanel {
         studentTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateButtonStates();
+            }
+        });
+
+        // Auto-refresh khi panel được hiển thị (chỉ sau khi đã khởi tạo xong)
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                // Chỉ refresh nếu panel đã được khởi tạo hoàn toàn
+                if (isInitialized && !isRefreshing) {
+                    refreshData();
+                }
             }
         });
     }
@@ -310,11 +328,17 @@ public class StudentPanel extends JPanel {
     }
 
     public void refreshData() {
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) {
+            return;
+        }
+
         if (currentUser.getRole() == User.UserRole.STUDENT) {
             loadStudentOwnInfo();
             return;
         }
 
+        isRefreshing = true;
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
@@ -340,6 +364,8 @@ public class StudentPanel extends JPanel {
                     }
                 } catch (Exception e) {
                     showErrorMessage("Lỗi khi tải dữ liệu: " + e.getMessage());
+                } finally {
+                    isRefreshing = false;
                 }
             }
         };
@@ -530,7 +556,7 @@ public class StudentPanel extends JPanel {
         JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
         addLog("LỖI: " + message);
     }
-    
+
     private void toggleAdvancedSearch() {
         if (advancedSearchPanel != null) {
             boolean visible = !advancedSearchPanel.isVisible();
@@ -539,7 +565,7 @@ public class StudentPanel extends JPanel {
             repaint();
         }
     }
-    
+
     private void performAdvancedSearch(String searchText, java.util.Map<String, String> filters) {
         addLog("Đang tìm kiếm nâng cao: " + searchText);
         // Nếu có filters, có thể thêm logic filter phức tạp hơn

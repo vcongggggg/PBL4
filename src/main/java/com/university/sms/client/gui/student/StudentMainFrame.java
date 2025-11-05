@@ -26,7 +26,7 @@ public class StudentMainFrame extends JFrame {
     private JLabel connectionStatusLabel;
 
     // Student-specific panels
-    private StudentPanel studentPanel;
+    private StudentProfilePanel studentProfilePanel;
     private CoursePanel coursePanel;
     private CourseRegistrationPanel registrationPanel;
     private GradePanel gradePanel;
@@ -42,9 +42,22 @@ public class StudentMainFrame extends JFrame {
         setupLayout();
         setupMenuBar();
         setupEventListeners();
-        
-        // Load initial data
-        SwingUtilities.invokeLater(() -> refreshAllPanels());
+
+        // Refresh panel đầu tiên sau khi window được show
+        addWindowListener(new WindowAdapter() {
+            private boolean firstTime = true;
+
+            @Override
+            public void windowOpened(WindowEvent e) {
+                if (firstTime) {
+                    firstTime = false;
+                    SwingUtilities.invokeLater(() -> {
+                        if (studentProfilePanel != null)
+                            studentProfilePanel.refreshData();
+                    });
+                }
+            }
+        });
     }
 
     private void initializeComponents() {
@@ -65,8 +78,8 @@ public class StudentMainFrame extends JFrame {
 
     private void createStudentPanels() {
         // Sinh viên xem thông tin cá nhân
-        studentPanel = new StudentPanel(currentUser, serverConnection, true);
-        modernDashboard.addNavItem("👤", "Thông tin Cá nhân", "student", studentPanel);
+        studentProfilePanel = new StudentProfilePanel(currentUser, serverConnection);
+        modernDashboard.addNavItem("👤", "Thông tin Cá nhân", "profile", studentProfilePanel);
 
         // Sinh viên xem các khóa học đã đăng ký
         coursePanel = new CoursePanel(currentUser, serverConnection, true);
@@ -262,13 +275,20 @@ public class StudentMainFrame extends JFrame {
     }
 
     private void refreshAllPanels() {
-        if (studentPanel != null) studentPanel.refreshData();
-        if (coursePanel != null) coursePanel.refreshData();
-        if (gradePanel != null) gradePanel.refreshData();
-        if (transcriptPanel != null) transcriptPanel.refreshData();
-        if (timetablePanel != null) timetablePanel.refreshData();
-        if (registrationPanel != null) registrationPanel.refreshData();
-        if (notificationPanel != null) notificationPanel.refreshData();
+        if (studentProfilePanel != null)
+            studentProfilePanel.refreshData();
+        if (coursePanel != null)
+            coursePanel.refreshData();
+        if (gradePanel != null)
+            gradePanel.refreshData();
+        if (transcriptPanel != null)
+            transcriptPanel.refreshData();
+        if (timetablePanel != null)
+            timetablePanel.refreshData();
+        if (registrationPanel != null)
+            registrationPanel.refreshData();
+        if (notificationPanel != null)
+            notificationPanel.refreshData();
         updateConnectionStatus();
     }
 
@@ -283,7 +303,6 @@ public class StudentMainFrame extends JFrame {
         ChangePasswordDialog dialog = new ChangePasswordDialog(this, serverConnection);
         dialog.setVisible(true);
     }
-
 
     private void logout() {
         int result = JOptionPane.showConfirmDialog(this,
@@ -313,8 +332,7 @@ public class StudentMainFrame extends JFrame {
     private void returnToLogin() {
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
-            com.university.sms.client.gui.common.LoginFrame loginFrame = 
-                new com.university.sms.client.gui.common.LoginFrame();
+            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame();
             loginFrame.setVisible(true);
             dispose();
         });
@@ -348,4 +366,3 @@ public class StudentMainFrame extends JFrame {
         return serverConnection;
     }
 }
-

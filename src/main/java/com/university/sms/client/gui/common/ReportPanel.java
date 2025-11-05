@@ -28,13 +28,30 @@ public class ReportPanel extends JPanel {
     private JButton exportButton;
     private JTextArea reportTextArea;
 
+    private boolean isRefreshing = false;
+    private boolean isInitialized = false;
+
     public ReportPanel(User currentUser, IServerConnection serverConnection) {
         this.currentUser = currentUser;
         this.serverConnection = serverConnection;
 
         initializeComponents();
         setupLayout();
-        loadInitialData();
+        setupEventListeners();
+        isInitialized = true;
+        // loadInitialData(); // Bỏ - để ComponentListener handle auto-refresh
+    }
+
+    private void setupEventListeners() {
+        // Add component listener to refresh when panel is shown
+        addComponentListener(new java.awt.event.ComponentAdapter() {
+            @Override
+            public void componentShown(java.awt.event.ComponentEvent e) {
+                if (isInitialized && !isRefreshing) {
+                    refreshData();
+                }
+            }
+        });
     }
 
     private void initializeComponents() {
@@ -92,19 +109,19 @@ public class ReportPanel extends JPanel {
         Object[][] data;
 
         if (currentUser.getRole() == User.UserRole.ADMIN) {
-            columnNames = new String[]{"Khoa", "Số SV", "Số GV", "Tỷ lệ đậu"};
-            data = new Object[][]{
-                    {"Công nghệ Thông tin", 450, 45, "90%"},
-                    {"Kinh tế", 380, 38, "88%"},
-                    {"Ngoại ngữ", 320, 32, "92%"},
-                    {"Khoa học Tự nhiên", 84, 41, "85%"}
+            columnNames = new String[] { "Khoa", "Số SV", "Số GV", "Tỷ lệ đậu" };
+            data = new Object[][] {
+                    { "Công nghệ Thông tin", 450, 45, "90%" },
+                    { "Kinh tế", 380, 38, "88%" },
+                    { "Ngoại ngữ", 320, 32, "92%" },
+                    { "Khoa học Tự nhiên", 84, 41, "85%" }
             };
         } else {
-            columnNames = new String[]{"Môn học", "Số SV", "Điểm TB", "Tỷ lệ đậu"};
-            data = new Object[][]{
-                    {"Lập trình Java", 45, "7.5", "88%"},
-                    {"Cơ sở dữ liệu", 38, "8.2", "95%"},
-                    {"Mạng máy tính", 42, "7.8", "90%"}
+            columnNames = new String[] { "Môn học", "Số SV", "Điểm TB", "Tỷ lệ đậu" };
+            data = new Object[][] {
+                    { "Lập trình Java", 45, "7.5", "88%" },
+                    { "Cơ sở dữ liệu", 38, "8.2", "95%" },
+                    { "Mạng máy tính", 42, "7.8", "90%" }
             };
         }
 
@@ -123,10 +140,10 @@ public class ReportPanel extends JPanel {
 
         // Control panel
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        
+
         controlPanel.add(new JLabel("Loại báo cáo:"));
         reportTypeCombo = new JComboBox<>();
-        
+
         if (currentUser.getRole() == User.UserRole.ADMIN) {
             reportTypeCombo.addItem("Báo cáo tổng hợp");
             reportTypeCombo.addItem("Báo cáo sinh viên");
@@ -138,11 +155,11 @@ public class ReportPanel extends JPanel {
             reportTypeCombo.addItem("Báo cáo điểm danh");
             reportTypeCombo.addItem("Báo cáo kết quả học tập");
         }
-        
+
         controlPanel.add(reportTypeCombo);
 
         controlPanel.add(new JLabel("Học kỳ:"));
-        semesterCombo = new JComboBox<>(new String[]{
+        semesterCombo = new JComboBox<>(new String[] {
                 "HK1 2024-2025",
                 "HK2 2023-2024",
                 "HK1 2023-2024",
@@ -247,8 +264,20 @@ public class ReportPanel extends JPanel {
     }
 
     public void refreshData() {
-        // Refresh all data
-        loadInitialData();
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) {
+            return;
+        }
+
+        isRefreshing = true;
+
+        SwingUtilities.invokeLater(() -> {
+            try {
+                loadInitialData();
+            } finally {
+                isRefreshing = false;
+            }
+        });
     }
 
     private void generateReport() {
@@ -302,8 +331,8 @@ public class ReportPanel extends JPanel {
     }
 
     private void exportReport() {
-        if (reportTextArea.getText().isEmpty() || 
-            reportTextArea.getText().contains("Chọn loại báo cáo")) {
+        if (reportTextArea.getText().isEmpty() ||
+                reportTextArea.getText().contains("Chọn loại báo cáo")) {
             JOptionPane.showMessageDialog(this,
                     "Vui lòng tạo báo cáo trước khi xuất",
                     "Thông báo",
@@ -313,7 +342,7 @@ public class ReportPanel extends JPanel {
 
         JFileChooser fileChooser = new JFileChooser();
         fileChooser.setDialogTitle("Xuất báo cáo");
-        fileChooser.setSelectedFile(new java.io.File("Bao_cao_" + 
+        fileChooser.setSelectedFile(new java.io.File("Bao_cao_" +
                 new SimpleDateFormat("yyyyMMdd_HHmmss").format(new Date()) + ".txt"));
 
         int result = fileChooser.showSaveDialog(this);
@@ -321,7 +350,7 @@ public class ReportPanel extends JPanel {
             try {
                 java.io.File file = fileChooser.getSelectedFile();
                 java.nio.file.Files.writeString(file.toPath(), reportTextArea.getText());
-                
+
                 JOptionPane.showMessageDialog(this,
                         "Báo cáo đã được xuất thành công!\nVị trí: " + file.getAbsolutePath(),
                         "Thành công",
