@@ -158,15 +158,15 @@ public class AdminMainFrame extends JFrame {
         toolsMenu.addSeparator();
 
         // Dark Mode Toggle in menu
-        JPanel darkModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
-        darkModePanel.setOpaque(false);
-        darkModePanel.add(new JLabel("Dark Mode:"));
-        DarkModeToggle darkModeToggle = new DarkModeToggle();
-        darkModePanel.add(darkModeToggle);
-        JMenuItem darkModeMenuItem = new JMenuItem();
-        darkModeMenuItem.setLayout(new BorderLayout());
-        darkModeMenuItem.add(darkModePanel, BorderLayout.CENTER);
-        toolsMenu.add(darkModeMenuItem);
+        // JPanel darkModePanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 5, 0));
+        // darkModePanel.setOpaque(false);
+        // darkModePanel.add(new JLabel("Dark Mode:"));
+        // DarkModeToggle darkModeToggle = new DarkModeToggle();
+        // darkModePanel.add(darkModeToggle);
+        // JMenuItem darkModeMenuItem = new JMenuItem();
+        // darkModeMenuItem.setLayout(new BorderLayout());
+        // darkModeMenuItem.add(darkModePanel, BorderLayout.CENTER);
+        // toolsMenu.add(darkModeMenuItem);
 
         menuBar.add(toolsMenu);
 

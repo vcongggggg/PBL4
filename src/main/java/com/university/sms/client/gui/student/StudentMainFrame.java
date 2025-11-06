@@ -170,10 +170,10 @@ public class StudentMainFrame extends JFrame {
         toolBar.addSeparator();
 
         // Dark Mode Toggle
-        DarkModeToggle darkModeToggle = new DarkModeToggle();
-        toolBar.add(darkModeToggle);
+        // DarkModeToggle darkModeToggle = new DarkModeToggle();
+        // toolBar.add(darkModeToggle);
 
-        toolBar.addSeparator();
+        // toolBar.addSeparator();
 
         // Logout button
         JButton logoutButton = new JButton("Đăng xuất", createIcon("logout"));
