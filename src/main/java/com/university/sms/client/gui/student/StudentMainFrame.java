@@ -119,10 +119,6 @@ public class StudentMainFrame extends JFrame {
         // Status bar
         JPanel statusBar = createStatusBar();
         add(statusBar, BorderLayout.SOUTH);
-
-        // Toolbar
-        JToolBar toolBar = createToolBar();
-        add(toolBar, BorderLayout.NORTH);
     }
 
     private JPanel createStatusBar() {

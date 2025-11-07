@@ -729,7 +729,7 @@ INSERT INTO courses (course_code, subject_id, teacher_id, class_id, academic_yea
 INSERT INTO class_opening_requests (teacher_id, subject_id, academic_year, semester, schedule_day, schedule_time, room, max_students, reason, request_status) VALUES
 (2, 1, '2024-2025', 2, 'Thứ 2, Thứ 4', '07:00-09:00', 'A102', 40, 'Mở lớp học Nhập môn lập trình nâng cao cho sinh viên K18', 'PENDING'),
 (2, 2, '2024-2025', 2, 'Thứ 3, Thứ 5', '09:00-12:00', 'B202', 35, 'Lớp Cấu trúc dữ liệu và giải thuật - Thực hành', 'PENDING'),
-(3, 3, '2024-2025', 2, 'Thứ 6', '13:00-16:00', 'C303', 30, 'Lớp Kinh tế vi mô - Lớp bổ sung', 'APPROVED', 'Đã duyệt, sinh viên có thể đăng ký', 1, 1);
+(3, 3, '2024-2025', 2, 'Thứ 6', '13:00-16:00', 'C303', 30, 'Lớp Kinh tế vi mô - Lớp bổ sung', 'APPROVED');
 
 -- Thêm đăng ký học phần mẫu
 INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
