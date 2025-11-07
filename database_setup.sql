@@ -739,7 +739,7 @@ INSERT INTO course_registrations (student_id, course_id, registration_status, no
 (2, 3, 'APPROVED', 'Đăng ký thành công');
 
 COMMIT;
-
+--
 -- ===============================================
 -- HƯỚNG DẪN SỬ DỤNG CÁC PROCEDURE CƠ BẢN
 -- ===============================================

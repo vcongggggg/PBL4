@@ -323,4 +323,4 @@ UNION ALL
 SELECT 'Tổng số notifications:', COUNT(*) FROM notifications
 UNION ALL
 SELECT 'Tổng số course_registrations:', COUNT(*) FROM course_registrations;
-
+--
