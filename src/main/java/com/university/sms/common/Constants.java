@@ -53,6 +53,7 @@ public class Constants {
     // Grade Actions
     public static final String ACTION_ADD_GRADE = "ADD_GRADE";
     public static final String ACTION_UPDATE_GRADE = "UPDATE_GRADE";
+    public static final String ACTION_DELETE_GRADE = "DELETE_GRADE";
     public static final String ACTION_GET_GRADES = "GET_GRADES";
     public static final String ACTION_CALCULATE_FINAL_GRADE = "CALCULATE_FINAL_GRADE";
 
@@ -205,7 +206,7 @@ public class Constants {
     public static final String ACTION_GET_HONOR_STUDENTS = "GET_HONOR_STUDENTS";
     public static final String ACTION_GET_FACULTY_STATISTICS = "GET_FACULTY_STATISTICS";
     public static final String ACTION_VALIDATE_SCHEDULE = "VALIDATE_SCHEDULE";
-    
+
     // Timetable & Transcript Keys
     public static final String KEY_TIMETABLE = "timetable";
     public static final String KEY_TRANSCRIPT = "transcript";

@@ -81,9 +81,9 @@ public class TeacherMainFrame extends JFrame {
         studentPanel = new StudentPanel(currentUser, serverConnection, true);
         modernDashboard.addNavItem("👥", "Danh sách Sinh viên", "student", studentPanel);
 
-        // Giảng viên quản lý các khóa học mình dạy
+        // Giảng viên quản lý các lớp học phần mình dạy
         coursePanel = new CoursePanel(currentUser, serverConnection, true);
-        modernDashboard.addNavItem("📚", "Khóa học của tôi", "course", coursePanel);
+        modernDashboard.addNavItem("📚", "Lớp học phần", "course", coursePanel);
 
         // Giảng viên nhập điểm
         gradePanel = new GradePanel(currentUser, serverConnection, false);
@@ -119,9 +119,9 @@ public class TeacherMainFrame extends JFrame {
         JPanel statusBar = createStatusBar();
         add(statusBar, BorderLayout.SOUTH);
 
-        // Toolbar
-        JToolBar toolBar = createToolBar();
-        add(toolBar, BorderLayout.NORTH);
+        // Toolbar - Đã xóa theo yêu cầu
+        // JToolBar toolBar = createToolBar();
+        // add(toolBar, BorderLayout.NORTH);
     }
 
     private JPanel createStatusBar() {

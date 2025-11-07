@@ -230,6 +230,8 @@ public class ClientHandler implements Runnable {
                     return handleAddGrade(request);
                 case Constants.ACTION_UPDATE_GRADE:
                     return handleUpdateGrade(request);
+                case Constants.ACTION_DELETE_GRADE:
+                    return handleDeleteGrade(request);
                 case Constants.ACTION_GET_GRADES:
                     return handleGetGrades(request);
                 case Constants.ACTION_CALCULATE_FINAL_GRADE:
@@ -2007,11 +2009,13 @@ public class ClientHandler implements Runnable {
             CourseDAO courseDAO = new CourseDAO();
             List<com.university.sms.model.Course> courses = courseDAO.findByTeacherId(teacherId);
 
+            LOGGER.info("ClientHandler: Retrieved " + courses.size() + " active courses (ONGOING) for teacher "
+                    + teacherId);
+
             Message response = Message.createSuccessResponse(request.getAction(),
                     "Found " + courses.size() + " courses");
             response.addData("courses", courses);
 
-            LOGGER.info("Retrieved " + courses.size() + " courses for teacher " + teacherId);
             return response;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error getting courses by teacher", e);
@@ -2235,6 +2239,27 @@ public class ClientHandler implements Runnable {
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error updating grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleDeleteGrade(Message request) {
+        try {
+            Integer gradeId = request.getData(Constants.KEY_GRADE_ID, Integer.class);
+            if (gradeId == null || gradeId <= 0) {
+                return Message.createErrorResponse(request.getAction(), "Grade ID is required");
+            }
+
+            boolean result = gradeService.deleteGrade(gradeId);
+
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Xóa điểm thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Xóa điểm thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error deleting grade", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }

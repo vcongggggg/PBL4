@@ -117,6 +117,7 @@ public class CourseDAO {
 
     /**
      * Tìm khóa học theo giáo viên
+     * Chỉ lấy khóa học ONGOING (đang diễn ra)
      */
     public List<Course> findByTeacherId(int teacherId) {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
@@ -125,7 +126,9 @@ public class CourseDAO {
                 "JOIN subjects sub ON c.subject_id = sub.subject_id " +
                 "JOIN users u ON c.teacher_id = u.user_id " +
                 "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
-                "WHERE c.teacher_id = ? ORDER BY c.academic_year DESC, c.semester DESC";
+                "WHERE c.teacher_id = ? " +
+                "AND c.course_status = 'ongoing' " +
+                "ORDER BY c.academic_year DESC, c.semester DESC";
 
         List<Course> courses = new ArrayList<>();
 

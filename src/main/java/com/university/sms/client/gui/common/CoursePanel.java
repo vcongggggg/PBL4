@@ -14,6 +14,7 @@ import javax.swing.table.TableCellEditor;
 import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
+import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.List;
@@ -142,7 +143,7 @@ public class CoursePanel extends JPanel {
 
         topPanel.add(leftPanel, BorderLayout.WEST);
 
-        // Right side buttons for Admin/Teacher
+        // Right side buttons for Admin only (Teacher không có nút phía trên)
         JPanel rightPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         if (currentUser.getRole() == User.UserRole.ADMIN) {
             if (viewStudentsButton != null) {
@@ -150,15 +151,6 @@ public class CoursePanel extends JPanel {
             }
             if (deleteCourseButton != null) {
                 rightPanel.add(deleteCourseButton);
-            }
-        }
-
-        if (currentUser.getRole() == User.UserRole.TEACHER) {
-            if (viewStudentsButton != null) {
-                rightPanel.add(viewStudentsButton);
-            }
-            if (gradeEntryButton != null) {
-                rightPanel.add(gradeEntryButton);
             }
         }
 
@@ -214,8 +206,19 @@ public class CoursePanel extends JPanel {
                 if (currentUser.getRole() == User.UserRole.STUDENT) {
                     // For students: get enrolled courses only
                     return getEnrolledCourses();
+                } else if (currentUser.getRole() == User.UserRole.TEACHER) {
+                    // For teachers: get only courses taught by this teacher
+                    Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
+                    request.addData("teacherId", currentUser.getUserId());
+                    Message response = serverConnection.sendRequest(request);
+                    if (response.isSuccess()) {
+                        @SuppressWarnings("unchecked")
+                        List<Course> courses = (List<Course>) response.getData(Constants.KEY_COURSES);
+                        return courses != null ? courses : new ArrayList<>();
+                    }
+                    return new ArrayList<>();
                 } else {
-                    // For admin/teacher: get all courses
+                    // For admin: get all courses
                     Message response = serverConnection.getAllCourses();
                     if (response.isSuccess()) {
                         @SuppressWarnings("unchecked")
@@ -299,7 +302,8 @@ public class CoursePanel extends JPanel {
             String[] parts1 = s1.split(" - HK");
             String[] parts2 = s2.split(" - HK");
             int yearCompare = parts1[0].compareTo(parts2[0]);
-            if (yearCompare != 0) return yearCompare;
+            if (yearCompare != 0)
+                return yearCompare;
             if (parts1.length > 1 && parts2.length > 1) {
                 return Integer.compare(Integer.parseInt(parts1[1]), Integer.parseInt(parts2[1]));
             }
@@ -492,7 +496,7 @@ public class CoursePanel extends JPanel {
                         // Show students in a dialog
                         JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(CoursePanel.this),
                                 "Danh sách sinh viên - " + course.getSubjectName(), true);
-                        dialog.setSize(900, 500);
+                        dialog.setSize(1000, 500);
                         dialog.setLocationRelativeTo(CoursePanel.this);
 
                         displayStudentsDialog(dialog, enrollments, course);
@@ -511,7 +515,8 @@ public class CoursePanel extends JPanel {
     }
 
     private void displayStudentsDialog(JDialog dialog, List<Enrollment> enrollments, Course course) {
-        String[] columnNames = { "MSSV", "Họ tên", "Điểm cuối kỳ", "Xếp loại", "Điểm hệ 4", "Tình trạng" };
+        String[] columnNames = { "MSSV", "Họ tên", "Điểm BT", "Điểm GK", "Điểm CK", "Điểm TK", "Xếp loại",
+                "Tình trạng" };
         DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -521,12 +526,80 @@ public class CoursePanel extends JPanel {
 
         if (enrollments != null) {
             for (Enrollment en : enrollments) {
+                // Get grades from grades table
+                BigDecimal assignmentGrade = null;
+                BigDecimal midtermGrade = null;
+                BigDecimal finalExamGrade = null;
+
+                try {
+                    Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
+                    gradeRequest.addData(Constants.KEY_ENROLLMENT, en.getEnrollmentId());
+                    Message gradeResponse = serverConnection.sendRequest(gradeRequest);
+
+                    if (gradeResponse != null && gradeResponse.isSuccess()) {
+                        @SuppressWarnings("unchecked")
+                        List<com.university.sms.model.Grade> grades = (List<com.university.sms.model.Grade>) gradeResponse
+                                .getData(Constants.KEY_GRADES);
+
+                        if (grades != null) {
+                            for (com.university.sms.model.Grade grade : grades) {
+                                if (grade.getGradeType() == com.university.sms.model.Grade.GradeType.ASSIGNMENT) {
+                                    assignmentGrade = grade.getScore();
+                                } else if (grade.getGradeType() == com.university.sms.model.Grade.GradeType.MIDTERM) {
+                                    midtermGrade = grade.getScore();
+                                } else if (grade.getGradeType() == com.university.sms.model.Grade.GradeType.FINAL) {
+                                    finalExamGrade = grade.getScore();
+                                }
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                }
+
+                // Tính điểm tổng kết và xếp loại chỉ khi có đủ 3 điểm
+                String finalGradeStr = "";
+                String letterGrade = "";
+
+                if (assignmentGrade != null && midtermGrade != null && finalExamGrade != null) {
+                    // Tính theo tỷ lệ: BT 20%, GK 30%, CK 50%
+                    BigDecimal totalGrade = assignmentGrade.multiply(new BigDecimal("0.2"))
+                            .add(midtermGrade.multiply(new BigDecimal("0.3")))
+                            .add(finalExamGrade.multiply(new BigDecimal("0.5")))
+                            .setScale(2, BigDecimal.ROUND_HALF_UP);
+
+                    finalGradeStr = String.format("%.2f", totalGrade);
+
+                    // Xếp loại
+                    double grade = totalGrade.doubleValue();
+                    if (grade >= 9.0)
+                        letterGrade = "A+";
+                    else if (grade >= 8.5)
+                        letterGrade = "A";
+                    else if (grade >= 8.0)
+                        letterGrade = "B+";
+                    else if (grade >= 7.0)
+                        letterGrade = "B";
+                    else if (grade >= 6.5)
+                        letterGrade = "C+";
+                    else if (grade >= 5.5)
+                        letterGrade = "C";
+                    else if (grade >= 5.0)
+                        letterGrade = "D+";
+                    else if (grade >= 4.0)
+                        letterGrade = "D";
+                    else
+                        letterGrade = "F";
+                }
+
                 Object[] row = {
                         en.getStudentCode() != null ? en.getStudentCode() : "N/A",
                         en.getStudentName() != null ? en.getStudentName() : "N/A",
-                        en.getFinalGrade() != null ? String.format("%.2f", en.getFinalGrade()) : "Chưa có",
-                        en.getLetterGrade() != null ? en.getLetterGrade() : "Chưa có",
-                        en.getGradePoints() != null ? String.format("%.2f", en.getGradePoints()) : "Chưa có",
+                        assignmentGrade != null ? String.format("%.2f", assignmentGrade) : "",
+                        midtermGrade != null ? String.format("%.2f", midtermGrade) : "",
+                        finalExamGrade != null ? String.format("%.2f", finalExamGrade) : "",
+                        finalGradeStr,
+                        letterGrade,
                         en.getEnrollmentStatus() != null ? getStatusText(en.getEnrollmentStatus().toString()) : "N/A"
                 };
                 model.addRow(row);
@@ -573,16 +646,17 @@ public class CoursePanel extends JPanel {
     }
 
     private String getStatusText(String status) {
-        if (status == null) return "N/A";
+        if (status == null)
+            return "N/A";
         switch (status.toUpperCase()) {
             case "COMPLETED":
-                return "✅ Hoàn thành";
+                return "Hoàn thành";
             case "FAILED":
-                return "❌ Không đạt";
+                return "Không đạt";
             case "ENROLLED":
-                return "📝 Đang học";
+                return "Đang học";
             case "DROPPED":
-                return "⛔ Bỏ học";
+                return "Bỏ học";
             default:
                 return status;
         }
@@ -603,7 +677,8 @@ public class CoursePanel extends JPanel {
                 "Giáo viên: " + selectedCourse.getTeacherName() + "\n\n";
 
         if (selectedCourse.getCurrentStudents() > 0) {
-            warningMessage += "⚠️ LƯU Ý: Lớp này có " + selectedCourse.getCurrentStudents() + " sinh viên đã đăng ký.\n" +
+            warningMessage += "⚠️ LƯU Ý: Lớp này có " + selectedCourse.getCurrentStudents() + " sinh viên đã đăng ký.\n"
+                    +
                     "TẤT CẢ ĐĂNG KÝ và ĐIỂM của sinh viên sẽ BỊ XÓA!\n\n";
         }
 
@@ -696,12 +771,12 @@ public class CoursePanel extends JPanel {
             countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
             countLabel.setHorizontalAlignment(JLabel.CENTER);
 
-            // Button
-            JButton renderButton = new JButton("👥 Xem");
+            // Button - bỏ icon, chỉ giữ text
+            JButton renderButton = new JButton("Xem");
             renderButton.setFont(new Font("Segoe UI", Font.PLAIN, 10));
             renderButton.setFocusPainted(false);
             renderButton.setMargin(new Insets(2, 5, 2, 5));
-            renderButton.setPreferredSize(new Dimension(80, 25));
+            renderButton.setPreferredSize(new Dimension(60, 25));
 
             panel.add(countLabel, BorderLayout.CENTER);
             panel.add(renderButton, BorderLayout.EAST);
@@ -736,11 +811,11 @@ public class CoursePanel extends JPanel {
             countLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
             countLabel.setHorizontalAlignment(JLabel.CENTER);
 
-            button = new JButton("👥 Xem");
+            button = new JButton("Xem");
             button.setFont(new Font("Segoe UI", Font.PLAIN, 10));
             button.setFocusPainted(false);
             button.setMargin(new Insets(2, 5, 2, 5));
-            button.setPreferredSize(new Dimension(80, 25));
+            button.setPreferredSize(new Dimension(60, 25));
 
             button.addActionListener(e -> {
                 fireEditingStopped();

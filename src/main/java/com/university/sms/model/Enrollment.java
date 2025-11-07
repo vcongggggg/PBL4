@@ -13,7 +13,10 @@ public class Enrollment implements java.io.Serializable {
     private int courseId;
     private Timestamp enrollmentDate;
     private EnrollmentStatus enrollmentStatus;
-    private BigDecimal finalGrade;
+    private BigDecimal regularGrade; // Điểm bài tập
+    private BigDecimal midtermGrade; // Điểm giữa kỳ (GK)
+    private BigDecimal finalExamGrade; // Điểm cuối kỳ (CK)
+    private BigDecimal finalGrade; // Điểm tổng kết
     private String letterGrade;
     private BigDecimal gradePoints;
     private BigDecimal attendanceRate;
@@ -80,6 +83,30 @@ public class Enrollment implements java.io.Serializable {
 
     public void setEnrollmentStatus(EnrollmentStatus enrollmentStatus) {
         this.enrollmentStatus = enrollmentStatus;
+    }
+
+    public BigDecimal getRegularGrade() {
+        return regularGrade;
+    }
+
+    public void setRegularGrade(BigDecimal regularGrade) {
+        this.regularGrade = regularGrade;
+    }
+
+    public BigDecimal getMidtermGrade() {
+        return midtermGrade;
+    }
+
+    public void setMidtermGrade(BigDecimal midtermGrade) {
+        this.midtermGrade = midtermGrade;
+    }
+
+    public BigDecimal getFinalExamGrade() {
+        return finalExamGrade;
+    }
+
+    public void setFinalExamGrade(BigDecimal finalExamGrade) {
+        this.finalExamGrade = finalExamGrade;
     }
 
     public BigDecimal getFinalGrade() {

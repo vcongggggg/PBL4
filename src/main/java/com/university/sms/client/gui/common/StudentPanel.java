@@ -116,7 +116,9 @@ public class StudentPanel extends JPanel {
         searchPanel.add(searchField);
         searchPanel.add(searchButton);
         searchPanel.add(refreshButton);
-        searchPanel.add(showInactiveCheckbox);
+        if (!isReadOnly) {
+            searchPanel.add(showInactiveCheckbox);
+        }
 
         // Nút để toggle advanced search (tùy chọn)
         JButton advancedSearchButton = new JButton("🔍 Nâng cao");
@@ -134,9 +136,12 @@ public class StudentPanel extends JPanel {
 
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        buttonPanel.add(addButton);
-        buttonPanel.add(deleteButton);
-        buttonPanel.add(activateButton);
+        // Chỉ hiển thị các nút khi không phải Teacher (isReadOnly = false)
+        if (!isReadOnly) {
+            buttonPanel.add(addButton);
+            buttonPanel.add(deleteButton);
+            buttonPanel.add(activateButton);
+        }
         topPanel.add(buttonPanel, BorderLayout.EAST);
 
         // Container panel cho top panel và advanced search

@@ -70,12 +70,12 @@ public class TimetablePanel extends JPanel {
 
         // Title bar
         JPanel titleBar = new JPanel(new BorderLayout());
-        titleLabel = new JLabel("📅 Thời Khóa Biểu", JLabel.LEFT);
+        titleLabel = new JLabel("Thời Khóa Biểu", JLabel.LEFT);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        refreshButton = new JButton("🔄 Làm mới");
-        exportButton = new JButton("📥 Xuất PDF");
+        refreshButton = new JButton("Làm mới");
+        exportButton = new JButton("Xuất PDF");
 
         buttonPanel.add(refreshButton);
         buttonPanel.add(exportButton);
@@ -205,7 +205,7 @@ public class TimetablePanel extends JPanel {
         subjectLabel.setForeground(Color.BLACK);
 
         // Room and teacher
-        String details = String.format("📍 %s\n👨‍🏫 %s",
+        String details = String.format("Phòng: %s\nGV: %s",
                 entry.getRoom() != null ? entry.getRoom() : "N/A",
                 entry.getTeacherName() != null ? entry.getTeacherName() : "N/A");
 
@@ -364,29 +364,60 @@ public class TimetablePanel extends JPanel {
 
             // Place in first period
             int periodIndex = startPeriod - 1;
-            if (periodIndex < MAX_PERIODS && cellPanels[periodIndex][dayIndex] != null) {
-                JPanel coursePanel = createCourseCell(entry);
-
-                // Replace cell in grid
-                GridBagConstraints gbc = new GridBagConstraints();
-                gbc.gridx = dayIndex + 1;
-                gbc.gridy = periodIndex + 1;
-                gbc.fill = GridBagConstraints.BOTH;
-                gbc.weightx = 1.0;
-                gbc.weighty = 1.0;
-
-                // If course spans multiple periods, increase height
-                if (endPeriod > startPeriod && endPeriod <= MAX_PERIODS) {
-                    gbc.gridheight = endPeriod - startPeriod + 1;
-                } else {
-                    gbc.gridheight = 1;
-                }
-
-                calendarPanel.remove(cellPanels[periodIndex][dayIndex]);
-                calendarPanel.add(coursePanel, gbc);
-                cellPanels[periodIndex][dayIndex] = coursePanel;
-                placedCount++;
+            if (periodIndex >= MAX_PERIODS) {
+                System.out.println("TimetablePanel: periodIndex out of bounds: " + periodIndex);
+                continue;
             }
+
+            // Check if cell is already occupied
+            if (cellPanels[periodIndex][dayIndex] != null &&
+                    cellPanels[periodIndex][dayIndex].getComponentCount() > 0) {
+                System.out.println("TimetablePanel: WARNING - Cell already occupied at period " +
+                        startPeriod + ", day " + dayIndex + ". This may cause overlap!");
+            }
+
+            JPanel coursePanel = createCourseCell(entry);
+
+            // Replace cell in grid
+            GridBagConstraints gbc = new GridBagConstraints();
+            gbc.gridx = dayIndex + 1;
+            gbc.gridy = periodIndex + 1;
+            gbc.fill = GridBagConstraints.BOTH;
+            gbc.weightx = 1.0;
+            gbc.weighty = 1.0;
+
+            // If course spans multiple periods, increase height
+            int gridHeight = 1;
+            if (endPeriod > startPeriod && endPeriod <= MAX_PERIODS) {
+                gridHeight = endPeriod - startPeriod + 1;
+                System.out.println("  -> Course spans " + gridHeight + " periods");
+
+                // Remove all cells that will be spanned
+                for (int p = periodIndex; p < periodIndex + gridHeight && p < MAX_PERIODS; p++) {
+                    if (cellPanels[p][dayIndex] != null) {
+                        calendarPanel.remove(cellPanels[p][dayIndex]);
+                    }
+                }
+            } else {
+                // Single period course
+                if (cellPanels[periodIndex][dayIndex] != null) {
+                    calendarPanel.remove(cellPanels[periodIndex][dayIndex]);
+                }
+            }
+
+            gbc.gridheight = gridHeight;
+
+            // Add course panel
+            calendarPanel.add(coursePanel, gbc);
+            cellPanels[periodIndex][dayIndex] = coursePanel;
+
+            // Mark spanned cells as occupied (to prevent overlap)
+            for (int p = periodIndex + 1; p < periodIndex + gridHeight && p < MAX_PERIODS; p++) {
+                cellPanels[p][dayIndex] = coursePanel; // Point to the same panel
+            }
+
+            placedCount++;
+            System.out.println("  -> Placed successfully");
         }
 
         System.out.println("TimetablePanel: Placed " + placedCount + " entries in grid");
