@@ -37,6 +37,7 @@ public class Constants {
 
     // Course Actions
     public static final String ACTION_GET_ALL_COURSES = "GET_ALL_COURSES";
+    public static final String ACTION_GET_COURSES_BY_FACULTY = "GET_COURSES_BY_FACULTY";
     public static final String ACTION_GET_COURSES = "GET_COURSES";
     public static final String ACTION_GET_COURSE_INFO = "GET_COURSE_INFO";
     public static final String ACTION_ADD_COURSE = "ADD_COURSE";
@@ -126,6 +127,16 @@ public class Constants {
     public static final String ACTION_GET_STUDENT_CREDITS = "GET_STUDENT_CREDITS";
     public static final String ACTION_GET_REGISTRATION_STATS = "GET_REGISTRATION_STATS";
 
+    // Registration Period Actions (Admin)
+    public static final String ACTION_GET_ALL_REGISTRATION_PERIODS = "GET_ALL_REGISTRATION_PERIODS";
+    public static final String ACTION_GET_REGISTRATION_PERIOD = "GET_REGISTRATION_PERIOD";
+    public static final String ACTION_GET_CURRENT_REGISTRATION_PERIOD = "GET_CURRENT_REGISTRATION_PERIOD";
+    public static final String ACTION_CREATE_REGISTRATION_PERIOD = "CREATE_REGISTRATION_PERIOD";
+    public static final String ACTION_UPDATE_REGISTRATION_PERIOD = "UPDATE_REGISTRATION_PERIOD";
+    public static final String ACTION_DELETE_REGISTRATION_PERIOD = "DELETE_REGISTRATION_PERIOD";
+    public static final String ACTION_OPEN_REGISTRATION_PERIOD = "OPEN_REGISTRATION_PERIOD";
+    public static final String ACTION_CLOSE_REGISTRATION_PERIOD = "CLOSE_REGISTRATION_PERIOD";
+
     // Data Keys
     public static final String KEY_USER = "user";
     public static final String KEY_STUDENT = "student";
@@ -138,6 +149,10 @@ public class Constants {
     public static final String KEY_NOTIFICATION = "notification";
     public static final String KEY_CLASS_REQUEST = "classRequest";
     public static final String KEY_REGISTRATION = "registration";
+    public static final String KEY_PERIOD = "period";
+    public static final String KEY_PERIOD_ID = "periodId";
+    public static final String KEY_CLOSED_BY = "closedBy";
+    public static final String KEY_RESULT = "result";
 
     public static final String KEY_USERNAME = "username";
     public static final String KEY_PASSWORD = "password";
@@ -177,6 +192,7 @@ public class Constants {
     public static final String KEY_NOTIFICATIONS = "notifications";
     public static final String KEY_CLASS_REQUESTS = "classRequests";
     public static final String KEY_REGISTRATIONS = "registrations";
+    public static final String KEY_PERIODS = "periods";
 
     // Response Messages
     public static final String MSG_SUCCESS = "Thao tác thành công";

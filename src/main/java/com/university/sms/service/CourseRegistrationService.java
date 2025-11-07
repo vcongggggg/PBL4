@@ -2,10 +2,12 @@ package com.university.sms.service;
 
 import com.university.sms.dao.CourseDAO;
 import com.university.sms.dao.CourseRegistrationDAO;
+import com.university.sms.dao.RegistrationPeriodDAO;
 import com.university.sms.dao.StudentDAO;
 import com.university.sms.model.Course;
 import com.university.sms.model.CourseRegistration;
 import com.university.sms.model.CourseRegistration.RegistrationStatus;
+import com.university.sms.model.RegistrationPeriod;
 import com.university.sms.model.Student;
 
 import java.util.List;
@@ -23,11 +25,13 @@ public class CourseRegistrationService {
     private final CourseRegistrationDAO registrationDAO;
     private final CourseDAO courseDAO;
     private final StudentDAO studentDAO;
+    private final RegistrationPeriodDAO periodDAO;
 
     public CourseRegistrationService() {
         this.registrationDAO = new CourseRegistrationDAO();
         this.courseDAO = new CourseDAO();
         this.studentDAO = new StudentDAO();
+        this.periodDAO = new RegistrationPeriodDAO();
     }
 
     /**
@@ -95,16 +99,42 @@ public class CourseRegistrationService {
      */
     public boolean registerCourse(int studentId, int courseId, String notes) {
         try {
+            // Validate course exists (need this for academic year/semester check)
+            Course course = courseDAO.findById(courseId);
+            if (course == null) {
+                throw new IllegalArgumentException("Course not found");
+            }
+
+            // CHECK 1: Validate registration period is open
+            RegistrationPeriod currentPeriod = periodDAO.findByAcademicYearAndSemester(
+                course.getAcademicYear(), course.getSemester());
+            
+            if (currentPeriod == null) {
+                throw new IllegalStateException(
+                    "Chưa có kỳ đăng ký cho học kỳ này. Vui lòng liên hệ phòng đào tạo.");
+            }
+            
+            if (!currentPeriod.isOpen()) {
+                String message;
+                switch (currentPeriod.getStatus()) {
+                    case DRAFT:
+                        message = "Kỳ đăng ký chưa được mở. Vui lòng chờ thông báo từ phòng đào tạo.";
+                        break;
+                    case CLOSED:
+                    case PROCESSING:
+                    case COMPLETED:
+                        message = "Kỳ đăng ký đã kết thúc. Không thể đăng ký môn học lúc này.";
+                        break;
+                    default:
+                        message = "Không thể đăng ký môn học lúc này.";
+                }
+                throw new IllegalStateException(message);
+            }
+
             // Validate student exists
             Student student = studentDAO.findById(studentId);
             if (student == null) {
                 throw new IllegalArgumentException("Student not found");
-            }
-
-            // Validate course exists
-            Course course = courseDAO.findById(courseId);
-            if (course == null) {
-                throw new IllegalArgumentException("Course not found");
             }
 
             // Note: Course model doesn't have status field, skip active check

@@ -19,7 +19,7 @@ public class CourseDAO {
      * Lấy tất cả khóa học
      */
     public List<Course> findAll() {
-        String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
+        String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, sub.faculty_id, " +
                 "u.full_name AS teacher_name, cl.class_name, dor.source AS data_source " +
                 "FROM courses c " +
                 "JOIN subjects sub ON c.subject_id = sub.subject_id " +
@@ -210,6 +210,44 @@ public class CourseDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding courses by academic year and semester", e);
+        }
+
+        return courses;
+    }
+
+    /**
+     * Tìm khóa học theo ngành (faculty)
+     * Lấy các môn học thuộc ngành đó hoặc môn đại cương (faculty_id = 0 hoặc NULL)
+     * @param facultyId ID của ngành
+     * @return Danh sách khóa học
+     */
+    public List<Course> findByFacultyId(int facultyId) {
+        // Get courses from the student's faculty OR general courses (faculty_id = 0 or NULL)
+        // Note: General courses should have faculty_id = 0 in the subjects table
+        String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, sub.faculty_id, " +
+                "u.full_name AS teacher_name, cl.class_name " +
+                "FROM courses c " +
+                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
+                "JOIN users u ON c.teacher_id = u.user_id " +
+                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "WHERE sub.faculty_id = ? OR sub.faculty_id = 0 OR sub.faculty_id IS NULL " +
+                "ORDER BY c.academic_year DESC, c.semester DESC, c.course_code";
+
+        List<Course> courses = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setInt(1, facultyId);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    courses.add(mapResultSetToCourse(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding courses by faculty ID: " + facultyId, e);
         }
 
         return courses;
@@ -496,6 +534,13 @@ public class CourseDAO {
         course.setSubjectName(rs.getString("subject_name"));
         course.setSubjectCode(rs.getString("subject_code"));
         course.setCredits(rs.getInt("credits"));
+        // Try to get faculty_id from subject (may not exist in all queries)
+        try {
+            course.setFacultyId(rs.getInt("faculty_id"));
+        } catch (SQLException e) {
+            // If column doesn't exist, set to 0 (will be filtered out if needed)
+            course.setFacultyId(0);
+        }
         course.setTeacherName(rs.getString("teacher_name"));
         course.setClassName(rs.getString("class_name"));
 

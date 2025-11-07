@@ -258,6 +258,66 @@ CREATE TABLE IF NOT EXISTS course_registrations (
 );
 
 -- ===============================================
+-- 15. BẢNG THỜI GIAN ĐĂNG KÝ TÍN CHỈ (REGISTRATION_PERIODS)
+-- Admin quản lý thời gian mở/đóng đăng ký và tự động duyệt
+-- ===============================================
+CREATE TABLE IF NOT EXISTS registration_periods (
+    period_id INT PRIMARY KEY AUTO_INCREMENT,
+    academic_year VARCHAR(20) NOT NULL,
+    semester INT NOT NULL,
+    start_date TIMESTAMP NOT NULL,
+    end_date TIMESTAMP NOT NULL,
+    status ENUM('DRAFT', 'OPEN', 'CLOSED', 'PROCESSING', 'COMPLETED') DEFAULT 'DRAFT',
+    description TEXT,
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
+    created_by INT,
+    closed_by INT,
+    FOREIGN KEY (created_by) REFERENCES users(user_id),
+    FOREIGN KEY (closed_by) REFERENCES users(user_id),
+    INDEX idx_academic_year_semester (academic_year, semester),
+    INDEX idx_status (status)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===============================================
+-- 16. BẢNG LOG TỰ ĐỘNG DUYỆT (AUTO_APPROVAL_LOG)
+-- Ghi nhận quá trình tự động duyệt đăng ký khi đóng period
+-- ===============================================
+CREATE TABLE IF NOT EXISTS auto_approval_log (
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    period_id INT NOT NULL,
+    registration_id INT NOT NULL,
+    action ENUM('APPROVED', 'REJECTED', 'ERROR') NOT NULL,
+    reason TEXT,
+    processed_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (period_id) REFERENCES registration_periods(period_id) ON DELETE CASCADE,
+    FOREIGN KEY (registration_id) REFERENCES course_registrations(registration_id) ON DELETE CASCADE,
+    INDEX idx_period (period_id),
+    INDEX idx_action (action)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===============================================
+-- 17. BẢNG LOG LỚP BỊ HỦY (CANCELLED_COURSES_LOG)
+-- Ghi nhận các lớp bị hủy do không đủ sinh viên đăng ký
+-- ===============================================
+CREATE TABLE IF NOT EXISTS cancelled_courses_log (
+    log_id INT PRIMARY KEY AUTO_INCREMENT,
+    course_id INT NOT NULL,
+    period_id INT,
+    reason VARCHAR(255),
+    registered_students INT,
+    max_students INT,
+    cancellation_rate DECIMAL(5,2),
+    cancelled_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    cancelled_by INT,
+    FOREIGN KEY (course_id) REFERENCES courses(course_id) ON DELETE CASCADE,
+    FOREIGN KEY (period_id) REFERENCES registration_periods(period_id) ON DELETE SET NULL,
+    FOREIGN KEY (cancelled_by) REFERENCES users(user_id),
+    INDEX idx_course (course_id),
+    INDEX idx_period (period_id)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ===============================================
 -- INDEXES ĐỂ TỐI ƯU HIỆU SUẤT
 -- ===============================================
 
@@ -294,6 +354,11 @@ CREATE INDEX idx_requests_year_semester ON class_opening_requests(academic_year,
 CREATE INDEX idx_registrations_student ON course_registrations(student_id);
 CREATE INDEX idx_registrations_course ON course_registrations(course_id);
 CREATE INDEX idx_registrations_status ON course_registrations(registration_status);
+
+-- Indexes cho bảng registration_periods
+CREATE INDEX idx_periods_year_semester ON registration_periods(academic_year, semester);
+CREATE INDEX idx_periods_status ON registration_periods(status);
+CREATE INDEX idx_periods_dates ON registration_periods(start_date, end_date);
 
 -- ===============================================
 -- VIEWS ĐỂ TRUY VẤN DỄ DÀNG
@@ -361,6 +426,51 @@ JOIN users u ON s.user_id = u.user_id
 JOIN courses co ON e.course_id = co.course_id
 JOIN subjects sub ON co.subject_id = sub.subject_id
 WHERE e.enrollment_status = 'completed';
+
+-- View thông tin đăng ký tín chỉ
+CREATE VIEW v_registration_details AS
+SELECT 
+    cr.registration_id,
+    s.student_code,
+    u.full_name AS student_name,
+    co.course_code,
+    sub.subject_name,
+    sub.credits,
+    co.academic_year,
+    co.semester,
+    cr.registration_date,
+    cr.registration_status,
+    co.current_students,
+    co.max_students
+FROM course_registrations cr
+JOIN students s ON cr.student_id = s.student_id
+JOIN users u ON s.user_id = u.user_id
+JOIN courses co ON cr.course_id = co.course_id
+JOIN subjects sub ON co.subject_id = sub.subject_id;
+
+-- View thông tin kỳ đăng ký
+CREATE VIEW v_registration_periods AS
+SELECT 
+    rp.period_id,
+    rp.academic_year,
+    rp.semester,
+    rp.start_date,
+    rp.end_date,
+    rp.status,
+    rp.description,
+    u1.full_name AS created_by_name,
+    u2.full_name AS closed_by_name,
+    (SELECT COUNT(*) FROM course_registrations cr 
+     JOIN courses c ON cr.course_id = c.course_id
+     WHERE c.academic_year = rp.academic_year AND c.semester = rp.semester
+     AND cr.registration_status = 'PENDING') AS pending_count,
+    (SELECT COUNT(*) FROM course_registrations cr 
+     JOIN courses c ON cr.course_id = c.course_id
+     WHERE c.academic_year = rp.academic_year AND c.semester = rp.semester
+     AND cr.registration_status = 'APPROVED') AS approved_count
+FROM registration_periods rp
+LEFT JOIN users u1 ON rp.created_by = u1.user_id
+LEFT JOIN users u2 ON rp.closed_by = u2.user_id;
 
 -- ===============================================
 -- TRIGGERS ĐỂ TỰ ĐỘNG CẬP NHẬT DỮ LIỆU
@@ -432,6 +542,19 @@ BEGIN
         -- Xóa enrollment tương ứng
         DELETE FROM enrollments 
         WHERE student_id = NEW.student_id AND course_id = NEW.course_id;
+    END IF;
+END//
+
+-- Trigger cập nhật enrollment khi registration chuyển từ PENDING sang APPROVED
+CREATE TRIGGER tr_registration_status_update
+AFTER UPDATE ON course_registrations
+FOR EACH ROW
+BEGIN
+    IF NEW.registration_status = 'APPROVED' AND OLD.registration_status = 'PENDING' THEN
+        -- Tạo enrollment mới
+        INSERT INTO enrollments (student_id, course_id, enrollment_status)
+        VALUES (NEW.student_id, NEW.course_id, 'enrolled')
+        ON DUPLICATE KEY UPDATE enrollment_status = 'enrolled';
     END IF;
 END//
 
@@ -738,6 +861,11 @@ INSERT INTO course_registrations (student_id, course_id, registration_status, no
 (2, 2, 'APPROVED', 'Đăng ký thành công'),
 (2, 3, 'APPROVED', 'Đăng ký thành công');
 
+-- Thêm kỳ đăng ký mẫu
+INSERT INTO registration_periods (academic_year, semester, start_date, end_date, status, description, created_by) VALUES
+('2024-2025', 1, '2024-08-01 00:00:00', '2024-08-15 23:59:59', 'COMPLETED', 'Đăng ký học kỳ 1 năm học 2024-2025', 1),
+('2024-2025', 2, '2025-01-01 00:00:00', '2025-01-15 23:59:59', 'DRAFT', 'Đăng ký học kỳ 2 năm học 2024-2025', 1);
+
 COMMIT;
 --
 -- ===============================================
@@ -761,6 +889,15 @@ CALL LogUserLogin(1, '192.168.1.100', 'Mozilla/5.0...', 'success');
 -- - Các procedure này được thiết kế để tích hợp với Java code
 -- - Logic phức tạp (tìm kiếm, validation, báo cáo) nên viết trong Java
 -- - Chỉ dùng procedure cho tác vụ tính toán đơn giản và cập nhật nhanh
+
+-- TÍNH NĂNG TỰ ĐỘNG DUYỆT ĐĂNG KÝ:
+-- - Admin tạo registration_period cho mỗi học kỳ
+-- - Khi mở period (status = 'OPEN'), sinh viên có thể đăng ký
+-- - Khi đóng period, hệ thống tự động:
+--   + Duyệt các đơn PENDING (kiểm tra điều kiện)
+--   + Hủy lớp có < 50% sinh viên đăng ký
+--   + Ghi log vào auto_approval_log và cancelled_courses_log
+-- - Xem file HUONG-DAN-AUTO-APPROVAL.md để biết chi tiết
 */
 
 -- ===============================================

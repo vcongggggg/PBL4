@@ -30,6 +30,7 @@ public class Course implements java.io.Serializable {
     private String subjectName;
     private String subjectCode;
     private int credits;
+    private int facultyId; // Faculty ID from subject (for filtering by student's faculty)
     private String teacherName;
     private String className;
 
@@ -204,6 +205,14 @@ public class Course implements java.io.Serializable {
 
     public void setCredits(int credits) {
         this.credits = credits;
+    }
+
+    public int getFacultyId() {
+        return facultyId;
+    }
+
+    public void setFacultyId(int facultyId) {
+        this.facultyId = facultyId;
     }
 
     public String getTeacherName() {

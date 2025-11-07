@@ -5,6 +5,7 @@ import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.Course;
 import com.university.sms.model.CourseRegistration;
+import com.university.sms.model.Student;
 import com.university.sms.model.User;
 
 import javax.swing.*;
@@ -26,6 +27,7 @@ public class CourseRegistrationPanel extends JPanel {
     private IServerConnection serverConnection;
     private User currentUser;
     private int studentId;
+    private int studentFacultyId; // Faculty ID of the student (for filtering courses)
 
     // Top table - Selected courses for registration
     private JTable selectedTable;
@@ -212,9 +214,52 @@ public class CourseRegistrationPanel extends JPanel {
         this.currentUser = user;
         this.studentId = studentId;
         if (serverConnection != null) {
-            loadRegisteredCourses(); // Load courses already registered by student first
-            // loadAvailableCourses() will be called after registered courses are loaded
+            loadStudentInfo(); // Load student info first to get facultyId
         }
+    }
+
+    private void loadStudentInfo() {
+        SwingWorker<Student, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Student doInBackground() throws Exception {
+                Message request = Message.createRequest(Constants.ACTION_GET_STUDENT_INFO);
+                request.addData(Constants.KEY_STUDENT_ID, studentId);
+                
+                Message response = serverConnection.sendRequest(request);
+                
+                if (response != null && response.isSuccess()) {
+                    return response.getData(Constants.KEY_STUDENT, Student.class);
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Student student = get();
+                    if (student != null) {
+                        studentFacultyId = student.getFacultyId();
+                        loadRegisteredCourses(); // Load courses already registered by student first
+                    } else {
+                        SwingUtilities.invokeLater(() -> {
+                            JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
+                                "Không thể tải thông tin sinh viên",
+                                "Lỗi",
+                                JOptionPane.ERROR_MESSAGE);
+                        });
+                    }
+                } catch (Exception e) {
+                    e.printStackTrace();
+                    SwingUtilities.invokeLater(() -> {
+                        JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
+                            "Lỗi khi tải thông tin sinh viên: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                    });
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void loadRegisteredCourses() {
@@ -267,7 +312,10 @@ public class CourseRegistrationPanel extends JPanel {
         SwingWorker<List<Course>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<Course> doInBackground() throws Exception {
-                Message request = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
+                // Load courses filtered by student's faculty
+                // This will include courses from the student's faculty and general courses (faculty_id = 0)
+                Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_FACULTY);
+                request.addData(Constants.KEY_FACULTY_ID, studentFacultyId);
                 Message response = serverConnection.sendRequest(request);
                 
                 if (response != null && response.isSuccess()) {

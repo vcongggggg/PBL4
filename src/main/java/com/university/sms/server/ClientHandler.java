@@ -20,11 +20,14 @@ import com.university.sms.model.ClassOpeningRequest;
 import com.university.sms.model.CourseRegistration;
 import com.university.sms.model.Grade;
 import com.university.sms.model.Notification;
+import com.university.sms.model.RegistrationPeriod;
 import com.university.sms.dao.UserDAO;
 import com.university.sms.dao.CourseDAO;
 import com.university.sms.dao.EnrollmentDAO;
 import com.university.sms.dao.StudentDAO;
 import com.university.sms.dao.CourseRegistrationDAO;
+import com.university.sms.dao.RegistrationPeriodDAO;
+import com.university.sms.service.AutoApprovalService;
 
 import java.io.*;
 import java.net.Socket;
@@ -177,6 +180,8 @@ public class ClientHandler implements Runnable {
                     return handleGetAllCourses(request);
                 case Constants.ACTION_GET_COURSES:
                     return handleGetAllCourses(request); // Use same handler
+                case Constants.ACTION_GET_COURSES_BY_FACULTY:
+                    return handleGetCoursesByFaculty(request);
                 case Constants.ACTION_GET_COURSE_INFO:
                     return handleGetCourseInfo(request);
                 case Constants.ACTION_ADD_COURSE:
@@ -323,6 +328,24 @@ public class ClientHandler implements Runnable {
 
                 case Constants.ACTION_VALIDATE_SCHEDULE:
                     return handleValidateSchedule(request);
+
+                // Registration Period actions
+                case Constants.ACTION_GET_ALL_REGISTRATION_PERIODS:
+                    return handleGetAllRegistrationPeriods(request);
+                case Constants.ACTION_GET_REGISTRATION_PERIOD:
+                    return handleGetRegistrationPeriod(request);
+                case Constants.ACTION_GET_CURRENT_REGISTRATION_PERIOD:
+                    return handleGetCurrentRegistrationPeriod(request);
+                case Constants.ACTION_CREATE_REGISTRATION_PERIOD:
+                    return handleCreateRegistrationPeriod(request);
+                case Constants.ACTION_UPDATE_REGISTRATION_PERIOD:
+                    return handleUpdateRegistrationPeriod(request);
+                case Constants.ACTION_DELETE_REGISTRATION_PERIOD:
+                    return handleDeleteRegistrationPeriod(request);
+                case Constants.ACTION_OPEN_REGISTRATION_PERIOD:
+                    return handleOpenRegistrationPeriod(request);
+                case Constants.ACTION_CLOSE_REGISTRATION_PERIOD:
+                    return handleCloseRegistrationPeriod(request);
 
                 default:
                     return Message.createErrorResponse(action, "Unknown action: " + action);
@@ -704,6 +727,33 @@ public class ClientHandler implements Runnable {
     }
 
     // Removed handleGetCourses - using handleGetAllCourses for both actions
+
+    /**
+     * Lấy khóa học theo ngành (faculty)
+     */
+    private Message handleGetCoursesByFaculty(Message request) {
+        try {
+            Integer facultyId = request.getData(Constants.KEY_FACULTY_ID, Integer.class);
+            if (facultyId == null) {
+                return Message.createErrorResponse(Constants.ACTION_GET_COURSES_BY_FACULTY, 
+                    "Thiếu thông tin ngành (faculty_id)");
+            }
+            
+            LOGGER.info("Getting courses for faculty: " + facultyId);
+            var courses = courseService.getCoursesByFacultyId(facultyId);
+            LOGGER.info("Found " + courses.size() + " courses for faculty " + facultyId);
+            
+            Message response = Message.createSuccessResponse(Constants.ACTION_GET_COURSES_BY_FACULTY, 
+                "Lấy danh sách khóa học thành công");
+            response.addData(Constants.KEY_COURSES, courses);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting courses by faculty: " + e.getMessage());
+            e.printStackTrace();
+            return Message.createErrorResponse(Constants.ACTION_GET_COURSES_BY_FACULTY, 
+                "Lỗi server: " + e.getMessage());
+        }
+    }
 
     /**
      * Xử lý lấy thông tin khóa học
@@ -2581,6 +2631,222 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
+
+    // ==================== REGISTRATION PERIOD HANDLERS ====================
+
+    private Message handleGetAllRegistrationPeriods(Message request) {
+        try {
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            List<RegistrationPeriod> periods = periodDAO.findAll();
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_PERIODS, periods);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting all registration periods: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetRegistrationPeriod(Message request) {
+        try {
+            int periodId = (Integer) request.getData(Constants.KEY_PERIOD_ID);
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            RegistrationPeriod period = periodDAO.findById(periodId);
+            
+            if (period == null) {
+                return Message.createErrorResponse(request.getAction(), "Period not found");
+            }
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_PERIOD, period);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting registration period: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetCurrentRegistrationPeriod(Message request) {
+        try {
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            RegistrationPeriod period = periodDAO.findCurrentPeriod();
+            
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_PERIOD, period);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Error getting current registration period: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleCreateRegistrationPeriod(Message request) {
+        try {
+            RegistrationPeriod period = (RegistrationPeriod) request.getData(Constants.KEY_PERIOD);
+            
+            if (period == null) {
+                return Message.createErrorResponse(request.getAction(), "Period data is required");
+            }
+            
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            boolean success = periodDAO.insert(period);
+            
+            if (success) {
+                Message response = Message.createSuccessResponse(request.getAction(), "Period created successfully");
+                response.addData(Constants.KEY_PERIOD, period);
+                return response;
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to create period");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error creating registration period: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleUpdateRegistrationPeriod(Message request) {
+        try {
+            RegistrationPeriod period = (RegistrationPeriod) request.getData(Constants.KEY_PERIOD);
+            
+            if (period == null) {
+                return Message.createErrorResponse(request.getAction(), "Period data is required");
+            }
+            
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            boolean success = periodDAO.update(period);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Period updated successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to update period");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error updating registration period: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleDeleteRegistrationPeriod(Message request) {
+        try {
+            int periodId = (Integer) request.getData(Constants.KEY_PERIOD_ID);
+            
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            boolean success = periodDAO.delete(periodId);
+            
+            if (success) {
+                return Message.createSuccessResponse(request.getAction(), "Period deleted successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Failed to delete period");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error deleting registration period: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleOpenRegistrationPeriod(Message request) {
+        try {
+            int periodId = (Integer) request.getData(Constants.KEY_PERIOD_ID);
+            
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            RegistrationPeriod period = periodDAO.findById(periodId);
+            
+            if (period == null) {
+                return Message.createErrorResponse(request.getAction(), "Period not found");
+            }
+            
+            if (period.getStatus() != RegistrationPeriod.PeriodStatus.DRAFT) {
+                return Message.createErrorResponse(request.getAction(), 
+                    "Can only open periods in DRAFT status");
+            }
+            
+            // Update status to OPEN
+            period.setStatus(RegistrationPeriod.PeriodStatus.OPEN);
+            boolean success = periodDAO.update(period);
+            
+            if (success) {
+                // Send notification to all students
+                NotificationService notificationService = new NotificationService();
+                String message = String.format(
+                    "Đăng ký môn học %s học kỳ %d đã được mở! " +
+                    "Thời gian từ %s đến %s.",
+                    period.getAcademicYear(),
+                    period.getSemester(),
+                    period.getStartDate(),
+                    period.getEndDate()
+                );
+                Notification notification = new Notification(
+                    "Mở đăng ký tín chỉ",
+                    message,
+                    1 // System sender
+                );
+                notification.setPriority(Notification.Priority.URGENT);
+                try {
+                    notificationService.sendNotificationToAll(notification);
+                } catch (Exception ex) {
+                    LOGGER.log(Level.WARNING, "Failed to send notification to all students", ex);
+                }
+                
+                return Message.createSuccessResponse(request.getAction(), 
+                    "Period opened successfully");
+            } else {
+                return Message.createErrorResponse(request.getAction(), 
+                    "Failed to open period");
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error opening registration period: " + e.getMessage());
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleCloseRegistrationPeriod(Message request) {
+        try {
+            int periodId = (Integer) request.getData(Constants.KEY_PERIOD_ID);
+            int closedBy = (Integer) request.getData(Constants.KEY_CLOSED_BY);
+            
+            RegistrationPeriodDAO periodDAO = new RegistrationPeriodDAO();
+            RegistrationPeriod period = periodDAO.findById(periodId);
+            
+            if (period == null) {
+                return Message.createErrorResponse(request.getAction(), "Period not found");
+            }
+            
+            if (period.getStatus() != RegistrationPeriod.PeriodStatus.OPEN) {
+                return Message.createErrorResponse(request.getAction(), 
+                    "Can only close periods in OPEN status");
+            }
+            
+            // Trigger auto-approval process
+            AutoApprovalService autoApprovalService = new AutoApprovalService();
+            AutoApprovalService.ClosePeriodResult result = autoApprovalService.closePeriod(
+                periodId, closedBy);
+            
+            if (result.isSuccess()) {
+                Message response = Message.createSuccessResponse(request.getAction(), 
+                    "Period closed successfully");
+                
+                // Create result map
+                Map<String, Object> resultMap = new HashMap<>();
+                resultMap.put("approvedCount", result.getApprovedCount());
+                resultMap.put("rejectedCount", result.getRejectedCount());
+                resultMap.put("errorCount", result.getErrorCount());
+                resultMap.put("cancelledCoursesCount", result.getCancelledCoursesCount());
+                
+                response.addData(Constants.KEY_RESULT, resultMap);
+                return response;
+            } else {
+                return Message.createErrorResponse(request.getAction(), 
+                    "Failed to close period: " + result.getErrorMessage());
+            }
+        } catch (Exception e) {
+            LOGGER.severe("Error closing registration period: " + e.getMessage());
+            e.printStackTrace();
+            return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    // ==================== END REGISTRATION PERIOD HANDLERS ====================
 
     // Getters
     public User getCurrentUser() {

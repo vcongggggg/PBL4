@@ -25,6 +25,7 @@ public class AdminMainFrame extends JFrame {
     private TeacherPanel teacherPanel;
     private SubjectPanel subjectPanel;
     private NotificationPanel notificationPanel;
+    private RegistrationPeriodPanel registrationPeriodPanel;
 
     public AdminMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
@@ -82,6 +83,11 @@ public class AdminMainFrame extends JFrame {
         // Khung chương trình đào tạo
         subjectPanel = new SubjectPanel(currentUser, serverConnection);
         modernDashboard.addNavItem("📖", "Khung chương trình", "subject", subjectPanel);
+
+        // Quản lý thời gian đăng ký
+        registrationPeriodPanel = new RegistrationPeriodPanel(serverConnection);
+        registrationPeriodPanel.setCurrentUser(currentUser);
+        modernDashboard.addNavItem("🗓️", "Thời gian Đăng ký", "registration_period", registrationPeriodPanel);
 
         // Quản trị Hệ thống
         adminPanel = new AdminPanel(currentUser, serverConnection);
@@ -231,6 +237,8 @@ public class AdminMainFrame extends JFrame {
             subjectPanel.refreshData();
         if (notificationPanel != null)
             notificationPanel.refreshData();
+        if (registrationPeriodPanel != null)
+            registrationPeriodPanel.refreshData();
         updateConnectionStatus();
     }
 

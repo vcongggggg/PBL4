@@ -113,6 +113,23 @@ public class CourseService {
     }
 
     /**
+     * Lấy khóa học theo ngành (faculty)
+     * Bao gồm các môn học thuộc ngành đó và môn đại cương (faculty_id = 0)
+     */
+    public List<Course> getCoursesByFacultyId(int facultyId) {
+        if (facultyId <= 0) {
+            return List.of();
+        }
+
+        try {
+            return courseDAO.findByFacultyId(facultyId);
+        } catch (Exception e) {
+            LOGGER.severe("Error getting courses by faculty: " + e.getMessage());
+            return List.of();
+        }
+    }
+
+    /**
      * Thêm khóa học mới
      */
     public boolean addCourse(Course course) {

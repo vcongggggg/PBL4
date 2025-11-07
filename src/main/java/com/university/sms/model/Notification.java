@@ -76,6 +76,23 @@ public class Notification implements Serializable {
         }
     }
 
+    /**
+     * Loại thông báo
+     */
+    public enum NotificationType {
+        GENERAL,
+        COURSE_UPDATE,
+        GRADE_UPDATE,
+        ENROLLMENT_CONFIRMED,
+        COURSE_CANCELLED,
+        REGISTRATION_OPENED,
+        REGISTRATION_APPROVED,
+        REGISTRATION_REJECTED,
+        CLASS_REQUEST_APPROVED,
+        CLASS_REQUEST_REJECTED,
+        SYSTEM_MAINTENANCE
+    }
+
     // Constructors
     public Notification() {
         this.priority = Priority.MEDIUM;

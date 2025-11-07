@@ -303,6 +303,131 @@ INSERT INTO courses (course_code, subject_id, teacher_id, class_id, academic_yea
 -- sv001 đã đăng ký CNTT301 vào Thứ 2, Tiết 1-3, nên không thể đăng ký CNTT999
 
 -- ===============================================
+-- 16. THÊM DỮ LIỆU ĐỂ TEST TỰ ĐỘNG DUYỆT ĐĂNG KÝ (AUTO-APPROVAL)
+-- ===============================================
+
+-- 16.1. Tạo Registration Periods
+INSERT INTO registration_periods (academic_year, semester, start_date, end_date, status, description, created_by) VALUES
+-- Period đã hoàn thành (để test xem lịch sử)
+('2023-2024', 2, '2024-01-01 00:00:00', '2024-01-15 23:59:59', 'COMPLETED', 
+ 'Đăng ký học kỳ 2 năm học 2023-2024', 1),
+
+-- Period hiện tại đang mở (để test đăng ký)
+('2024-2025', 1, '2024-08-01 00:00:00', '2024-08-20 23:59:59', 'OPEN', 
+ 'Đăng ký học kỳ 1 năm học 2024-2025 - ĐANG MỞ', 1),
+
+-- Period tương lai (draft)
+('2024-2025', 2, '2025-01-01 00:00:00', '2025-01-15 23:59:59', 'DRAFT', 
+ 'Đăng ký học kỳ 2 năm học 2024-2025', 1),
+
+-- Period test cho tự động duyệt
+('2024-2025', 3, '2025-05-01 00:00:00', '2025-05-10 23:59:59', 'DRAFT', 
+ 'Đăng ký học kỳ hè năm học 2024-2025 - ĐỂ TEST AUTO-APPROVAL', 1);
+
+-- 16.2. Tạo thêm khóa học cho học kỳ 2 (để test auto-approval)
+INSERT INTO courses (course_code, subject_id, teacher_id, class_id, academic_year, semester, 
+                     schedule_day, schedule_time, room, max_students, course_status) VALUES
+-- Khóa học bình thường
+('CNTT101_2025_2', 1, 2, 1, '2024-2025', 2, 'Thứ 2', 'Tiết 1-2 (07:00-08:50)', 'A101', 40, 'planning'),
+('CNTT201_2025_2', 2, 2, 1, '2024-2025', 2, 'Thứ 3', 'Tiết 3-5 (09:00-11:50)', 'C305', 35, 'planning'),
+('KT101_2025_2', 3, 3, 2, '2024-2025', 2, 'Thứ 4', 'Tiết 1-2 (07:00-08:50)', 'B201', 50, 'planning'),
+
+-- Khóa học sẽ bị hủy (max_students = 30, chỉ có ~10 sinh viên đăng ký = 33%)
+('CNTT_LOW_2025_2', 5, 4, 1, '2024-2025', 2, 'Thứ 5', 'Tiết 6-8 (13:00-15:50)', 'D501', 30, 'planning'),
+
+-- Khóa học xung đột lịch (cùng thời gian với CNTT101_2025_2)
+('CNTT_CONFLICT_2025_2', 6, 5, 1, '2024-2025', 2, 'Thứ 2', 'Tiết 1-3 (07:00-09:30)', 'E101', 35, 'planning'),
+
+-- Khóa học đầy (max_students = 5, để dễ test)
+('CNTT_FULL_2025_2', 7, 2, 1, '2024-2025', 2, 'Thứ 6', 'Tiết 4-5 (10:00-11:50)', 'F201', 5, 'planning');
+
+-- 16.3. Tạo PENDING registrations để test auto-approval
+-- Các đơn này sẽ được tự động duyệt khi admin đóng period
+
+-- Sinh viên 1 (sv001): Đăng ký 3 môn - Tất cả hợp lệ
+INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
+(1, 19, 'PENDING', 'Đăng ký CNTT101_2025_2 - Hợp lệ'),
+(1, 20, 'PENDING', 'Đăng ký CNTT201_2025_2 - Hợp lệ'),
+(1, 21, 'PENDING', 'Đăng ký KT101_2025_2 - Hợp lệ');
+
+-- Sinh viên 2 (sv002): Đăng ký xung đột lịch
+INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
+(2, 19, 'PENDING', 'Đăng ký CNTT101_2025_2 - Sẽ được duyệt trước'),
+(2, 23, 'PENDING', 'Đăng ký CNTT_CONFLICT - Sẽ bị reject vì xung đột lịch');
+
+-- Sinh viên 3-8: Đăng ký lớp sẽ bị hủy (chỉ 8/30 = 27% < 50%)
+INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
+(3, 22, 'PENDING', 'Đăng ký lớp có ít sinh viên - Sẽ bị hủy'),
+(4, 22, 'PENDING', 'Đăng ký lớp có ít sinh viên - Sẽ bị hủy'),
+(5, 22, 'PENDING', 'Đăng ký lớp có ít sinh viên - Sẽ bị hủy'),
+(6, 22, 'PENDING', 'Đăng ký lớp có ít sinh viên - Sẽ bị hủy'),
+(7, 22, 'PENDING', 'Đăng ký lớp có ít sinh viên - Sẽ bị hủy'),
+(8, 22, 'PENDING', 'Đăng ký lớp có ít sinh viên - Sẽ bị hủy'),
+(3, 21, 'PENDING', 'Sinh viên 3 đăng ký thêm KT101'),
+(4, 21, 'PENDING', 'Sinh viên 4 đăng ký thêm KT101');
+
+-- Sinh viên 5-8: Đăng ký lớp đầy (max_students = 5)
+INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
+(5, 24, 'PENDING', 'Đăng ký lớp đầy - Người 1'),
+(6, 24, 'PENDING', 'Đăng ký lớp đầy - Người 2'),
+(7, 24, 'PENDING', 'Đăng ký lớp đầy - Người 3'),
+(8, 24, 'PENDING', 'Đăng ký lớp đầy - Người 4'),
+(1, 24, 'PENDING', 'Đăng ký lớp đầy - Người 5'),
+(2, 24, 'PENDING', 'Đăng ký lớp đầy - Người 6 - Sẽ bị reject vì đầy'),
+(3, 24, 'PENDING', 'Đăng ký lớp đầy - Người 7 - Sẽ bị reject vì đầy');
+
+-- 16.4. Thêm dữ liệu cho test credit limit (24 credits/semester)
+-- Tạo sinh viên đã đăng ký 20 credits, đăng ký thêm 2 môn (3+4 = 7 credits)
+-- Môn đầu sẽ pass (20+3=23 <= 24), môn sau sẽ reject (23+4=27 > 24)
+
+UPDATE students SET total_credits = 20 WHERE student_id = 4;
+
+-- Thêm 2 môn với 3 và 4 credits
+INSERT INTO courses (course_code, subject_id, teacher_id, class_id, academic_year, semester, 
+                     schedule_day, schedule_time, room, max_students, course_status) VALUES
+('TEST_CREDIT_3', 1, 2, 1, '2024-2025', 2, 'Thứ 7', 'Tiết 1-2 (07:00-08:50)', 'T101', 40, 'planning'),
+('TEST_CREDIT_4', 2, 2, 1, '2024-2025', 2, 'Thứ 7', 'Tiết 3-6 (09:00-12:50)', 'T102', 40, 'planning');
+
+INSERT INTO course_registrations (student_id, course_id, registration_status, notes) VALUES
+(4, 25, 'PENDING', 'Đăng ký môn 3 tín chỉ - Tổng 23, sẽ pass'),
+(4, 26, 'PENDING', 'Đăng ký môn 4 tín chỉ - Tổng 27, sẽ reject vì vượt 24');
+
+-- 16.5. Thêm log mẫu cho period đã hoàn thành (để test xem log)
+INSERT INTO auto_approval_log (period_id, registration_id, action, reason, processed_at) VALUES
+(1, 1, 'APPROVED', 'Đã đáp ứng đầy đủ điều kiện', '2024-01-16 00:05:23'),
+(1, 2, 'APPROVED', 'Đã đáp ứng đầy đủ điều kiện', '2024-01-16 00:05:24'),
+(1, 3, 'REJECTED', 'Lớp đã đầy', '2024-01-16 00:05:25');
+
+-- 16.6. Tạo lớp đã bị hủy (để test cancelled_courses_log)
+INSERT INTO cancelled_courses_log (course_id, period_id, reason, registered_students, max_students, 
+                                   cancellation_rate, cancelled_by) VALUES
+(14, 1, 'Lớp bị hủy do không đủ sinh viên đăng ký (30.00% < 50.00%)', 9, 30, 30.00, 1);
+
+-- ===============================================
+-- 17. THÊM NOTIFICATIONS CHO TỰ ĐỘNG DUYỆT
+-- ===============================================
+INSERT INTO notifications (title, content, sender_id, target_type, target_id, priority, is_read) VALUES
+-- Thông báo mở đăng ký
+('🎓 Mở đăng ký học kỳ 1 năm 2024-2025', 
+ 'Đăng ký môn học học kỳ 1 năm học 2024-2025 đã được mở! Thời gian từ 01/08/2024 đến 20/08/2024. Sinh viên vui lòng đăng ký đầy đủ các môn học.',
+ 1, 'all', NULL, 'urgent', FALSE),
+
+-- Thông báo đăng ký được duyệt
+('✅ Đăng ký môn học được duyệt',
+ 'Đăng ký môn CNTT101 - Nhập môn lập trình của bạn đã được tự động duyệt!',
+ 1, 'student', 1, 'high', FALSE),
+
+-- Thông báo đăng ký bị từ chối
+('❌ Đăng ký môn học không được duyệt',
+ 'Đăng ký môn CNTT_CONFLICT của bạn không được duyệt do xung đột lịch học. Vui lòng liên hệ phòng đào tạo.',
+ 1, 'student', 2, 'high', FALSE),
+
+-- Thông báo lớp bị hủy
+('🗑️ Lớp học bị hủy',
+ 'Lớp CNTT_LOW_2025_2 - Cơ sở dữ liệu đã bị hủy do không đủ sinh viên đăng ký. Vui lòng chọn lớp khác hoặc liên hệ phòng đào tạo.',
+ 1, 'student', 3, 'urgent', FALSE);
+
+-- ===============================================
 -- HOÀN THÀNH
 -- ===============================================
 COMMIT;
@@ -322,5 +447,71 @@ SELECT 'Tổng số grades:', COUNT(*) FROM grades
 UNION ALL
 SELECT 'Tổng số notifications:', COUNT(*) FROM notifications
 UNION ALL
-SELECT 'Tổng số course_registrations:', COUNT(*) FROM course_registrations;
+SELECT 'Tổng số course_registrations:', COUNT(*) FROM course_registrations
+UNION ALL
+SELECT 'Tổng số registration_periods:', COUNT(*) FROM registration_periods
+UNION ALL
+SELECT 'Tổng số PENDING registrations:', COUNT(*) FROM course_registrations WHERE registration_status = 'PENDING';
+
+-- ===============================================
+-- HƯỚNG DẪN TEST TỰ ĐỘNG DUYỆT
+-- ===============================================
+/*
+SCENARIO 1: Test Auto-Approval khi đóng period
+
+1. Login as Admin
+2. Vào "🗓️ Thời gian Đăng ký"
+3. Tìm period ID=4 (học kỳ hè 2024-2025)
+4. Click "▶️ Mở đăng ký" (chuyển status DRAFT → OPEN)
+5. Click "⏹️ Đóng đăng ký" (trigger auto-approval)
+
+KẾT QUẢ KỲ VỌNG:
+- ✅ 11 đơn được APPROVED (valid registrations)
+- ❌ 6 đơn bị REJECTED (xung đột lịch, lớp đầy, vượt credit)
+- 🗑️ 1 lớp bị HỦY (CNTT_LOW_2025_2: 8/30 = 27% < 50%)
+- Period status → COMPLETED
+- Sinh viên nhận thông báo tương ứng
+
+SCENARIO 2: Test đăng ký khi period đóng
+
+1. Login as Student (sv001)
+2. Cố đăng ký môn học cho học kỳ 3
+3. KỲ VỌNG: Báo lỗi "Kỳ đăng ký chưa được mở"
+
+SCENARIO 3: Kiểm tra log
+
+SELECT * FROM auto_approval_log WHERE period_id = 4;
+SELECT * FROM cancelled_courses_log WHERE period_id = 4;
+
+SCENARIO 4: Kiểm tra enrollment tự động tạo
+
+SELECT e.*, c.course_code 
+FROM enrollments e 
+JOIN courses c ON e.course_id = c.course_id 
+WHERE e.enrollment_date > '2025-05-10 00:00:00';
+
+CHI TIẾT TỪNG ĐƠN ĐĂNG KÝ:
+1. SV001 → CNTT101_2025_2: APPROVED (hợp lệ)
+2. SV001 → CNTT201_2025_2: APPROVED (hợp lệ)
+3. SV001 → KT101_2025_2: APPROVED (hợp lệ)
+4. SV002 → CNTT101_2025_2: APPROVED (xử lý trước)
+5. SV002 → CNTT_CONFLICT: REJECTED (xung đột lịch với #4)
+6. SV003 → CNTT_LOW: APPROVED → Nhưng lớp bị HỦY sau đó
+7. SV004 → CNTT_LOW: APPROVED → Nhưng lớp bị HỦY sau đó
+8. SV005 → CNTT_LOW: APPROVED → Nhưng lớp bị HỦY sau đó
+9. SV006 → CNTT_LOW: APPROVED → Nhưng lớp bị HỦY sau đó
+10. SV007 → CNTT_LOW: APPROVED → Nhưng lớp bị HỦY sau đó
+11. SV008 → CNTT_LOW: APPROVED → Nhưng lớp bị HỦY sau đó
+12. SV003 → KT101: APPROVED (hợp lệ)
+13. SV004 → KT101: APPROVED (hợp lệ)
+14. SV005 → CNTT_FULL: APPROVED (người thứ 1)
+15. SV006 → CNTT_FULL: APPROVED (người thứ 2)
+16. SV007 → CNTT_FULL: APPROVED (người thứ 3)
+17. SV008 → CNTT_FULL: APPROVED (người thứ 4)
+18. SV001 → CNTT_FULL: APPROVED (người thứ 5)
+19. SV002 → CNTT_FULL: REJECTED (lớp đầy)
+20. SV003 → CNTT_FULL: REJECTED (lớp đầy)
+21. SV004 → TEST_CREDIT_3: APPROVED (20+3=23 <= 24)
+22. SV004 → TEST_CREDIT_4: REJECTED (23+4=27 > 24)
+*/
 --
