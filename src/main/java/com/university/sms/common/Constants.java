@@ -96,9 +96,16 @@ public class Constants {
     public static final String ACTION_SYNC_CHECK = "SYNC_CHECK";
     public static final String ACTION_SYNC_DATA = "SYNC_DATA";
     public static final String ACTION_UPLOAD_USERS = "UPLOAD_USERS";
+    public static final String ACTION_UPLOAD_FACULTIES = "UPLOAD_FACULTIES";
+    public static final String ACTION_UPLOAD_CLASSES = "UPLOAD_CLASSES";
     public static final String ACTION_UPLOAD_STUDENTS = "UPLOAD_STUDENTS";
+    public static final String ACTION_UPLOAD_SUBJECTS = "UPLOAD_SUBJECTS";
     public static final String ACTION_UPLOAD_COURSES = "UPLOAD_COURSES";
     public static final String ACTION_UPLOAD_ENROLLMENTS = "UPLOAD_ENROLLMENTS";
+    public static final String ACTION_UPLOAD_GRADES = "UPLOAD_GRADES";
+    public static final String ACTION_UPLOAD_CLASS_OPENING_REQUESTS = "UPLOAD_CLASS_OPENING_REQUESTS";
+    public static final String ACTION_UPLOAD_COURSE_REGISTRATIONS = "UPLOAD_COURSE_REGISTRATIONS";
+    public static final String ACTION_UPLOAD_NOTIFICATIONS = "UPLOAD_NOTIFICATIONS";
 
     // Class Opening Request Actions (Teacher & Admin)
     public static final String ACTION_GET_ALL_CLASS_REQUESTS = "GET_ALL_CLASS_REQUESTS";
@@ -144,6 +151,9 @@ public class Constants {
     public static final String KEY_USER_ID = "userId";
     public static final String KEY_STUDENT_ID = "studentId";
     public static final String KEY_COURSE_ID = "courseId";
+    public static final String KEY_STUDENT_CODE = "studentCode";
+    public static final String KEY_COURSE_CODE = "courseCode";
+    public static final String KEY_FACULTY_CODE = "facultyCode";
     public static final String KEY_SEARCH_KEYWORD = "searchKeyword";
     public static final String KEY_CLASS_ID = "classId";
     public static final String KEY_FACULTY_ID = "facultyId";

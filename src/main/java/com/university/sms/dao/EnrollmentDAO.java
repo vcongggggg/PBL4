@@ -12,39 +12,169 @@ import java.util.logging.Logger;
 
 /**
  * Data Access Object cho Enrollment
+ * ✅ REFACTORED: Dùng student_code, course_code thay vì student_id, course_id
  */
 public class EnrollmentDAO {
     private static final Logger LOGGER = Logger.getLogger(EnrollmentDAO.class.getName());
 
     /**
-     * Thêm đăng ký mới
+     * ✅ REFACTORED: Lưu enrollment (insert nếu chưa có ID, update nếu đã có ID)
      */
-    public boolean addEnrollment(Enrollment enrollment) {
-        String sql = "INSERT INTO enrollments (student_id, course_id) VALUES (?, ?)";
-        
+    public boolean save(Enrollment enrollment) {
+        LOGGER.info("DEBUG DAO: save() called with enrollmentId=" + enrollment.getEnrollmentId() +
+                ", student_code=" + enrollment.getStudentCode() + ", course_code=" + enrollment.getCourseCode());
+
+        if (enrollment.getEnrollmentId() > 0) {
+            // Check if exists by ID
+            LOGGER.info("DEBUG DAO: Checking if enrollment ID " + enrollment.getEnrollmentId() + " exists...");
+            Enrollment existing = findById(enrollment.getEnrollmentId());
+            if (existing != null) {
+                // Already exists, skip or could update
+                LOGGER.info(
+                        "DEBUG DAO: Enrollment already exists by ID: " + enrollment.getEnrollmentId() + ", skipping");
+                return true; // Skip, consider it success
+            } else {
+                LOGGER.info("DEBUG DAO: Enrollment ID " + enrollment.getEnrollmentId() + " not found in DB");
+            }
+        }
+
+        // Check if exists by student_code + course_code (UNIQUE constraint)
+        LOGGER.info("DEBUG DAO: Checking if enrollment exists by keys (student_code=" + enrollment.getStudentCode() +
+                ", course_code=" + enrollment.getCourseCode() + ")...");
+        Integer existingId = findEnrollmentIdByKeys(enrollment.getStudentCode(), enrollment.getCourseCode());
+        if (existingId != null) {
+            // Already exists, return the existing ID
+            enrollment.setEnrollmentId(existingId);
+            LOGGER.info("DEBUG DAO: Enrollment already exists by keys: student_code=" + enrollment.getStudentCode() +
+                    ", course_code=" + enrollment.getCourseCode() + ", existing ID=" + existingId);
+            return true;
+        } else {
+            LOGGER.info("DEBUG DAO: No existing enrollment found, will insert new");
+        }
+
+        // Insert new enrollment (có thể với ID từ CSV)
+        boolean result = addEnrollmentWithId(enrollment);
+        LOGGER.info("DEBUG DAO: addEnrollmentWithId() returned " + result + ", enrollmentId after insert="
+                + enrollment.getEnrollmentId());
+        return result;
+    }
+
+    /**
+     * ✅ REFACTORED: Tìm enrollment ID by codes (không join) - for duplicate check
+     */
+    private Integer findEnrollmentIdByKeys(String studentCode, String courseCode) {
+        String sql = "SELECT enrollment_id FROM enrollments WHERE student_code = ? AND course_code = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
-            
-            stmt.setInt(1, enrollment.getStudentId());
-            stmt.setInt(2, enrollment.getCourseId());
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, studentCode);
+            stmt.setString(2, courseCode);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("enrollment_id");
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.WARNING,
+                    "Error checking enrollment existence: student_code=" + studentCode + ", course_code=" + courseCode,
+                    e);
+        }
+
+        return null;
+    }
+
+    /**
+     * ✅ REFACTORED: Thêm enrollment mới với ID cụ thể (cho CSV import)
+     */
+    private boolean addEnrollmentWithId(Enrollment enrollment) {
+        String sql = enrollment.getEnrollmentId() > 0
+                ? "INSERT IGNORE INTO enrollments (enrollment_id, student_code, course_code, enrollment_status, final_grade, letter_grade, grade_points) VALUES (?, ?, ?, ?, ?, ?, ?)"
+                : "INSERT IGNORE INTO enrollments (student_code, course_code, enrollment_status, final_grade, letter_grade, grade_points) VALUES (?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            int paramIndex = 1;
+            if (enrollment.getEnrollmentId() > 0) {
+                stmt.setInt(paramIndex++, enrollment.getEnrollmentId());
+            }
+
+            stmt.setString(paramIndex++, enrollment.getStudentCode());
+            stmt.setString(paramIndex++, enrollment.getCourseCode());
+            stmt.setString(paramIndex++, enrollment.getEnrollmentStatus().name().toLowerCase());
+
+            if (enrollment.getFinalGrade() != null) {
+                stmt.setBigDecimal(paramIndex++, enrollment.getFinalGrade());
+            } else {
+                stmt.setNull(paramIndex++, Types.DECIMAL);
+            }
+
+            if (enrollment.getLetterGrade() != null && !enrollment.getLetterGrade().isEmpty()) {
+                stmt.setString(paramIndex++, enrollment.getLetterGrade());
+            } else {
+                stmt.setString(paramIndex++, "");
+            }
+
+            if (enrollment.getGradePoints() != null) {
+                stmt.setBigDecimal(paramIndex++, enrollment.getGradePoints());
+            } else {
+                stmt.setBigDecimal(paramIndex++, BigDecimal.ZERO);
+            }
+
             int result = stmt.executeUpdate();
-            
+
+            // INSERT IGNORE returns 0 if duplicate, but that's OK for CSV import
+            if (enrollment.getEnrollmentId() == 0 && result > 0) {
+                try (ResultSet rs = stmt.getGeneratedKeys()) {
+                    if (rs.next()) {
+                        enrollment.setEnrollmentId(rs.getInt(1));
+                    }
+                }
+            }
+
+            LOGGER.info("Enrollment processed: Student " + enrollment.getStudentCode() +
+                    " -> Course " + enrollment.getCourseCode() + " (inserted=" + (result > 0) + ")");
+            return true; // Always return true for INSERT IGNORE
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error adding enrollment", e);
+            return false;
+        }
+    }
+
+    /**
+     * ✅ DEPRECATED: Thêm đăng ký mới (chỉ student_id, course_id)
+     */
+    @Deprecated
+    public boolean addEnrollment(Enrollment enrollment) {
+        String sql = "INSERT INTO enrollments (student_code, course_code) VALUES (?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            stmt.setString(1, enrollment.getStudentCode());
+            stmt.setString(2, enrollment.getCourseCode());
+
+            int result = stmt.executeUpdate();
+
             if (result > 0) {
                 try (ResultSet rs = stmt.getGeneratedKeys()) {
                     if (rs.next()) {
                         enrollment.setEnrollmentId(rs.getInt(1));
                     }
                 }
-                LOGGER.info("Enrollment added successfully: Student " + enrollment.getStudentId() + 
-                           " -> Course " + enrollment.getCourseId());
+                LOGGER.info("Enrollment added successfully: Student " + enrollment.getStudentCode() +
+                        " -> Course " + enrollment.getCourseCode());
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error adding enrollment", e);
         }
-        
+
         return false;
     }
 
@@ -53,127 +183,127 @@ public class EnrollmentDAO {
      */
     public Enrollment findById(int enrollmentId) {
         String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
-                    "c.course_code, sub.subject_name, sub.credits " +
-                    "FROM enrollments e " +
-                    "JOIN students s ON e.student_id = s.student_id " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN courses c ON e.course_id = c.course_id " +
-                    "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                    "WHERE e.enrollment_id = ?";
-        
+                "c.course_code, sub.subject_name, sub.credits " +
+                "FROM enrollments e " +
+                "JOIN students s ON e.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON e.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "WHERE e.enrollment_id = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, enrollmentId);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToEnrollment(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding enrollment by ID", e);
         }
-        
+
         return null;
     }
 
     /**
-     * Lấy đăng ký theo sinh viên
+     * ✅ REFACTORED: Lấy đăng ký theo student_code
      */
-    public List<Enrollment> findByStudentId(int studentId) {
+    public List<Enrollment> findByStudentCode(String studentCode) {
         String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
-                    "c.course_code, sub.subject_name, sub.credits " +
-                    "FROM enrollments e " +
-                    "JOIN students s ON e.student_id = s.student_id " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN courses c ON e.course_id = c.course_id " +
-                    "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                    "WHERE e.student_id = ? ORDER BY e.enrollment_date DESC";
-        
+                "c.course_code, sub.subject_name, sub.credits " +
+                "FROM enrollments e " +
+                "JOIN students s ON e.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON e.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "WHERE e.student_code = ? ORDER BY e.enrollment_date DESC";
+
         List<Enrollment> enrollments = new ArrayList<>();
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, studentId);
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, studentCode);
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     enrollments.add(mapResultSetToEnrollment(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding enrollments by student ID: " + studentId, e);
+            LOGGER.log(Level.SEVERE, "Error finding enrollments by student code: " + studentCode, e);
         }
-        
+
         return enrollments;
     }
 
     /**
-     * Lấy đăng ký theo khóa học
+     * ✅ REFACTORED: Lấy đăng ký theo course_code
      */
-    public List<Enrollment> findByCourseId(int courseId) {
+    public List<Enrollment> findByCourseCode(String courseCode) {
         String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
-                    "c.course_code, sub.subject_name, sub.credits " +
-                    "FROM enrollments e " +
-                    "JOIN students s ON e.student_id = s.student_id " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN courses c ON e.course_id = c.course_id " +
-                    "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                    "WHERE e.course_id = ? ORDER BY s.student_code";
-        
+                "c.course_code, sub.subject_name, sub.credits " +
+                "FROM enrollments e " +
+                "JOIN students s ON e.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON e.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "WHERE e.course_code = ? ORDER BY s.student_code";
+
         List<Enrollment> enrollments = new ArrayList<>();
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, courseId);
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, courseCode);
+
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     enrollments.add(mapResultSetToEnrollment(rs));
                 }
             }
-            
+
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding enrollments by course ID: " + courseId, e);
+            LOGGER.log(Level.SEVERE, "Error finding enrollments by course code: " + courseCode, e);
         }
-        
+
         return enrollments;
     }
 
     /**
-     * Tìm đăng ký cụ thể
+     * ✅ REFACTORED: Tìm đăng ký cụ thể
      */
-    public Enrollment findByStudentAndCourse(int studentId, int courseId) {
+    public Enrollment findByStudentAndCourse(String studentCode, String courseCode) {
         String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
-                    "c.course_code, sub.subject_name, sub.credits " +
-                    "FROM enrollments e " +
-                    "JOIN students s ON e.student_id = s.student_id " +
-                    "JOIN users u ON s.user_id = u.user_id " +
-                    "JOIN courses c ON e.course_id = c.course_id " +
-                    "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                    "WHERE e.student_id = ? AND e.course_id = ?";
-        
+                "c.course_code, sub.subject_name, sub.credits " +
+                "FROM enrollments e " +
+                "JOIN students s ON e.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON e.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "WHERE e.student_code = ? AND e.course_code = ?";
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
-            stmt.setInt(1, studentId);
-            stmt.setInt(2, courseId);
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, studentCode);
+            stmt.setString(2, courseCode);
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return mapResultSetToEnrollment(rs);
                 }
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding enrollment by student and course", e);
         }
-        
+
         return null;
     }
 
@@ -182,52 +312,53 @@ public class EnrollmentDAO {
      */
     public boolean updateEnrollmentStatus(int enrollmentId, Enrollment.EnrollmentStatus status) {
         String sql = "UPDATE enrollments SET enrollment_status = ? WHERE enrollment_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setString(1, status.name().toLowerCase());
             stmt.setInt(2, enrollmentId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Enrollment status updated successfully: " + enrollmentId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating enrollment status: " + enrollmentId, e);
         }
-        
+
         return false;
     }
 
     /**
      * Cập nhật điểm cuối kỳ
      */
-    public boolean updateFinalGrade(int enrollmentId, BigDecimal finalGrade, String letterGrade, BigDecimal gradePoints) {
+    public boolean updateFinalGrade(int enrollmentId, BigDecimal finalGrade, String letterGrade,
+            BigDecimal gradePoints) {
         String sql = "UPDATE enrollments SET final_grade = ?, letter_grade = ?, grade_points = ? WHERE enrollment_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setBigDecimal(1, finalGrade);
             stmt.setString(2, letterGrade);
             stmt.setBigDecimal(3, gradePoints);
             stmt.setInt(4, enrollmentId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Final grade updated successfully: " + enrollmentId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating final grade: " + enrollmentId, e);
         }
-        
+
         return false;
     }
 
@@ -236,62 +367,52 @@ public class EnrollmentDAO {
      */
     public boolean deleteEnrollment(int enrollmentId) {
         String sql = "DELETE FROM enrollments WHERE enrollment_id = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
             stmt.setInt(1, enrollmentId);
-            
+
             int result = stmt.executeUpdate();
-            
+
             if (result > 0) {
                 LOGGER.info("Enrollment deleted successfully: " + enrollmentId);
                 return true;
             }
-            
+
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error deleting enrollment: " + enrollmentId, e);
         }
-        
+
         return false;
     }
 
     /**
-     * Map ResultSet to Enrollment object
+     * ✅ REFACTORED: Map ResultSet to Enrollment object
      */
     private Enrollment mapResultSetToEnrollment(ResultSet rs) throws SQLException {
         Enrollment enrollment = new Enrollment();
         enrollment.setEnrollmentId(rs.getInt("enrollment_id"));
-        enrollment.setStudentId(rs.getInt("student_id"));
-        enrollment.setCourseId(rs.getInt("course_id"));
+        enrollment.setStudentCode(rs.getString("student_code"));
+        enrollment.setCourseCode(rs.getString("course_code"));
         enrollment.setEnrollmentDate(rs.getTimestamp("enrollment_date"));
-        
+
         String status = rs.getString("enrollment_status");
         if (status != null) {
             enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.valueOf(status.toUpperCase()));
         }
-        
+
         enrollment.setFinalGrade(rs.getBigDecimal("final_grade"));
         enrollment.setLetterGrade(rs.getString("letter_grade"));
         enrollment.setGradePoints(rs.getBigDecimal("grade_points"));
-        
-        // Check if attendance_rate column exists (may not exist in some database schemas)
-        try {
-            enrollment.setAttendanceRate(rs.getBigDecimal("attendance_rate"));
-        } catch (SQLException e) {
-            // If column doesn't exist, default to zero
-            enrollment.setAttendanceRate(java.math.BigDecimal.ZERO);
-        }
-        
+
         // Related information
         enrollment.setStudentCode(rs.getString("student_code"));
         enrollment.setStudentName(rs.getString("student_name"));
         enrollment.setCourseCode(rs.getString("course_code"));
         enrollment.setSubjectName(rs.getString("subject_name"));
         enrollment.setCredits(rs.getInt("credits"));
-        
+
         return enrollment;
     }
 }
-
-

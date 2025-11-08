@@ -8,12 +8,23 @@ import java.sql.Timestamp;
 /**
  * Model class cho bảng grades (điểm chi tiết)
  * Lưu trữ các loại điểm: thường xuyên, giữa kỳ, cuối kỳ, đồ án
+ * ✅ REFACTORED: Dùng composite FK (student_code, course_code)
  */
 public class Grade implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    // Primary key
     private int gradeId;
-    private int enrollmentId;
+
+    // ✅ NEW: Composite foreign key (client-safe)
+    private String studentCode; // FK to enrollments(student_code, course_code)
+    private String courseCode; // FK to enrollments(student_code, course_code)
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int enrollmentId; // Legacy field, use studentCode+courseCode instead
+
+    // Grade data
     private GradeType gradeType;
     private String gradeName;
     private BigDecimal score;
@@ -22,11 +33,10 @@ public class Grade implements Serializable {
     private Date gradeDate;
     private String notes;
     private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     // Related information (from joins)
-    private String studentCode;
     private String studentName;
-    private String courseCode;
     private String subjectName;
 
     /**
@@ -62,6 +72,16 @@ public class Grade implements Serializable {
         this.weight = new BigDecimal("1.00");
     }
 
+    public Grade(String studentCode, String courseCode, GradeType gradeType, String gradeName) {
+        this();
+        this.studentCode = studentCode;
+        this.courseCode = courseCode;
+        this.gradeType = gradeType;
+        this.gradeName = gradeName;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public Grade(int enrollmentId, GradeType gradeType, String gradeName) {
         this();
         this.enrollmentId = enrollmentId;
@@ -150,6 +170,14 @@ public class Grade implements Serializable {
         this.createdAt = createdAt;
     }
 
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
+    }
+
     // Related information getters/setters
     public String getStudentCode() {
         return studentCode;
@@ -185,32 +213,34 @@ public class Grade implements Serializable {
 
     /**
      * Tính điểm quy đổi theo trọng số
+     * 
      * @return Điểm đã quy đổi
      */
     public BigDecimal getWeightedScore() {
         if (score == null || maxScore == null || weight == null) {
             return BigDecimal.ZERO;
         }
-        
+
         // weighted_score = (score / max_score) * weight * 10
         return score.divide(maxScore, 4, java.math.RoundingMode.HALF_UP)
-                   .multiply(weight)
-                   .multiply(new BigDecimal("10"))
-                   .setScale(2, java.math.RoundingMode.HALF_UP);
+                .multiply(weight)
+                .multiply(new BigDecimal("10"))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     /**
      * Tính điểm phần trăm
+     * 
      * @return Điểm phần trăm (0-100)
      */
     public BigDecimal getPercentage() {
         if (score == null || maxScore == null) {
             return BigDecimal.ZERO;
         }
-        
+
         return score.divide(maxScore, 4, java.math.RoundingMode.HALF_UP)
-                   .multiply(new BigDecimal("100"))
-                   .setScale(2, java.math.RoundingMode.HALF_UP);
+                .multiply(new BigDecimal("100"))
+                .setScale(2, java.math.RoundingMode.HALF_UP);
     }
 
     @Override
@@ -227,4 +257,3 @@ public class Grade implements Serializable {
                 '}';
     }
 }
-

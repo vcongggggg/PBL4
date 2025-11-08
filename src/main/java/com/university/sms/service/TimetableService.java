@@ -36,13 +36,17 @@ public class TimetableService {
     /**
      * Lấy thời khóa biểu của sinh viên
      */
-    public List<TimetableEntry> getStudentTimetable(int studentId) {
+    public List<TimetableEntry> getStudentTimetable(String studentCode) {
         List<TimetableEntry> timetable = new ArrayList<>();
 
         try {
-            // Get all enrollments of student
-            List<Enrollment> enrollments = enrollmentDAO.findByStudentId(studentId);
-            LOGGER.info("TimetableService: Found " + enrollments.size() + " enrollments for student " + studentId);
+            if (studentCode == null || studentCode.trim().isEmpty()) {
+                LOGGER.warning("TimetableService: Invalid studentCode");
+                return timetable;
+            }
+
+            List<Enrollment> enrollments = enrollmentDAO.findByStudentCode(studentCode);
+            LOGGER.info("TimetableService: Found " + enrollments.size() + " enrollments for student " + studentCode);
 
             Map<String, String> colorMap = new HashMap<>();
             int colorIndex = 0;
@@ -53,7 +57,7 @@ public class TimetableService {
             for (Enrollment enrollment : enrollments) {
                 // Only show enrolled courses
                 if (enrollment.getEnrollmentStatus() == Enrollment.EnrollmentStatus.ENROLLED) {
-                    Course course = courseDAO.findById(enrollment.getCourseId());
+                    Course course = courseDAO.findByCourseCode(enrollment.getCourseCode());
                     if (course != null) {
                         // Only show ONGOING courses
                         if (course.getCourseStatus() == Course.CourseStatus.ONGOING) {
@@ -86,7 +90,7 @@ public class TimetableService {
                 }
             }
 
-            LOGGER.info("TimetableService Summary for student " + studentId + ":");
+            LOGGER.info("TimetableService Summary for student " + studentCode + ":");
             LOGGER.info("  Total enrollments: " + enrollments.size());
             LOGGER.info("  Added to timetable: " + timetable.size());
             if (filteredByEnrollmentStatus > 0) {
@@ -106,16 +110,12 @@ public class TimetableService {
         return timetable;
     }
 
-    /**
-     * Lấy thời khóa biểu của giảng viên
-     * Note: CourseDAO.findByTeacherId() đã filter chỉ lấy ONGOING
-     */
-    public List<TimetableEntry> getTeacherTimetable(int teacherId) {
+    public List<TimetableEntry> getTeacherTimetable(String teacherUsername) {
         List<TimetableEntry> timetable = new ArrayList<>();
 
         try {
-            List<Course> courses = courseDAO.findByTeacherId(teacherId);
-            LOGGER.info("TimetableService: Found " + courses.size() + " active courses for teacher " + teacherId);
+            List<Course> courses = courseDAO.findByTeacherUsername(teacherUsername);
+            LOGGER.info("TimetableService: Found " + courses.size() + " active courses for teacher " + teacherUsername);
 
             Map<String, String> colorMap = new HashMap<>();
             int colorIndex = 0;
@@ -144,7 +144,7 @@ public class TimetableService {
                 timetable.add(entry);
             }
 
-            LOGGER.info("TimetableService Summary for teacher " + teacherId + ":");
+            LOGGER.info("TimetableService Summary for teacher " + teacherUsername + ":");
             LOGGER.info("  Total active courses: " + courses.size());
             LOGGER.info("  Added to timetable: " + timetable.size());
             LOGGER.info("  Filtered by invalid schedule: " + filteredBySchedule);
@@ -157,13 +157,12 @@ public class TimetableService {
     }
 
     /**
-     * Lấy thời khóa biểu của một lớp
      */
-    public List<TimetableEntry> getClassTimetable(int classId) {
+    public List<TimetableEntry> getClassTimetable(String classCode) {
         List<TimetableEntry> timetable = new ArrayList<>();
 
         try {
-            List<Course> courses = courseDAO.findByClassId(classId);
+            List<Course> courses = courseDAO.findByClassCode(classCode);
 
             Map<String, String> colorMap = new HashMap<>();
             int colorIndex = 0;
@@ -184,7 +183,7 @@ public class TimetableService {
                 }
             }
 
-            LOGGER.info("Loaded timetable for class " + classId + ": " + timetable.size() + " entries");
+            LOGGER.info("Loaded timetable for class " + classCode + ": " + timetable.size() + " entries");
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error loading class timetable", e);
@@ -194,7 +193,6 @@ public class TimetableService {
     }
 
     /**
-     * Kiểm tra xung đột lịch
      */
     public List<TimetableEntry> findConflicts(List<TimetableEntry> timetable) {
         List<TimetableEntry> conflicts = new ArrayList<>();
@@ -218,23 +216,17 @@ public class TimetableService {
         return conflicts;
     }
 
-    /**
-     * Validate lịch học trước khi đăng ký
-     */
-    public boolean validateSchedule(int studentId, int newCourseId) {
+    public boolean validateSchedule(String studentCode, String newCourseCode) {
         try {
-            // Get current timetable
-            List<TimetableEntry> currentTimetable = getStudentTimetable(studentId);
+            List<TimetableEntry> currentTimetable = getStudentTimetable(studentCode);
 
-            // Get new course
-            Course newCourse = courseDAO.findById(newCourseId);
+            Course newCourse = courseDAO.findByCourseCode(newCourseCode);
             if (newCourse == null) {
                 return false;
             }
 
             TimetableEntry newEntry = new TimetableEntry(newCourse);
 
-            // Check conflicts
             for (TimetableEntry existing : currentTimetable) {
                 if (existing.conflictsWith(newEntry)) {
                     LOGGER.warning("Schedule conflict detected: " + existing.getSubjectName()

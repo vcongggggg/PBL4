@@ -20,7 +20,7 @@ import java.util.logging.Logger;
  */
 public class GradeService {
     private static final Logger LOGGER = Logger.getLogger(GradeService.class.getName());
-    
+
     private GradeDAO gradeDAO;
     private EnrollmentDAO enrollmentDAO;
 
@@ -29,37 +29,28 @@ public class GradeService {
         this.enrollmentDAO = new EnrollmentDAO();
     }
 
-    /**
-     * Thêm điểm mới với validation
-     */
     public boolean addGrade(Grade grade) throws Exception {
         // Validate
         validateGrade(grade);
-        
-        // Kiểm tra enrollment exists
-        Enrollment enrollment = enrollmentDAO.findById(grade.getEnrollmentId());
+
+        Enrollment enrollment = enrollmentDAO.findByStudentAndCourse(
+                grade.getStudentCode(), grade.getCourseCode());
         if (enrollment == null) {
             throw new IllegalArgumentException("Enrollment không tồn tại");
         }
 
-        // Thêm grade
-        boolean result = gradeDAO.addGrade(grade);
-        
+        boolean result = gradeDAO.save(grade);
+
         if (result) {
             LOGGER.info("Added grade successfully: " + grade.getGradeName());
         }
-        
+
         return result;
     }
 
-    /**
-     * Cập nhật điểm với validation
-     */
     public boolean updateGrade(Grade grade) throws Exception {
-        // Validate
         validateGrade(grade);
-        
-        // Kiểm tra grade exists
+
         Grade existingGrade = gradeDAO.findById(grade.getGradeId());
         if (existingGrade == null) {
             throw new IllegalArgumentException("Grade không tồn tại");
@@ -68,9 +59,6 @@ public class GradeService {
         return gradeDAO.updateGrade(grade);
     }
 
-    /**
-     * Xóa điểm
-     */
     public boolean deleteGrade(int gradeId) throws Exception {
         Grade grade = gradeDAO.findById(gradeId);
         if (grade == null) {
@@ -80,55 +68,51 @@ public class GradeService {
         return gradeDAO.deleteGrade(gradeId);
     }
 
-    /**
-     * Lấy điểm theo ID
-     */
     public Grade getGradeById(int gradeId) throws Exception {
         return gradeDAO.findById(gradeId);
     }
 
-    /**
-     * Lấy tất cả điểm của một enrollment
-     */
-    public List<Grade> getGradesByEnrollment(int enrollmentId) throws Exception {
-        return gradeDAO.getGradesByEnrollment(enrollmentId);
+    public List<Grade> getGradesByEnrollment(String studentCode, String courseCode) throws Exception {
+        if (studentCode == null || studentCode.trim().isEmpty() ||
+                courseCode == null || courseCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Student code and course code are required");
+        }
+        return gradeDAO.getGradesByStudentAndCourse(studentCode, courseCode);
     }
 
-    /**
-     * Lấy điểm của sinh viên trong một môn
-     */
-    public List<Grade> getGradesByStudentAndCourse(int studentId, int courseId) throws Exception {
-        return gradeDAO.getGradesByStudentAndCourse(studentId, courseId);
+    public List<Grade> getGradesByStudentAndCourse(String studentCode, String courseCode) throws Exception {
+        if (studentCode == null || studentCode.trim().isEmpty() ||
+                courseCode == null || courseCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Student code and course code are required");
+        }
+        return gradeDAO.getGradesByStudentAndCourse(studentCode, courseCode);
     }
 
-    /**
-     * Lấy điểm theo loại
-     */
-    public List<Grade> getGradesByType(int enrollmentId, GradeType gradeType) throws Exception {
-        return gradeDAO.getGradesByType(enrollmentId, gradeType);
+    public List<Grade> getGradesByType(String studentCode, String courseCode, GradeType gradeType) throws Exception {
+        if (studentCode == null || studentCode.trim().isEmpty() ||
+                courseCode == null || courseCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Student code and course code are required");
+        }
+        return gradeDAO.getGradesByType(studentCode, courseCode, gradeType);
     }
 
-    /**
-     * Lấy tất cả điểm của một course (cho giảng viên)
-     */
-    public List<Grade> getGradesByCourse(int courseId) throws Exception {
-        return gradeDAO.getGradesByCourse(courseId);
+    public List<Grade> getGradesByCourse(String courseCode) throws Exception {
+        if (courseCode == null || courseCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Course code is required");
+        }
+        return gradeDAO.getGradesByCourse(courseCode);
     }
 
-    /**
-     * Lấy tất cả điểm của một sinh viên
-     */
-    public List<Grade> getGradesByStudent(int studentId) throws Exception {
-        return gradeDAO.getGradesByStudent(studentId);
+    public List<Grade> getGradesByStudent(String studentCode) throws Exception {
+        if (studentCode == null || studentCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Student code is required");
+        }
+        return gradeDAO.getGradesByStudent(studentCode);
     }
 
-    /**
-     * Tính điểm tổng kết từ các điểm thành phần
-     * Công thức: Σ(score/max_score * weight * 10)
-     */
-    public BigDecimal calculateFinalGrade(int enrollmentId) throws Exception {
-        List<Grade> grades = gradeDAO.getGradesByEnrollment(enrollmentId);
-        
+    public BigDecimal calculateFinalGrade(String studentCode, String courseCode) throws Exception {
+        List<Grade> grades = gradeDAO.getGradesByStudentAndCourse(studentCode, courseCode);
+
         if (grades.isEmpty()) {
             return BigDecimal.ZERO;
         }
@@ -138,38 +122,38 @@ public class GradeService {
 
         for (Grade grade : grades) {
             if (grade.getScore() != null && grade.getMaxScore() != null && grade.getWeight() != null) {
-                // Component score = (score / max_score) * weight * 10
                 BigDecimal componentScore = grade.getScore()
-                    .divide(grade.getMaxScore(), 4, RoundingMode.HALF_UP)
-                    .multiply(grade.getWeight())
-                    .multiply(new BigDecimal("10"));
-                
+                        .divide(grade.getMaxScore(), 4, RoundingMode.HALF_UP)
+                        .multiply(grade.getWeight())
+                        .multiply(new BigDecimal("10"));
+
                 finalScore = finalScore.add(componentScore);
                 totalWeight = totalWeight.add(grade.getWeight());
             }
         }
 
-        // Normalize nếu tổng trọng số != 1.0
-        if (totalWeight.compareTo(BigDecimal.ZERO) > 0 && 
-            totalWeight.compareTo(BigDecimal.ONE) != 0) {
+        if (totalWeight.compareTo(BigDecimal.ZERO) > 0 &&
+                totalWeight.compareTo(BigDecimal.ONE) != 0) {
             finalScore = finalScore.divide(totalWeight, 2, RoundingMode.HALF_UP);
         }
 
         return finalScore.setScale(2, RoundingMode.HALF_UP);
     }
 
-    /**
-     * Tự động tính và cập nhật điểm tổng kết vào enrollment
-     * Sử dụng stored procedure CalculateFinalGrade
-     */
-    public boolean finalizeCourseGrade(int enrollmentId) throws Exception {
+    public boolean finalizeCourseGrade(String studentCode, String courseCode) throws Exception {
+        if (studentCode == null || studentCode.trim().isEmpty() ||
+                courseCode == null || courseCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Student code and course code are required");
+        }
+
         try (Connection conn = DatabaseConnection.getConnection();
-             CallableStatement stmt = conn.prepareCall("{CALL CalculateFinalGrade(?)}")) {
-            
-            stmt.setInt(1, enrollmentId);
+                CallableStatement stmt = conn.prepareCall("{CALL CalculateFinalGradeByCode(?, ?)}")) {
+
+            stmt.setString(1, studentCode);
+            stmt.setString(2, courseCode);
             stmt.execute();
-            
-            LOGGER.info("Finalized grade for enrollment_id: " + enrollmentId);
+
+            LOGGER.info("Finalized grade for student_code: " + studentCode + ", course_code: " + courseCode);
             return true;
 
         } catch (SQLException e) {
@@ -178,34 +162,29 @@ public class GradeService {
         }
     }
 
-    /**
-     * Tính và cập nhật điểm cho nhiều enrollments (batch)
-     */
-    public int batchFinalizeCourseGrades(List<Integer> enrollmentIds) throws Exception {
+    public int batchFinalizeCourseGrades(List<Enrollment> enrollments) throws Exception {
         int successCount = 0;
-        
-        for (Integer enrollmentId : enrollmentIds) {
+
+        for (Enrollment enrollment : enrollments) {
             try {
-                if (finalizeCourseGrade(enrollmentId)) {
+                if (finalizeCourseGrade(enrollment.getStudentCode(), enrollment.getCourseCode())) {
                     successCount++;
                 }
             } catch (Exception e) {
-                LOGGER.log(Level.WARNING, "Failed to finalize grade for enrollment_id: " + enrollmentId, e);
+                LOGGER.log(Level.WARNING, "Failed to finalize grade for student_code: " +
+                        enrollment.getStudentCode() + ", course_code: " + enrollment.getCourseCode(), e);
             }
         }
-        
+
         return successCount;
     }
 
-    /**
-     * Lấy thống kê điểm của một sinh viên
-     */
-    public GradeStatistics getStudentGradeStatistics(int studentId) throws Exception {
-        List<Grade> grades = gradeDAO.getGradesByStudent(studentId);
-        
+    public GradeStatistics getStudentGradeStatistics(String studentCode) throws Exception {
+        List<Grade> grades = gradeDAO.getGradesByStudent(studentCode);
+
         GradeStatistics stats = new GradeStatistics();
         stats.totalGrades = grades.size();
-        
+
         if (grades.isEmpty()) {
             return stats;
         }
@@ -219,7 +198,7 @@ public class GradeService {
 
         for (Grade grade : grades) {
             totalScore = totalScore.add(grade.getPercentage());
-            
+
             switch (grade.getGradeType()) {
                 case ASSIGNMENT:
                     assignmentCount++;
@@ -249,12 +228,13 @@ public class GradeService {
         return stats;
     }
 
-    /**
-     * Validate grade data
-     */
     private void validateGrade(Grade grade) throws IllegalArgumentException {
-        if (grade.getEnrollmentId() <= 0) {
-            throw new IllegalArgumentException("Enrollment ID không hợp lệ");
+        if (grade.getStudentCode() == null || grade.getStudentCode().trim().isEmpty()) {
+            throw new IllegalArgumentException("Student code không được để trống");
+        }
+
+        if (grade.getCourseCode() == null || grade.getCourseCode().trim().isEmpty()) {
+            throw new IllegalArgumentException("Course code không được để trống");
         }
 
         if (grade.getGradeType() == null) {
@@ -290,9 +270,6 @@ public class GradeService {
         }
     }
 
-    /**
-     * Inner class cho thống kê điểm
-     */
     public static class GradeStatistics {
         public int totalGrades;
         public BigDecimal averagePercentage;
@@ -307,4 +284,3 @@ public class GradeService {
         }
     }
 }
-

@@ -440,22 +440,27 @@ public class LoginFrame extends JFrame {
                 // Route to appropriate main frame based on user role
                 switch (user.getRole()) {
                     case ADMIN:
-                        com.university.sms.client.gui.admin.AdminMainFrame adminFrame = 
-                            new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection);
-                        adminFrame.setVisible(true);
+                        // Upload CSV data if using CSV client
+                        if (serverConnection instanceof CSVServerConnection) {
+                            uploadCSVDataForAdmin((CSVServerConnection) serverConnection, user);
+                        } else {
+                            com.university.sms.client.gui.admin.AdminMainFrame adminFrame = new com.university.sms.client.gui.admin.AdminMainFrame(
+                                    user, serverConnection);
+                            adminFrame.setVisible(true);
+                        }
                         break;
                     case TEACHER:
-                        com.university.sms.client.gui.teacher.TeacherMainFrame teacherFrame = 
-                            new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection);
+                        com.university.sms.client.gui.teacher.TeacherMainFrame teacherFrame = new com.university.sms.client.gui.teacher.TeacherMainFrame(
+                                user, serverConnection);
                         teacherFrame.setVisible(true);
                         break;
                     case STUDENT:
-                        com.university.sms.client.gui.student.StudentMainFrame studentFrame = 
-                            new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection);
+                        com.university.sms.client.gui.student.StudentMainFrame studentFrame = new com.university.sms.client.gui.student.StudentMainFrame(
+                                user, serverConnection);
                         studentFrame.setVisible(true);
                         break;
                 }
-                
+
                 // Dispose login window
                 dispose();
             });
@@ -485,8 +490,135 @@ public class LoginFrame extends JFrame {
     private void showMessage(String message, String title, int messageType) {
         JOptionPane.showMessageDialog(this, message, title, messageType);
     }
+
+    /**
+     * Upload CSV data when admin logs in
+     */
+    private void uploadCSVDataForAdmin(CSVServerConnection csvConnection, User admin) {
+        // Show progress dialog
+        JDialog progressDialog = new JDialog(this, "Đang upload dữ liệu CSV", true);
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel messageLabel = new JLabel("Đang upload dữ liệu từ CSV lên server...");
+        JProgressBar progressBar = new JProgressBar();
+        progressBar.setIndeterminate(true);
+
+        panel.add(messageLabel, BorderLayout.NORTH);
+        panel.add(progressBar, BorderLayout.CENTER);
+        progressDialog.add(panel);
+        progressDialog.setSize(400, 120);
+        progressDialog.setLocationRelativeTo(this);
+        progressDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        // Upload in background
+        SwingWorker<String, String> uploadWorker = new SwingWorker<String, String>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                StringBuilder result = new StringBuilder();
+
+                // ===== DEBUG MODE: Only upload dependencies + Enrollments =====
+
+                // Upload Users (needed for Students FK)
+                publish("Đang upload Users...");
+                Message usersResponse = csvConnection.uploadAllUsersFromCSV();
+                result.append("Users: ").append(usersResponse.getMessage()).append("\n");
+
+                // Upload Faculties (needed for Subjects/Classes FK)
+                publish("Đang upload Faculties...");
+                Message facultiesResponse = csvConnection.uploadAllFacultiesFromCSV();
+                result.append("Faculties: ").append(facultiesResponse.getMessage()).append("\n");
+
+                // Upload Subjects (needed for Courses FK)
+                publish("Đang upload Subjects...");
+                Message subjectsResponse = csvConnection.uploadAllSubjectsFromCSV();
+                result.append("Subjects: ").append(subjectsResponse.getMessage()).append("\n");
+
+                // Upload Classes (needed for Students FK)
+                publish("Đang upload Classes...");
+                Message classesResponse = csvConnection.uploadAllClassesFromCSV();
+                result.append("Classes: ").append(classesResponse.getMessage()).append("\n");
+
+                // Upload Students (needed for Enrollments FK)
+                publish("Đang upload Students...");
+                Message studentsResponse = csvConnection.uploadAllStudentsFromCSV();
+                result.append("Students: ").append(studentsResponse.getMessage()).append("\n");
+
+                // Upload Courses (needed for Enrollments FK)
+                publish("Đang upload Courses...");
+                Message coursesResponse = csvConnection.uploadAllCoursesFromCSV();
+                result.append("Courses: ").append(coursesResponse.getMessage()).append("\n");
+
+                // ===== FOCUS: Upload Enrollments =====
+                publish("Đang upload Enrollments...");
+                Message enrollmentsResponse = csvConnection.uploadAllEnrollmentsFromCSV();
+                result.append("Enrollments: ").append(enrollmentsResponse.getMessage()).append("\n");
+
+                // Upload Grades
+                publish("Đang upload Grades...");
+                Message gradesResponse = csvConnection.uploadAllGradesFromCSV();
+                result.append("Grades: ").append(gradesResponse.getMessage()).append("\n");
+
+                // Upload Class Opening Requests
+                publish("Đang upload Class Opening Requests...");
+                Message requestsResponse = csvConnection.uploadAllClassOpeningRequestsFromCSV();
+                result.append("Class Requests: ").append(requestsResponse.getMessage()).append("\n");
+
+                // Upload Course Registrations
+                publish("Đang upload Course Registrations...");
+                Message registrationsResponse = csvConnection.uploadAllCourseRegistrationsFromCSV();
+                result.append("Course Registrations: ").append(registrationsResponse.getMessage()).append("\n");
+
+                // Upload Notifications
+                publish("Đang upload Notifications...");
+                Message notificationsResponse = csvConnection.uploadAllNotificationsFromCSV();
+                result.append("Notifications: ").append(notificationsResponse.getMessage()).append("\n");
+
+                return result.toString();
+            }
+
+            @Override
+            protected void process(java.util.List<String> chunks) {
+                if (!chunks.isEmpty()) {
+                    messageLabel.setText(chunks.get(chunks.size() - 1));
+                }
+            }
+
+            @Override
+            protected void done() {
+                progressDialog.dispose();
+
+                try {
+                    String result = get();
+
+                    // Show result
+                    JTextArea resultArea = new JTextArea(result);
+                    resultArea.setEditable(false);
+                    resultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+                    JScrollPane scrollPane = new JScrollPane(resultArea);
+                    scrollPane.setPreferredSize(new Dimension(500, 300));
+
+                    JOptionPane.showMessageDialog(LoginFrame.this,
+                            scrollPane,
+                            "Kết quả Upload CSV",
+                            JOptionPane.INFORMATION_MESSAGE);
+
+                    // Open Admin Frame
+                    com.university.sms.client.gui.admin.AdminMainFrame adminFrame = new com.university.sms.client.gui.admin.AdminMainFrame(
+                            admin, csvConnection);
+                    adminFrame.setVisible(true);
+
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(LoginFrame.this,
+                            "Lỗi khi upload CSV: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        uploadWorker.execute();
+        progressDialog.setVisible(true);
+    }
 }
-
-
-
-

@@ -13,34 +13,35 @@ import java.util.logging.Logger;
 
 /**
  * DAO class cho bảng notifications
- * Quản lý CRUD operations cho thông báo
+ * ✅ REFACTORED: Dùng sender_username, target_code thay vì sender_id, target_id
  */
 public class NotificationDAO {
     private static final Logger LOGGER = Logger.getLogger(NotificationDAO.class.getName());
 
     /**
-     * Tạo thông báo mới
+     * ✅ REFACTORED: Tạo thông báo mới
      */
     public boolean createNotification(Notification notification) throws SQLException {
-        String sql = "INSERT INTO notifications (title, content, sender_id, target_type, target_id, priority, expires_at) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO notifications (title, content, sender_username, target_type, target_code, priority, expires_at) "
+                +
+                "VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             stmt.setString(1, notification.getTitle());
             stmt.setString(2, notification.getContent());
-            stmt.setInt(3, notification.getSenderId());
+            stmt.setString(3, notification.getSenderUsername());
             stmt.setString(4, notification.getTargetType().name().toLowerCase());
-            
-            if (notification.getTargetId() != null) {
-                stmt.setInt(5, notification.getTargetId());
+
+            if (notification.getTargetCode() != null && !notification.getTargetCode().isEmpty()) {
+                stmt.setString(5, notification.getTargetCode());
             } else {
-                stmt.setNull(5, Types.INTEGER);
+                stmt.setNull(5, Types.VARCHAR);
             }
-            
+
             stmt.setString(6, notification.getPriority().name().toLowerCase());
-            
+
             if (notification.getExpiresAt() != null) {
                 stmt.setTimestamp(7, notification.getExpiresAt());
             } else {
@@ -68,33 +69,33 @@ public class NotificationDAO {
     }
 
     /**
-     * Cập nhật thông báo
+     * ✅ REFACTORED: Cập nhật thông báo
      */
     public boolean updateNotification(Notification notification) throws SQLException {
         String sql = "UPDATE notifications SET title = ?, content = ?, target_type = ?, " +
-                     "target_id = ?, priority = ?, expires_at = ? WHERE notification_id = ?";
+                "target_code = ?, priority = ?, expires_at = ? WHERE notification_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, notification.getTitle());
             stmt.setString(2, notification.getContent());
             stmt.setString(3, notification.getTargetType().name().toLowerCase());
-            
-            if (notification.getTargetId() != null) {
-                stmt.setInt(4, notification.getTargetId());
+
+            if (notification.getTargetCode() != null && !notification.getTargetCode().isEmpty()) {
+                stmt.setString(4, notification.getTargetCode());
             } else {
-                stmt.setNull(4, Types.INTEGER);
+                stmt.setNull(4, Types.VARCHAR);
             }
-            
+
             stmt.setString(5, notification.getPriority().name().toLowerCase());
-            
+
             if (notification.getExpiresAt() != null) {
                 stmt.setTimestamp(6, notification.getExpiresAt());
             } else {
                 stmt.setNull(6, Types.TIMESTAMP);
             }
-            
+
             stmt.setInt(7, notification.getNotificationId());
 
             int affectedRows = stmt.executeUpdate();
@@ -114,7 +115,7 @@ public class NotificationDAO {
         String sql = "DELETE FROM notifications WHERE notification_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, notificationId);
             int affectedRows = stmt.executeUpdate();
@@ -134,7 +135,7 @@ public class NotificationDAO {
         String sql = "UPDATE notifications SET is_read = TRUE WHERE notification_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, notificationId);
             int affectedRows = stmt.executeUpdate();
@@ -147,19 +148,21 @@ public class NotificationDAO {
     }
 
     /**
-     * Đánh dấu tất cả thông báo của user đã đọc
+     * ✅ REFACTORED: Đánh dấu tất cả thông báo của user đã đọc (dùng username)
      */
-    public boolean markAllAsReadForUser(int userId) throws SQLException {
+    public boolean markAllAsReadForUser(String username) throws SQLException {
+        // Get student_code from username
         String sql = "UPDATE notifications SET is_read = TRUE " +
-                     "WHERE (target_type = 'student' AND target_id = ?) " +
-                     "OR target_type = 'all'";
+                "WHERE (target_type = 'student' AND target_code = (SELECT student_code FROM students WHERE username = ?)) "
+                +
+                "OR target_type = 'all'";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
+            stmt.setString(1, username);
             int affectedRows = stmt.executeUpdate();
-            LOGGER.info("Marked all notifications as read for user_id: " + userId);
+            LOGGER.info("Marked all notifications as read for username: " + username);
             return affectedRows > 0;
 
         } catch (SQLException e) {
@@ -173,12 +176,12 @@ public class NotificationDAO {
      */
     public Notification findById(int notificationId) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
-                     "FROM notifications n " +
-                     "JOIN users u ON n.sender_id = u.user_id " +
-                     "WHERE n.notification_id = ?";
+                "FROM notifications n " +
+                "JOIN users u ON n.sender_username = u.username " +
+                "WHERE n.notification_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setInt(1, notificationId);
 
@@ -197,33 +200,30 @@ public class NotificationDAO {
     }
 
     /**
-     * Lấy tất cả thông báo của một user (student)
+     * ✅ REFACTORED: Lấy tất cả thông báo của một user (student) - dùng username
      * Bao gồm: thông báo cho cá nhân, cho lớp, cho khoa, và cho tất cả
      */
-    public List<Notification> getNotificationsByUser(int userId) throws SQLException {
+    public List<Notification> getNotificationsByUser(String username) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
-                     "FROM notifications n " +
-                     "JOIN users u ON n.sender_id = u.user_id " +
-                     "WHERE (n.target_type = 'all') " +
-                     "   OR (n.target_type = 'student' AND n.target_id = ?) " +
-                     "   OR (n.target_type = 'class' AND n.target_id IN (" +
-                     "      SELECT s.class_id FROM students s WHERE s.user_id = ?" +
-                     "   )) " +
-                     "   OR (n.target_type = 'faculty' AND n.target_id IN (" +
-                     "      SELECT c.faculty_id FROM students s " +
-                     "      JOIN classes c ON s.class_id = c.class_id " +
-                     "      WHERE s.user_id = ?" +
-                     "   )) " +
-                     "ORDER BY n.priority DESC, n.created_at DESC";
+                "FROM notifications n " +
+                "JOIN users u ON n.sender_username = u.username " +
+                "WHERE (n.target_type = 'all') " +
+                "   OR (n.target_type = 'student' AND n.target_code = (SELECT student_code FROM students WHERE username = ?)) "
+                +
+                "   OR (n.target_type = 'class' AND n.target_code = (SELECT class_code FROM students WHERE username = ?)) "
+                +
+                "   OR (n.target_type = 'faculty' AND n.target_code = (SELECT faculty_code FROM students WHERE username = ?)) "
+                +
+                "ORDER BY n.priority DESC, n.created_at DESC";
 
         List<Notification> notifications = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
-            stmt.setInt(2, userId);
-            stmt.setInt(3, userId);
+            stmt.setString(1, username);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -240,34 +240,31 @@ public class NotificationDAO {
     }
 
     /**
-     * Lấy thông báo chưa đọc của user
+     * ✅ REFACTORED: Lấy thông báo chưa đọc của user
      */
-    public List<Notification> getUnreadNotificationsByUser(int userId) throws SQLException {
+    public List<Notification> getUnreadNotificationsByUser(String username) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
-                     "FROM notifications n " +
-                     "JOIN users u ON n.sender_id = u.user_id " +
-                     "WHERE n.is_read = FALSE AND (" +
-                     "   (n.target_type = 'all') " +
-                     "   OR (n.target_type = 'student' AND n.target_id = ?) " +
-                     "   OR (n.target_type = 'class' AND n.target_id IN (" +
-                     "      SELECT s.class_id FROM students s WHERE s.user_id = ?" +
-                     "   )) " +
-                     "   OR (n.target_type = 'faculty' AND n.target_id IN (" +
-                     "      SELECT c.faculty_id FROM students s " +
-                     "      JOIN classes c ON s.class_id = c.class_id " +
-                     "      WHERE s.user_id = ?" +
-                     "   )) " +
-                     ") " +
-                     "ORDER BY n.priority DESC, n.created_at DESC";
+                "FROM notifications n " +
+                "JOIN users u ON n.sender_username = u.username " +
+                "WHERE n.is_read = FALSE AND (" +
+                "   (n.target_type = 'all') " +
+                "   OR (n.target_type = 'student' AND n.target_code = (SELECT student_code FROM students WHERE username = ?)) "
+                +
+                "   OR (n.target_type = 'class' AND n.target_code = (SELECT class_code FROM students WHERE username = ?)) "
+                +
+                "   OR (n.target_type = 'faculty' AND n.target_code = (SELECT faculty_code FROM students WHERE username = ?)) "
+                +
+                ") " +
+                "ORDER BY n.priority DESC, n.created_at DESC";
 
         List<Notification> notifications = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
-            stmt.setInt(2, userId);
-            stmt.setInt(3, userId);
+            stmt.setString(1, username);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -288,14 +285,14 @@ public class NotificationDAO {
      */
     public List<Notification> getAllNotifications() throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
-                     "FROM notifications n " +
-                     "JOIN users u ON n.sender_id = u.user_id " +
-                     "ORDER BY n.created_at DESC";
+                "FROM notifications n " +
+                "JOIN users u ON n.sender_username = u.username " +
+                "ORDER BY n.created_at DESC";
 
         List<Notification> notifications = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -312,21 +309,21 @@ public class NotificationDAO {
     }
 
     /**
-     * Lấy thông báo theo lớp
+     * ✅ REFACTORED: Lấy thông báo theo lớp (dùng class_code)
      */
-    public List<Notification> getNotificationsByClass(int classId) throws SQLException {
+    public List<Notification> getNotificationsByClass(String classCode) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
-                     "FROM notifications n " +
-                     "JOIN users u ON n.sender_id = u.user_id " +
-                     "WHERE n.target_type = 'class' AND n.target_id = ? " +
-                     "ORDER BY n.created_at DESC";
+                "FROM notifications n " +
+                "JOIN users u ON n.sender_username = u.username " +
+                "WHERE n.target_type = 'class' AND n.target_code = ? " +
+                "ORDER BY n.created_at DESC";
 
         List<Notification> notifications = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, classId);
+            stmt.setString(1, classCode);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -343,21 +340,21 @@ public class NotificationDAO {
     }
 
     /**
-     * Lấy thông báo theo faculty
+     * ✅ REFACTORED: Lấy thông báo theo faculty (dùng faculty_code)
      */
-    public List<Notification> getNotificationsByFaculty(int facultyId) throws SQLException {
+    public List<Notification> getNotificationsByFaculty(String facultyCode) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
-                     "FROM notifications n " +
-                     "JOIN users u ON n.sender_id = u.user_id " +
-                     "WHERE n.target_type = 'faculty' AND n.target_id = ? " +
-                     "ORDER BY n.created_at DESC";
+                "FROM notifications n " +
+                "JOIN users u ON n.sender_username = u.username " +
+                "WHERE n.target_type = 'faculty' AND n.target_code = ? " +
+                "ORDER BY n.created_at DESC";
 
         List<Notification> notifications = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, facultyId);
+            stmt.setString(1, facultyCode);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -374,30 +371,27 @@ public class NotificationDAO {
     }
 
     /**
-     * Đếm số thông báo chưa đọc của user
+     * ✅ REFACTORED: Đếm số thông báo chưa đọc của user
      */
-    public int countUnreadByUser(int userId) throws SQLException {
+    public int countUnreadByUser(String username) throws SQLException {
         String sql = "SELECT COUNT(*) as unread_count " +
-                     "FROM notifications n " +
-                     "WHERE n.is_read = FALSE AND (" +
-                     "   (n.target_type = 'all') " +
-                     "   OR (n.target_type = 'student' AND n.target_id = ?) " +
-                     "   OR (n.target_type = 'class' AND n.target_id IN (" +
-                     "      SELECT s.class_id FROM students s WHERE s.user_id = ?" +
-                     "   )) " +
-                     "   OR (n.target_type = 'faculty' AND n.target_id IN (" +
-                     "      SELECT c.faculty_id FROM students s " +
-                     "      JOIN classes c ON s.class_id = c.class_id " +
-                     "      WHERE s.user_id = ?" +
-                     "   )) " +
-                     ")";
+                "FROM notifications n " +
+                "WHERE n.is_read = FALSE AND (" +
+                "   (n.target_type = 'all') " +
+                "   OR (n.target_type = 'student' AND n.target_code = (SELECT student_code FROM students WHERE username = ?)) "
+                +
+                "   OR (n.target_type = 'class' AND n.target_code = (SELECT class_code FROM students WHERE username = ?)) "
+                +
+                "   OR (n.target_type = 'faculty' AND n.target_code = (SELECT faculty_code FROM students WHERE username = ?)) "
+                +
+                ")";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
-            stmt.setInt(2, userId);
-            stmt.setInt(3, userId);
+            stmt.setString(1, username);
+            stmt.setString(2, username);
+            stmt.setString(3, username);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -414,7 +408,7 @@ public class NotificationDAO {
     }
 
     /**
-     * Map ResultSet to Notification object
+     * ✅ REFACTORED: Map ResultSet to Notification object
      */
     private Notification mapResultSetToNotification(ResultSet rs) throws SQLException {
         Notification notification = new Notification();
@@ -422,17 +416,20 @@ public class NotificationDAO {
         notification.setNotificationId(rs.getInt("notification_id"));
         notification.setTitle(rs.getString("title"));
         notification.setContent(rs.getString("content"));
-        notification.setSenderId(rs.getInt("sender_id"));
-        
+        notification.setSenderUsername(rs.getString("sender_username"));
+
         // Convert string to enum
         String targetTypeStr = rs.getString("target_type").toUpperCase();
         notification.setTargetType(TargetType.valueOf(targetTypeStr));
-        
-        notification.setTargetId((Integer) rs.getObject("target_id"));
-        
+
+        String targetCode = rs.getString("target_code");
+        if (!rs.wasNull()) {
+            notification.setTargetCode(targetCode);
+        }
+
         String priorityStr = rs.getString("priority").toUpperCase();
         notification.setPriority(Priority.valueOf(priorityStr));
-        
+
         notification.setRead(rs.getBoolean("is_read"));
         notification.setCreatedAt(rs.getTimestamp("created_at"));
         notification.setExpiresAt(rs.getTimestamp("expires_at"));
@@ -444,4 +441,3 @@ public class NotificationDAO {
         return notification;
     }
 }
-

@@ -7,9 +7,6 @@ import java.math.BigDecimal;
 import java.util.List;
 import java.util.logging.Logger;
 
-/**
- * Service xử lý các thao tác liên quan đến sinh viên
- */
 public class StudentService {
     private static final Logger LOGGER = Logger.getLogger(StudentService.class.getName());
 
@@ -19,26 +16,21 @@ public class StudentService {
         this.studentDAO = new StudentDAO();
     }
 
-    /**
-     * Thêm sinh viên mới
-     */
     public boolean addStudent(Student student) {
         if (student == null) {
             LOGGER.warning("Cannot add student: Student object is null");
             return false;
         }
 
-        // Validate required fields
-        if (student.getUserId() <= 0 ||
+        if (student.getUsername() == null || student.getUsername().trim().isEmpty() ||
                 student.getStudentCode() == null || student.getStudentCode().trim().isEmpty() ||
-                student.getFacultyId() <= 0 ||
+                student.getFacultyCode() == null || student.getFacultyCode().trim().isEmpty() ||
                 student.getAdmissionYear() <= 0) {
 
             LOGGER.warning("Cannot add student: Missing required fields");
             return false;
         }
 
-        // Check if student code already exists
         Student existingStudent = studentDAO.findByStudentCode(student.getStudentCode());
         if (existingStudent != null) {
             LOGGER.warning("Cannot add student: Student code already exists - " + student.getStudentCode());
@@ -57,9 +49,6 @@ public class StudentService {
         }
     }
 
-    /**
-     * Lấy thông tin sinh viên theo ID
-     */
     public Student getStudentById(int studentId) {
         if (studentId <= 0) {
             return null;
@@ -73,9 +62,6 @@ public class StudentService {
         }
     }
 
-    /**
-     * Lấy thông tin sinh viên theo mã sinh viên
-     */
     public Student getStudentByCode(String studentCode) {
         if (studentCode == null || studentCode.trim().isEmpty()) {
             return null;
@@ -90,7 +76,6 @@ public class StudentService {
     }
 
     /**
-     * Lấy thông tin sinh viên theo user ID
      */
     public Student getStudentByUserId(int userId) {
         if (userId <= 0) {
@@ -98,7 +83,12 @@ public class StudentService {
         }
 
         try {
-            return studentDAO.findByUserId(userId);
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.model.User user = userDAO.findById(userId);
+            if (user == null) {
+                return null;
+            }
+            return studentDAO.findByUsername(user.getUsername());
         } catch (Exception e) {
             LOGGER.severe("Error getting student by user ID: " + e.getMessage());
             return null;
@@ -106,15 +96,14 @@ public class StudentService {
     }
 
     /**
-     * Lấy danh sách sinh viên theo lớp
      */
-    public List<Student> getStudentsByClass(int classId) {
-        if (classId <= 0) {
+    public List<Student> getStudentsByClass(String classCode) {
+        if (classCode == null || classCode.trim().isEmpty()) {
             return List.of();
         }
 
         try {
-            return studentDAO.findByClassId(classId);
+            return studentDAO.findByClassCode(classCode);
         } catch (Exception e) {
             LOGGER.severe("Error getting students by class: " + e.getMessage());
             return List.of();
@@ -122,15 +111,14 @@ public class StudentService {
     }
 
     /**
-     * Lấy danh sách sinh viên theo khoa
      */
-    public List<Student> getStudentsByFaculty(int facultyId) {
-        if (facultyId <= 0) {
+    public List<Student> getStudentsByFaculty(String facultyCode) {
+        if (facultyCode == null || facultyCode.trim().isEmpty()) {
             return List.of();
         }
 
         try {
-            return studentDAO.findByFacultyId(facultyId);
+            return studentDAO.findByFacultyCode(facultyCode);
         } catch (Exception e) {
             LOGGER.severe("Error getting students by faculty: " + e.getMessage());
             return List.of();
@@ -149,7 +137,6 @@ public class StudentService {
      */
     public List<Student> searchStudents(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
-            // Nếu keyword rỗng, trả về tất cả sinh viên
             return getAllStudents();
         }
 
@@ -183,18 +170,23 @@ public class StudentService {
     }
 
     /**
-     * Cập nhật trạng thái sinh viên
      */
-    public boolean updateStudentStatus(int studentId, Student.StudentStatus status) {
-        if (studentId <= 0 || status == null) {
+    public boolean updateStudentStatus(String studentCode, Student.StudentStatus status) {
+        if (studentCode == null || studentCode.trim().isEmpty() || status == null) {
             LOGGER.warning("Cannot update student status: Invalid input");
             return false;
         }
 
         try {
-            boolean success = studentDAO.updateStudentStatus(studentId, status);
+            Student student = studentDAO.findByStudentCode(studentCode);
+            if (student == null) {
+                LOGGER.warning("Cannot update student status: Student not found - " + studentCode);
+                return false;
+            }
+
+            boolean success = studentDAO.updateStudentStatus(student.getStudentId(), status);
             if (success) {
-                LOGGER.info("Student status updated successfully: " + studentId + " -> " + status);
+                LOGGER.info("Student status updated successfully: " + studentCode + " -> " + status);
             }
             return success;
         } catch (Exception e) {
@@ -204,19 +196,25 @@ public class StudentService {
     }
 
     /**
-     * Cập nhật GPA và tổng tín chỉ
      */
-    public boolean updateGpaAndCredits(int studentId, BigDecimal gpa, int totalCredits) {
-        if (studentId <= 0 || gpa == null || gpa.compareTo(BigDecimal.ZERO) < 0 ||
+    public boolean updateGpaAndCredits(String studentCode, BigDecimal gpa, int totalCredits) {
+        if (studentCode == null || studentCode.trim().isEmpty() || gpa == null ||
+                gpa.compareTo(BigDecimal.ZERO) < 0 ||
                 gpa.compareTo(new BigDecimal("4.0")) > 0 || totalCredits < 0) {
             LOGGER.warning("Cannot update GPA and credits: Invalid input");
             return false;
         }
 
         try {
-            boolean success = studentDAO.updateGpaAndCredits(studentId, gpa, totalCredits);
+            Student student = studentDAO.findByStudentCode(studentCode);
+            if (student == null) {
+                LOGGER.warning("Cannot update GPA and credits: Student not found - " + studentCode);
+                return false;
+            }
+
+            boolean success = studentDAO.updateGpaAndCredits(student.getStudentId(), gpa, totalCredits);
             if (success) {
-                LOGGER.info("Student GPA and credits updated successfully: " + studentId);
+                LOGGER.info("Student GPA and credits updated successfully: " + studentCode);
             }
             return success;
         } catch (Exception e) {
@@ -226,26 +224,26 @@ public class StudentService {
     }
 
     /**
-     * Chuyển lớp cho sinh viên
      */
-    public boolean transferStudent(int studentId, int newClassId) {
-        if (studentId <= 0 || newClassId <= 0) {
+    public boolean transferStudent(String studentCode, String newClassCode) {
+        if (studentCode == null || studentCode.trim().isEmpty() ||
+                newClassCode == null || newClassCode.trim().isEmpty()) {
             LOGGER.warning("Cannot transfer student: Invalid input");
             return false;
         }
 
         try {
-            Student student = studentDAO.findById(studentId);
+            Student student = studentDAO.findByStudentCode(studentCode);
             if (student == null) {
-                LOGGER.warning("Cannot transfer student: Student not found - " + studentId);
+                LOGGER.warning("Cannot transfer student: Student not found - " + studentCode);
                 return false;
             }
 
-            student.setClassId(newClassId);
+            student.setClassCode(newClassCode);
             boolean success = studentDAO.updateStudent(student);
 
             if (success) {
-                LOGGER.info("Student transferred successfully: " + studentId + " -> Class " + newClassId);
+                LOGGER.info("Student transferred successfully: " + studentCode + " -> Class " + newClassCode);
             }
             return success;
         } catch (Exception e) {
@@ -272,11 +270,14 @@ public class StudentService {
     }
 
     /**
-     * Kiểm tra xem sinh viên có hoạt động không
      */
-    public boolean isStudentActive(int studentId) {
+    public boolean isStudentActive(String studentCode) {
+        if (studentCode == null || studentCode.trim().isEmpty()) {
+            return false;
+        }
+
         try {
-            Student student = studentDAO.findById(studentId);
+            Student student = studentDAO.findByStudentCode(studentCode);
             return student != null && student.getStudentStatus() == Student.StudentStatus.ACTIVE;
         } catch (Exception e) {
             LOGGER.severe("Error checking student active status: " + e.getMessage());
@@ -285,11 +286,10 @@ public class StudentService {
     }
 
     /**
-     * Lấy thống kê sinh viên theo khoa
      */
-    public StudentStatistics getStudentStatistics(int facultyId) {
+    public StudentStatistics getStudentStatistics(String facultyCode) {
         try {
-            List<Student> students = studentDAO.findByFacultyId(facultyId);
+            List<Student> students = studentDAO.findByFacultyCode(facultyCode);
 
             StudentStatistics stats = new StudentStatistics();
             stats.setTotalStudents(students.size());
@@ -322,24 +322,22 @@ public class StudentService {
     }
 
     /**
-     * Validate student data
      */
     private boolean isValidStudentCode(String studentCode) {
         if (studentCode == null || studentCode.trim().isEmpty()) {
             return false;
         }
 
-        // Student code format: SV + year + sequential number (e.g., SV2024001)
         String codeRegex = "^SV\\d{4}\\d{3}$";
         return studentCode.matches(codeRegex);
     }
 
-    /**
-     * Generate student code
-     */
-    public String generateStudentCode(int admissionYear, int facultyId) {
-        // This is a simple implementation - in a real system, you'd want to ensure
-        // uniqueness
+    public String generateStudentCode(int admissionYear, String facultyCode) {
+        if (facultyCode == null || facultyCode.trim().isEmpty()) {
+            LOGGER.warning("Cannot generate student code: Faculty code is required");
+            return null;
+        }
+
         int sequence = 1;
         String code;
 
@@ -351,9 +349,6 @@ public class StudentService {
         return sequence <= 999 ? code : null;
     }
 
-    /**
-     * Inner class for student statistics
-     */
     public static class StudentStatistics {
         private int totalStudents;
         private int activeStudents;
@@ -361,7 +356,6 @@ public class StudentService {
         private int suspendedStudents;
         private int droppedStudents;
 
-        // Getters and setters
         public int getTotalStudents() {
             return totalStudents;
         }
@@ -403,9 +397,6 @@ public class StudentService {
         }
     }
 
-    /**
-     * Lấy tổng số lượng sinh viên
-     */
     public int getTotalCount() {
         try {
             return studentDAO.getTotalCount();

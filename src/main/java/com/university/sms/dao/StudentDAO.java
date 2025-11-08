@@ -12,28 +12,29 @@ import java.util.logging.Logger;
 
 /**
  * Data Access Object cho Student
+ * ✅ REFACTORED: Dùng username, class_code, faculty_code thay vì IDs
  */
 public class StudentDAO {
     private static final Logger LOGGER = Logger.getLogger(StudentDAO.class.getName());
 
     /**
-     * Thêm sinh viên mới
+     * ✅ REFACTORED: Thêm sinh viên mới (dùng codes)
      */
     public boolean addStudent(Student student) {
-        String sql = "INSERT INTO students (user_id, student_code, class_id, faculty_id, admission_year, " +
+        String sql = "INSERT INTO students (username, student_code, class_code, faculty_code, admission_year, " +
                 "birth_date, gender, citizen_id, emergency_contact, emergency_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            stmt.setInt(1, student.getUserId());
+            stmt.setString(1, student.getUsername());
             stmt.setString(2, student.getStudentCode());
-            if (student.getClassId() != null) {
-                stmt.setInt(3, student.getClassId());
+            if (student.getClassCode() != null && !student.getClassCode().isEmpty()) {
+                stmt.setString(3, student.getClassCode());
             } else {
-                stmt.setNull(3, Types.INTEGER);
+                stmt.setNull(3, Types.VARCHAR);
             }
-            stmt.setInt(4, student.getFacultyId());
+            stmt.setString(4, student.getFacultyCode());
             stmt.setInt(5, student.getAdmissionYear());
             stmt.setDate(6, student.getBirthDate());
             if (student.getGender() != null) {
@@ -65,7 +66,78 @@ public class StudentDAO {
     }
 
     /**
-     * Thêm mới hoặc cập nhật nếu đã tồn tại theo student_code
+     * ✅ REFACTORED: Lưu student (insert or update)
+     */
+    public boolean save(Student student) {
+        if (student.getStudentId() > 0) {
+            // Check if exists
+            Student existing = findById(student.getStudentId());
+            if (existing != null) {
+                return updateStudent(student);
+            }
+        }
+        // Insert new student with ID from CSV
+        return insertWithId(student);
+    }
+
+    /**
+     * ✅ NEW: Insert student with specific ID (for CSV import)
+     */
+    private boolean insertWithId(Student student) {
+        String sql = student.getStudentId() > 0
+                ? "INSERT INTO students (student_id, username, student_code, class_code, faculty_code, admission_year, birth_date, gender, citizen_id, emergency_contact, emergency_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                : "INSERT INTO students (username, student_code, class_code, faculty_code, admission_year, birth_date, gender, citizen_id, emergency_contact, emergency_phone) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            int paramIndex = 1;
+            if (student.getStudentId() > 0) {
+                stmt.setInt(paramIndex++, student.getStudentId());
+            }
+
+            stmt.setString(paramIndex++, student.getUsername());
+            stmt.setString(paramIndex++, student.getStudentCode());
+            if (student.getClassCode() != null && !student.getClassCode().isEmpty()) {
+                stmt.setString(paramIndex++, student.getClassCode());
+            } else {
+                stmt.setNull(paramIndex++, Types.VARCHAR);
+            }
+            stmt.setString(paramIndex++, student.getFacultyCode());
+            stmt.setInt(paramIndex++, student.getAdmissionYear());
+            stmt.setDate(paramIndex++, student.getBirthDate());
+            if (student.getGender() != null) {
+                stmt.setString(paramIndex++, student.getGender().name().toLowerCase());
+            } else {
+                stmt.setNull(paramIndex++, Types.VARCHAR);
+            }
+            stmt.setString(paramIndex++, student.getCitizenId());
+            stmt.setString(paramIndex++, student.getEmergencyContact());
+            stmt.setString(paramIndex++, student.getEmergencyPhone());
+
+            int result = stmt.executeUpdate();
+
+            if (result > 0) {
+                if (student.getStudentId() == 0) {
+                    try (ResultSet rs = stmt.getGeneratedKeys()) {
+                        if (rs.next()) {
+                            student.setStudentId(rs.getInt(1));
+                        }
+                    }
+                }
+                LOGGER.info("Student inserted successfully: " + student.getStudentCode());
+                return true;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error inserting student: " + student.getStudentCode(), e);
+        }
+
+        return false;
+    }
+
+    /**
+     * ✅ REFACTORED: Thêm mới hoặc cập nhật nếu đã tồn tại theo student_code
      */
     public boolean addOrUpdate(Student student) {
         try {
@@ -83,20 +155,20 @@ public class StudentDAO {
     }
 
     /**
-     * Tìm sinh viên theo user_id
+     * ✅ REFACTORED: Tìm sinh viên theo username
      */
-    public Student findByUserId(int userId) {
+    public Student findByUsername(String username) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                "WHERE s.user_id = ?";
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
+                "WHERE s.username = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
+            stmt.setString(1, username);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
@@ -105,21 +177,21 @@ public class StudentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding student by user_id: " + userId, e);
+            LOGGER.log(Level.SEVERE, "Error finding student by username: " + username, e);
         }
 
         return null;
     }
 
     /**
-     * Tìm sinh viên theo ID
+     * ✅ REFACTORED: Tìm sinh viên theo ID
      */
     public Student findById(int studentId) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
                 "WHERE s.student_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -141,14 +213,14 @@ public class StudentDAO {
     }
 
     /**
-     * Tìm sinh viên theo mã sinh viên
+     * ✅ REFACTORED: Tìm sinh viên theo mã sinh viên
      */
     public Student findByStudentCode(String studentCode) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
                 "WHERE s.student_code = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -170,22 +242,22 @@ public class StudentDAO {
     }
 
     /**
-     * Lấy danh sách sinh viên theo lớp
+     * ✅ REFACTORED: Lấy danh sách sinh viên theo lớp (dùng class_code)
      */
-    public List<Student> findByClassId(int classId) {
+    public List<Student> findByClassCode(String classCode) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                "WHERE s.class_id = ? ORDER BY s.student_code";
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
+                "WHERE s.class_code = ? ORDER BY s.student_code";
 
         List<Student> students = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, classId);
+            stmt.setString(1, classCode);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -194,29 +266,29 @@ public class StudentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding students by class ID: " + classId, e);
+            LOGGER.log(Level.SEVERE, "Error finding students by class code: " + classCode, e);
         }
 
         return students;
     }
 
     /**
-     * Lấy danh sách sinh viên theo khoa
+     * ✅ REFACTORED: Lấy danh sách sinh viên theo khoa (dùng faculty_code)
      */
-    public List<Student> findByFacultyId(int facultyId) {
+    public List<Student> findByFacultyCode(String facultyCode) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
-                "WHERE s.faculty_id = ? ORDER BY s.student_code";
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
+                "WHERE s.faculty_code = ? ORDER BY s.student_code";
 
         List<Student> students = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, facultyId);
+            stmt.setString(1, facultyCode);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -225,23 +297,23 @@ public class StudentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding students by faculty ID: " + facultyId, e);
+            LOGGER.log(Level.SEVERE, "Error finding students by faculty code: " + facultyCode, e);
         }
 
         return students;
     }
 
     /**
-     * Lấy tất cả sinh viên (chỉ active)
+     * ✅ REFACTORED: Lấy tất cả sinh viên (chỉ active)
      */
     public List<Student> findAll() {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, f.faculty_name, c.class_name "
                 +
                 ", dor.source AS data_source " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
                 "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
                 "WHERE u.is_active = TRUE " +
                 "ORDER BY CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
@@ -265,16 +337,16 @@ public class StudentDAO {
     }
 
     /**
-     * Lấy tất cả sinh viên (bao gồm cả đã vô hiệu hóa)
+     * ✅ REFACTORED: Lấy tất cả sinh viên (bao gồm cả đã vô hiệu hóa)
      */
     public List<Student> findAllIncludeInactive() {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, f.faculty_name, c.class_name "
                 +
                 ", dor.source AS data_source " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
                 "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
                 "ORDER BY u.is_active DESC, CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
 
@@ -297,14 +369,14 @@ public class StudentDAO {
     }
 
     /**
-     * Tìm kiếm sinh viên theo từ khóa
+     * ✅ REFACTORED: Tìm kiếm sinh viên theo từ khóa
      */
     public List<Student> searchStudents(String keyword) {
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.user_id = u.user_id " +
-                "JOIN faculties f ON s.faculty_id = f.faculty_id " +
-                "LEFT JOIN classes c ON s.class_id = c.class_id " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN classes c ON s.class_code = c.class_code " +
                 "WHERE s.student_code LIKE ? OR u.full_name LIKE ? OR u.email LIKE ? " +
                 "ORDER BY s.student_code";
 
@@ -332,7 +404,7 @@ public class StudentDAO {
     }
 
     /**
-     * Cập nhật thông tin sinh viên
+     * ✅ REFACTORED: Cập nhật thông tin sinh viên
      */
     public boolean updateStudent(Student student) {
         Connection conn = null;
@@ -341,25 +413,25 @@ public class StudentDAO {
             conn.setAutoCommit(false); // Start transaction
 
             // Update user information first (full_name, email, phone)
-            String userSql = "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE user_id = ?";
+            String userSql = "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE username = ?";
             try (PreparedStatement userStmt = conn.prepareStatement(userSql)) {
                 userStmt.setString(1, student.getFullName());
                 userStmt.setString(2, student.getEmail());
                 userStmt.setString(3, student.getPhone());
-                userStmt.setInt(4, student.getUserId());
+                userStmt.setString(4, student.getUsername());
                 userStmt.executeUpdate();
             }
 
             // Update student information
-            String studentSql = "UPDATE students SET class_id = ?, admission_year = ?, birth_date = ?, " +
+            String studentSql = "UPDATE students SET class_code = ?, admission_year = ?, birth_date = ?, " +
                     "gender = ?, citizen_id = ?, emergency_contact = ?, emergency_phone = ?, " +
                     "student_status = ? WHERE student_id = ?";
 
             try (PreparedStatement studentStmt = conn.prepareStatement(studentSql)) {
-                if (student.getClassId() != null) {
-                    studentStmt.setInt(1, student.getClassId());
+                if (student.getClassCode() != null && !student.getClassCode().isEmpty()) {
+                    studentStmt.setString(1, student.getClassCode());
                 } else {
-                    studentStmt.setNull(1, Types.INTEGER);
+                    studentStmt.setNull(1, Types.VARCHAR);
                 }
                 studentStmt.setInt(2, student.getAdmissionYear());
                 studentStmt.setDate(3, student.getBirthDate());
@@ -484,20 +556,20 @@ public class StudentDAO {
     }
 
     /**
-     * Map ResultSet to Student object
+     * ✅ REFACTORED: Map ResultSet to Student object
      */
     private Student mapResultSetToStudent(ResultSet rs) throws SQLException {
         Student student = new Student();
         student.setStudentId(rs.getInt("student_id"));
-        student.setUserId(rs.getInt("user_id"));
+        student.setUsername(rs.getString("username"));
         student.setStudentCode(rs.getString("student_code"));
 
-        int classId = rs.getInt("class_id");
+        String classCode = rs.getString("class_code");
         if (!rs.wasNull()) {
-            student.setClassId(classId);
+            student.setClassCode(classCode);
         }
 
-        student.setFacultyId(rs.getInt("faculty_id"));
+        student.setFacultyCode(rs.getString("faculty_code"));
         student.setAdmissionYear(rs.getInt("admission_year"));
 
         String status = rs.getString("student_status");

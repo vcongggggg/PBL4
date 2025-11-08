@@ -6,19 +6,31 @@ import java.sql.Timestamp;
 /**
  * Model class cho bảng notifications (thông báo)
  * Hỗ trợ gửi thông báo đến: tất cả, khoa, lớp, sinh viên cụ thể
+ * ✅ REFACTORED: Dùng sender_username, target_code làm FK (client-safe)
  */
 public class Notification implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    // Primary key
     private int notificationId;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
     private String title;
     private String content;
-    private int senderId;
+    private String senderUsername; // FK to users.username
     private TargetType targetType;
-    private Integer targetId;
+    private String targetCode; // FK to faculty_code/class_code/student_code depending on targetType
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int senderId; // Legacy field, use senderUsername instead
+    @Deprecated
+    private Integer targetId; // Legacy field, use targetCode instead
+
     private Priority priority;
     private boolean isRead;
     private Timestamp createdAt;
+    private Timestamp updatedAt;
     private Timestamp expiresAt;
 
     // Related information (from joins)
@@ -83,6 +95,15 @@ public class Notification implements Serializable {
         this.targetType = TargetType.ALL;
     }
 
+    public Notification(String title, String content, String senderUsername) {
+        this();
+        this.title = title;
+        this.content = content;
+        this.senderUsername = senderUsername;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public Notification(String title, String content, int senderId) {
         this();
         this.title = title;
@@ -115,12 +136,12 @@ public class Notification implements Serializable {
         this.content = content;
     }
 
-    public int getSenderId() {
-        return senderId;
+    public String getSenderUsername() {
+        return senderUsername;
     }
 
-    public void setSenderId(int senderId) {
-        this.senderId = senderId;
+    public void setSenderUsername(String senderUsername) {
+        this.senderUsername = senderUsername;
     }
 
     public TargetType getTargetType() {
@@ -131,10 +152,31 @@ public class Notification implements Serializable {
         this.targetType = targetType;
     }
 
+    public String getTargetCode() {
+        return targetCode;
+    }
+
+    public void setTargetCode(String targetCode) {
+        this.targetCode = targetCode;
+    }
+
+    // Deprecated getters/setters (keep for backward compat)
+    @Deprecated
+    public int getSenderId() {
+        return senderId;
+    }
+
+    @Deprecated
+    public void setSenderId(int senderId) {
+        this.senderId = senderId;
+    }
+
+    @Deprecated
     public Integer getTargetId() {
         return targetId;
     }
 
+    @Deprecated
     public void setTargetId(Integer targetId) {
         this.targetId = targetId;
     }
@@ -161,6 +203,14 @@ public class Notification implements Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public Timestamp getExpiresAt() {
@@ -198,6 +248,7 @@ public class Notification implements Serializable {
 
     /**
      * Kiểm tra thông báo đã hết hạn chưa
+     * 
      * @return true nếu đã hết hạn
      */
     public boolean isExpired() {
@@ -209,6 +260,7 @@ public class Notification implements Serializable {
 
     /**
      * Lấy icon theo priority
+     * 
      * @return Tên icon
      */
     public String getPriorityIcon() {
@@ -238,4 +290,3 @@ public class Notification implements Serializable {
                 '}';
     }
 }
-

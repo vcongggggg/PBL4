@@ -11,20 +11,21 @@ import java.util.logging.Logger;
 
 /**
  * Data Access Object cho Course
+ * ✅ REFACTORED: Dùng subject_code, teacher_username, class_code thay vì IDs
  */
 public class CourseDAO {
     private static final Logger LOGGER = Logger.getLogger(CourseDAO.class.getName());
 
     /**
-     * Lấy tất cả khóa học
+     * ✅ REFACTORED: Lấy tất cả khóa học
      */
     public List<Course> findAll() {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name, dor.source AS data_source " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
                 "LEFT JOIN data_origin dor ON dor.entity_type = 'course' AND dor.entity_id = c.course_id " +
                 "ORDER BY CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), c.academic_year DESC, c.semester DESC, c.course_code";
 
@@ -62,9 +63,9 @@ public class CourseDAO {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
                 "WHERE c.course_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -86,15 +87,15 @@ public class CourseDAO {
     }
 
     /**
-     * Tìm khóa học theo mã khóa học
+     * ✅ REFACTORED: Tìm khóa học theo mã khóa học
      */
     public Course findByCourseCode(String courseCode) {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
                 "WHERE c.course_code = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
@@ -116,17 +117,16 @@ public class CourseDAO {
     }
 
     /**
-     * Tìm khóa học theo giáo viên
-     * Chỉ lấy khóa học ONGOING (đang diễn ra)
+     * ✅ REFACTORED: Tìm khóa học theo giáo viên (dùng username)
      */
-    public List<Course> findByTeacherId(int teacherId) {
+    public List<Course> findByTeacherUsername(String teacherUsername) {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
-                "WHERE c.teacher_id = ? " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
+                "WHERE c.teacher_username = ? " +
                 "AND c.course_status = 'ongoing' " +
                 "ORDER BY c.academic_year DESC, c.semester DESC";
 
@@ -135,7 +135,7 @@ public class CourseDAO {
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, teacherId);
+            stmt.setString(1, teacherUsername);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -144,30 +144,30 @@ public class CourseDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding courses by teacher ID: " + teacherId, e);
+            LOGGER.log(Level.SEVERE, "Error finding courses by teacher username: " + teacherUsername, e);
         }
 
         return courses;
     }
 
     /**
-     * Tìm khóa học theo lớp
+     * ✅ REFACTORED: Tìm khóa học theo lớp (dùng class_code)
      */
-    public List<Course> findByClassId(int classId) {
+    public List<Course> findByClassCode(String classCode) {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
-                "WHERE c.class_id = ? ORDER BY c.academic_year DESC, c.semester DESC";
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
+                "WHERE c.class_code = ? ORDER BY c.academic_year DESC, c.semester DESC";
 
         List<Course> courses = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, classId);
+            stmt.setString(1, classCode);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -176,7 +176,7 @@ public class CourseDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding courses by class ID: " + classId, e);
+            LOGGER.log(Level.SEVERE, "Error finding courses by class code: " + classCode, e);
         }
 
         return courses;
@@ -189,9 +189,9 @@ public class CourseDAO {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
                 "WHERE c.academic_year = ? AND c.semester = ? ORDER BY c.course_code";
 
         List<Course> courses = new ArrayList<>();
@@ -216,23 +216,23 @@ public class CourseDAO {
     }
 
     /**
-     * Tìm khóa học theo môn học
+     * ✅ REFACTORED: Tìm khóa học theo môn học (dùng subject_code)
      */
-    public List<Course> findBySubjectId(int subjectId) {
+    public List<Course> findBySubjectCode(String subjectCode) {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
-                "WHERE c.subject_id = ? ORDER BY c.academic_year DESC, c.semester DESC";
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
+                "WHERE c.subject_code = ? ORDER BY c.academic_year DESC, c.semester DESC";
 
         List<Course> courses = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, subjectId);
+            stmt.setString(1, subjectCode);
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -241,17 +241,17 @@ public class CourseDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding courses by subject ID: " + subjectId, e);
+            LOGGER.log(Level.SEVERE, "Error finding courses by subject code: " + subjectCode, e);
         }
 
         return courses;
     }
 
     /**
-     * Thêm khóa học mới
+     * ✅ REFACTORED: Thêm khóa học mới
      */
     public boolean addCourse(Course course) {
-        String sql = "INSERT INTO courses (course_code, subject_id, teacher_id, class_id, " +
+        String sql = "INSERT INTO courses (course_code, subject_code, teacher_username, class_code, " +
                 "academic_year, semester, schedule_day, schedule_time, room, max_students, " +
                 "start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
@@ -259,13 +259,13 @@ public class CourseDAO {
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             stmt.setString(1, course.getCourseCode());
-            stmt.setInt(2, course.getSubjectId());
-            stmt.setInt(3, course.getTeacherId());
+            stmt.setString(2, course.getSubjectCode());
+            stmt.setString(3, course.getTeacherUsername());
 
-            if (course.getClassId() != null) {
-                stmt.setInt(4, course.getClassId());
+            if (course.getClassCode() != null && !course.getClassCode().isEmpty()) {
+                stmt.setString(4, course.getClassCode());
             } else {
-                stmt.setNull(4, Types.INTEGER);
+                stmt.setNull(4, Types.VARCHAR);
             }
 
             stmt.setString(5, course.getAcademicYear());
@@ -291,6 +291,86 @@ public class CourseDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error adding course: " + course.getCourseCode(), e);
+        }
+
+        return false;
+    }
+
+    /**
+     * ✅ REFACTORED: Lưu course (insert nếu chưa có ID, update nếu đã có ID) - for
+     * CSV import
+     */
+    public boolean save(Course course) {
+        if (course.getCourseId() > 0) {
+            // Check if exists
+            Course existing = findById(course.getCourseId());
+            if (existing != null) {
+                // Update existing course
+                return updateCourse(course);
+            }
+        }
+        // Insert new course (có thể với ID từ CSV)
+        return insertWithId(course);
+    }
+
+    /**
+     * ✅ REFACTORED: Insert course with specific ID (for CSV import)
+     */
+    private boolean insertWithId(Course course) {
+        String sql = course.getCourseId() > 0
+                ? "INSERT INTO courses (course_id, course_code, subject_code, teacher_username, class_code, " +
+                        "academic_year, semester, schedule_day, schedule_time, room, max_students, " +
+                        "start_date, end_date, course_status, current_students) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                : "INSERT INTO courses (course_code, subject_code, teacher_username, class_code, " +
+                        "academic_year, semester, schedule_day, schedule_time, room, max_students, " +
+                        "start_date, end_date, course_status, current_students) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            int paramIndex = 1;
+            if (course.getCourseId() > 0) {
+                stmt.setInt(paramIndex++, course.getCourseId());
+            }
+
+            stmt.setString(paramIndex++, course.getCourseCode());
+            stmt.setString(paramIndex++, course.getSubjectCode());
+            stmt.setString(paramIndex++, course.getTeacherUsername());
+
+            if (course.getClassCode() != null && !course.getClassCode().isEmpty()) {
+                stmt.setString(paramIndex++, course.getClassCode());
+            } else {
+                stmt.setNull(paramIndex++, Types.VARCHAR);
+            }
+
+            stmt.setString(paramIndex++, course.getAcademicYear());
+            stmt.setInt(paramIndex++, course.getSemester());
+            stmt.setString(paramIndex++, course.getScheduleDay());
+            stmt.setString(paramIndex++, course.getScheduleTime());
+            stmt.setString(paramIndex++, course.getRoom());
+            stmt.setInt(paramIndex++, course.getMaxStudents());
+            stmt.setDate(paramIndex++, course.getStartDate());
+            stmt.setDate(paramIndex++, course.getEndDate());
+            stmt.setString(paramIndex++,
+                    course.getCourseStatus() != null ? course.getCourseStatus().name().toLowerCase() : "ongoing");
+            stmt.setInt(paramIndex++, course.getCurrentStudents());
+
+            int result = stmt.executeUpdate();
+
+            if (result > 0) {
+                if (course.getCourseId() == 0) {
+                    try (ResultSet rs = stmt.getGeneratedKeys()) {
+                        if (rs.next()) {
+                            course.setCourseId(rs.getInt(1));
+                        }
+                    }
+                }
+                LOGGER.info("Course inserted successfully with ID: " + course.getCourseId());
+                return true;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error inserting course with ID: " + course.getCourseCode(), e);
         }
 
         return false;
@@ -431,9 +511,9 @@ public class CourseDAO {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
                 "WHERE c.course_code LIKE ? OR sub.subject_name LIKE ? OR u.full_name LIKE ? " +
                 "ORDER BY c.academic_year DESC, c.semester DESC";
 
@@ -461,18 +541,18 @@ public class CourseDAO {
     }
 
     /**
-     * Map ResultSet to Course object
+     * ✅ REFACTORED: Map ResultSet to Course object
      */
     private Course mapResultSetToCourse(ResultSet rs) throws SQLException {
         Course course = new Course();
         course.setCourseId(rs.getInt("course_id"));
         course.setCourseCode(rs.getString("course_code"));
-        course.setSubjectId(rs.getInt("subject_id"));
-        course.setTeacherId(rs.getInt("teacher_id"));
+        course.setSubjectCode(rs.getString("subject_code"));
+        course.setTeacherUsername(rs.getString("teacher_username"));
 
-        int classId = rs.getInt("class_id");
+        String classCode = rs.getString("class_code");
         if (!rs.wasNull()) {
-            course.setClassId(classId);
+            course.setClassCode(classCode);
         }
 
         course.setAcademicYear(rs.getString("academic_year"));
@@ -525,16 +605,16 @@ public class CourseDAO {
     }
 
     /**
-     * Tìm khóa học theo môn học và học kỳ
+     * ✅ REFACTORED: Tìm khóa học theo môn học và học kỳ (dùng subject_code)
      */
-    public List<Course> findBySubjectAndSemester(int subjectId, String academicYear, int semester) {
+    public List<Course> findBySubjectAndSemester(String subjectCode, String academicYear, int semester) {
         String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
                 "u.full_name AS teacher_name, cl.class_name " +
                 "FROM courses c " +
-                "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                "JOIN users u ON c.teacher_id = u.user_id " +
-                "LEFT JOIN classes cl ON c.class_id = cl.class_id " +
-                "WHERE c.subject_id = ? AND c.academic_year = ? AND c.semester = ? " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
+                "WHERE c.subject_code = ? AND c.academic_year = ? AND c.semester = ? " +
                 "ORDER BY c.course_code";
 
         List<Course> courses = new ArrayList<>();
@@ -542,7 +622,7 @@ public class CourseDAO {
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, subjectId);
+            stmt.setString(1, subjectCode);
             stmt.setString(2, academicYear);
             stmt.setInt(3, semester);
 

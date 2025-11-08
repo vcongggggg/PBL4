@@ -276,66 +276,66 @@ public class UserDAO {
     }
 
     /**
-     * Thay đổi mật khẩu
+     * ✅ REFACTORED: Thay đổi mật khẩu (dùng username)
      */
-    public boolean changePassword(int userId, String newPassword) {
-        String sql = "UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
+    public boolean changePassword(String username, String newPassword) {
+        String sql = "UPDATE users SET password = ?, updated_at = CURRENT_TIMESTAMP WHERE username = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, newPassword); // Lưu plain text
-            stmt.setInt(2, userId);
+            stmt.setString(2, username);
 
             int result = stmt.executeUpdate();
 
             if (result > 0) {
-                LOGGER.info("Password changed successfully for user ID: " + userId);
+                LOGGER.info("Password changed successfully for username: " + username);
                 return true;
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error changing password for user ID: " + userId, e);
+            LOGGER.log(Level.SEVERE, "Error changing password for username: " + username, e);
         }
 
         return false;
     }
 
     /**
-     * Vô hiệu hóa user
+     * ✅ REFACTORED: Vô hiệu hóa user (dùng username)
      */
-    public boolean deactivateUser(int userId) {
-        String sql = "UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
+    public boolean deactivateUser(String username) {
+        String sql = "UPDATE users SET is_active = FALSE, updated_at = CURRENT_TIMESTAMP WHERE username = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
+            stmt.setString(1, username);
 
             int result = stmt.executeUpdate();
 
             if (result > 0) {
-                LOGGER.info("User deactivated successfully: " + userId);
+                LOGGER.info("User deactivated successfully: " + username);
                 return true;
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error deactivating user: " + userId, e);
+            LOGGER.log(Level.SEVERE, "Error deactivating user: " + username, e);
         }
 
         return false;
     }
 
     /**
-     * Ghi log đăng nhập
+     * ✅ REFACTORED: Ghi log đăng nhập (dùng username)
      */
-    public void logLogin(int userId, String ipAddress, String userAgent, String status) {
-        String sql = "INSERT INTO login_history (user_id, ip_address, user_agent, login_status) VALUES (?, ?, ?, ?)";
+    public void logLogin(String username, String ipAddress, String userAgent, String status) {
+        String sql = "INSERT INTO login_history (username, ip_address, user_agent, login_status) VALUES (?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setInt(1, userId);
+            stmt.setString(1, username);
             stmt.setString(2, ipAddress);
             stmt.setString(3, userAgent);
             stmt.setString(4, status);
@@ -343,7 +343,7 @@ public class UserDAO {
             stmt.executeUpdate();
 
         } catch (SQLException e) {
-            LOGGER.log(Level.WARNING, "Error logging user login", e);
+            LOGGER.log(Level.WARNING, "Error logging user login for username: " + username, e);
         }
     }
 

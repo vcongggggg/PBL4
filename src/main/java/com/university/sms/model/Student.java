@@ -6,14 +6,29 @@ import java.sql.Timestamp;
 
 /**
  * Model class cho bảng students
+ * ✅ REFACTORED: Dùng username, class_code, faculty_code làm FK (client-safe)
  */
 public class Student implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
+
+    // Primary key
     private int studentId;
-    private int userId;
-    private String studentCode;
-    private Integer classId;
-    private int facultyId;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
+    private String username; // FK to users.username (UNIQUE)
+    private String studentCode; // UNIQUE identifier for student
+    private String classCode; // FK to classes.class_code
+    private String facultyCode; // FK to faculties.faculty_code
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int userId; // Legacy field, use username instead
+    @Deprecated
+    private Integer classId; // Legacy field, use classCode instead
+    @Deprecated
+    private int facultyId; // Legacy field, use facultyCode instead
+
+    // Student data
     private int admissionYear;
     private StudentStatus studentStatus;
     private BigDecimal gpa;
@@ -24,6 +39,7 @@ public class Student implements java.io.Serializable {
     private String emergencyContact;
     private String emergencyPhone;
     private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     // User information (from join)
     private String fullName;
@@ -51,6 +67,16 @@ public class Student implements java.io.Serializable {
         this.studentStatus = StudentStatus.ACTIVE;
     }
 
+    public Student(String username, String studentCode, String facultyCode, int admissionYear) {
+        this();
+        this.username = username;
+        this.studentCode = studentCode;
+        this.facultyCode = facultyCode;
+        this.admissionYear = admissionYear;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public Student(int userId, String studentCode, int facultyId, int admissionYear) {
         this();
         this.userId = userId;
@@ -84,18 +110,47 @@ public class Student implements java.io.Serializable {
         this.studentCode = studentCode;
     }
 
+    public String getUsername() {
+        return username;
+    }
+
+    public void setUsername(String username) {
+        this.username = username;
+    }
+
+    public String getClassCode() {
+        return classCode;
+    }
+
+    public void setClassCode(String classCode) {
+        this.classCode = classCode;
+    }
+
+    public String getFacultyCode() {
+        return facultyCode;
+    }
+
+    public void setFacultyCode(String facultyCode) {
+        this.facultyCode = facultyCode;
+    }
+
+    // Deprecated getters/setters (keep for backward compat)
+    @Deprecated
     public Integer getClassId() {
         return classId;
     }
 
+    @Deprecated
     public void setClassId(Integer classId) {
         this.classId = classId;
     }
 
+    @Deprecated
     public int getFacultyId() {
         return facultyId;
     }
 
+    @Deprecated
     public void setFacultyId(int facultyId) {
         this.facultyId = facultyId;
     }
@@ -178,6 +233,14 @@ public class Student implements java.io.Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public String getFullName() {

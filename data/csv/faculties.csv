@@ -1,0 +1,4 @@
+facultyId,facultyCode,facultyName,description,headTeacherUsername,createdAt
+10,DTVT_CSV,Khoa Dien tu Vien thong CSV,Khoa dao tao chuyen nganh Dien tu tu CSV,csv_gv01,2024-06-01 07:00:00
+11,QTKD_CSV,Khoa Quan tri Kinh doanh CSV,Khoa dao tao Kinh doanh tu CSV,csv_gv02,2024-06-01 07:00:00
+12,XDDD_CSV,Khoa Xay dung Dan dung CSV,Khoa Xay dung tu CSV,csv_gv03,2024-06-01 07:00:00

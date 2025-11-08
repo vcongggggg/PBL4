@@ -5,13 +5,30 @@ import java.sql.Timestamp;
 
 /**
  * Model cho yêu cầu mở lớp từ giảng viên
+ * ✅ REFACTORED: Dùng teacher_username, subject_code, approved_by_username làm
+ * FK (client-safe)
  */
 public class ClassOpeningRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    // Primary key
     private int requestId;
-    private int teacherId;
-    private int subjectId;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
+    private String teacherUsername; // FK to users.username (teacher)
+    private String subjectCode; // FK to subjects.subject_code
+    private String approvedByUsername; // FK to users.username (admin)
+    private String approvedCourseCode; // FK to courses.course_code (when approved)
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int teacherId; // Legacy field, use teacherUsername instead
+    @Deprecated
+    private int subjectId; // Legacy field, use subjectCode instead
+    @Deprecated
+    private Integer approvedBy; // Legacy field, use approvedByUsername instead
+
+    // Request data
     private String academicYear;
     private int semester;
     private String scheduleDay;
@@ -21,15 +38,14 @@ public class ClassOpeningRequest implements Serializable {
     private String reason;
     private RequestStatus requestStatus;
     private String adminNote;
-    private Integer approvedBy;
     private Timestamp requestDate;
     private Timestamp decisionDate;
     private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     // Related information (from joins)
     private String teacherName;
     private String subjectName;
-    private String subjectCode;
     private int credits;
     private String approverName;
 
@@ -43,6 +59,16 @@ public class ClassOpeningRequest implements Serializable {
         this.maxStudents = 50;
     }
 
+    public ClassOpeningRequest(String teacherUsername, String subjectCode, String academicYear, int semester) {
+        this();
+        this.teacherUsername = teacherUsername;
+        this.subjectCode = subjectCode;
+        this.academicYear = academicYear;
+        this.semester = semester;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public ClassOpeningRequest(int teacherId, int subjectId, String academicYear, int semester) {
         this();
         this.teacherId = teacherId;
@@ -60,18 +86,47 @@ public class ClassOpeningRequest implements Serializable {
         this.requestId = requestId;
     }
 
+    public String getTeacherUsername() {
+        return teacherUsername;
+    }
+
+    public void setTeacherUsername(String teacherUsername) {
+        this.teacherUsername = teacherUsername;
+    }
+
+    public String getApprovedByUsername() {
+        return approvedByUsername;
+    }
+
+    public void setApprovedByUsername(String approvedByUsername) {
+        this.approvedByUsername = approvedByUsername;
+    }
+
+    public String getApprovedCourseCode() {
+        return approvedCourseCode;
+    }
+
+    public void setApprovedCourseCode(String approvedCourseCode) {
+        this.approvedCourseCode = approvedCourseCode;
+    }
+
+    // Deprecated getters/setters (keep for backward compat)
+    @Deprecated
     public int getTeacherId() {
         return teacherId;
     }
 
+    @Deprecated
     public void setTeacherId(int teacherId) {
         this.teacherId = teacherId;
     }
 
+    @Deprecated
     public int getSubjectId() {
         return subjectId;
     }
 
+    @Deprecated
     public void setSubjectId(int subjectId) {
         this.subjectId = subjectId;
     }
@@ -148,10 +203,12 @@ public class ClassOpeningRequest implements Serializable {
         this.adminNote = adminNote;
     }
 
+    @Deprecated
     public Integer getApprovedBy() {
         return approvedBy;
     }
 
+    @Deprecated
     public void setApprovedBy(Integer approvedBy) {
         this.approvedBy = approvedBy;
     }
@@ -178,6 +235,14 @@ public class ClassOpeningRequest implements Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     // Related information getters/setters
@@ -233,8 +298,3 @@ public class ClassOpeningRequest implements Serializable {
                 '}';
     }
 }
-
-
-
-
-

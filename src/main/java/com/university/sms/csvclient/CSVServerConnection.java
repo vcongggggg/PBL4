@@ -648,6 +648,237 @@ public class CSVServerConnection extends BaseServerConnection {
   }
 
   /**
+   * Upload tất cả faculties từ CSV lên server
+   */
+  public Message uploadAllFacultiesFromCSV() {
+    try {
+      List<com.university.sms.model.Faculty> faculties = csvDataService.getAllFaculties();
+
+      if (faculties.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_FACULTIES", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + faculties.size() + " faculties from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_FACULTIES");
+      request.addData("faculties", faculties);
+      request.addData("total", faculties.size());
+
+      Message response = sendCSVRequestAndWait(request, 60);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + faculties.size() + " faculties from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload faculties from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading faculties from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_FACULTIES", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả classes từ CSV lên server
+   */
+  public Message uploadAllClassesFromCSV() {
+    try {
+      List<com.university.sms.model.Class> classes = csvDataService.getAllClasses();
+
+      if (classes.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_CLASSES", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + classes.size() + " classes from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_CLASSES");
+      request.addData("classes", classes);
+      request.addData("total", classes.size());
+
+      Message response = sendCSVRequestAndWait(request, 60);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + classes.size() + " classes from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload classes from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading classes from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_CLASSES", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả subjects từ CSV lên server
+   */
+  public Message uploadAllSubjectsFromCSV() {
+    try {
+      List<com.university.sms.model.Subject> subjects = csvDataService.getAllSubjects();
+
+      if (subjects.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_SUBJECTS", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + subjects.size() + " subjects from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_SUBJECTS");
+      request.addData("subjects", subjects);
+      request.addData("total", subjects.size());
+
+      Message response = sendCSVRequestAndWait(request, 60);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + subjects.size() + " subjects from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload subjects from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading subjects from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_SUBJECTS", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả grades từ CSV lên server
+   */
+  public Message uploadAllGradesFromCSV() {
+    try {
+      List<com.university.sms.model.Grade> grades = csvDataService.getAllGrades();
+
+      if (grades.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_GRADES", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + grades.size() + " grades from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_GRADES");
+      request.addData("grades", grades);
+      request.addData("total", grades.size());
+
+      Message response = sendCSVRequestAndWait(request, 120);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + grades.size() + " grades from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload grades from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading grades from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_GRADES", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả class opening requests từ CSV lên server
+   */
+  public Message uploadAllClassOpeningRequestsFromCSV() {
+    try {
+      List<com.university.sms.model.ClassOpeningRequest> requests = csvDataService.getAllClassOpeningRequests();
+
+      if (requests.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_CLASS_OPENING_REQUESTS", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + requests.size() + " class opening requests from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_CLASS_OPENING_REQUESTS");
+      request.addData("requests", requests);
+      request.addData("total", requests.size());
+
+      Message response = sendCSVRequestAndWait(request, 60);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + requests.size() + " class opening requests from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload class opening requests from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading class opening requests from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_CLASS_OPENING_REQUESTS", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả course registrations từ CSV lên server
+   */
+  public Message uploadAllCourseRegistrationsFromCSV() {
+    try {
+      List<com.university.sms.model.CourseRegistration> registrations = csvDataService.getAllCourseRegistrations();
+
+      if (registrations.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_COURSE_REGISTRATIONS", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + registrations.size() + " course registrations from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_COURSE_REGISTRATIONS");
+      request.addData("registrations", registrations);
+      request.addData("total", registrations.size());
+
+      Message response = sendCSVRequestAndWait(request, 120);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + registrations.size() + " course registrations from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload course registrations from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading course registrations from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_COURSE_REGISTRATIONS", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Upload tất cả notifications từ CSV lên server
+   */
+  public Message uploadAllNotificationsFromCSV() {
+    try {
+      List<com.university.sms.model.Notification> notifications = csvDataService.getAllNotifications();
+
+      if (notifications.isEmpty()) {
+        return Message.createSuccessResponse("UPLOAD_NOTIFICATIONS", "CSV file is empty, nothing to upload");
+      }
+
+      LOGGER.info("Starting upload of " + notifications.size() + " notifications from CSV to server");
+
+      Message request = Message.createRequest("UPLOAD_NOTIFICATIONS");
+      request.addData("notifications", notifications);
+      request.addData("total", notifications.size());
+
+      Message response = sendCSVRequestAndWait(request, 60);
+
+      if (response.isSuccess()) {
+        LOGGER.info("Successfully uploaded " + notifications.size() + " notifications from CSV to server");
+      } else {
+        LOGGER.warning("Failed to upload notifications from CSV: " + response.getMessage());
+      }
+
+      return response;
+
+    } catch (Exception e) {
+      LOGGER.severe("Error uploading notifications from CSV: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_NOTIFICATIONS", "Error: " + e.getMessage());
+    }
+  }
+
+  /**
    * Generic sendRequest implementation for IServerConnection interface
    */
   @Override

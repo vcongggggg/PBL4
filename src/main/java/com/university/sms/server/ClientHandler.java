@@ -86,7 +86,6 @@ public class ClientHandler implements Runnable {
     @Override
     public void run() {
         try {
-            // Initialize streams
             outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
             inputStream = new ObjectInputStream(clientSocket.getInputStream());
 
@@ -240,14 +239,28 @@ public class ClientHandler implements Runnable {
                 // Sync actions
                 case Constants.ACTION_SYNC_CHECK:
                     return handleSyncCheck(request);
+                case Constants.ACTION_UPLOAD_USERS:
+                    return handleUploadUsers(request);
+                case Constants.ACTION_UPLOAD_FACULTIES:
+                    return handleUploadFaculties(request);
+                case Constants.ACTION_UPLOAD_CLASSES:
+                    return handleUploadClasses(request);
                 case Constants.ACTION_UPLOAD_STUDENTS:
                     return handleUploadStudents(request);
+                case Constants.ACTION_UPLOAD_SUBJECTS:
+                    return handleUploadSubjects(request);
                 case Constants.ACTION_UPLOAD_COURSES:
                     return handleUploadCourses(request);
                 case Constants.ACTION_UPLOAD_ENROLLMENTS:
                     return handleUploadEnrollments(request);
-                case Constants.ACTION_UPLOAD_USERS:
-                    return handleUploadUsers(request);
+                case Constants.ACTION_UPLOAD_GRADES:
+                    return handleUploadGrades(request);
+                case Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS:
+                    return handleUploadClassOpeningRequests(request);
+                case Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS:
+                    return handleUploadCourseRegistrations(request);
+                case Constants.ACTION_UPLOAD_NOTIFICATIONS:
+                    return handleUploadNotifications(request);
 
                 // Class Opening Request actions
                 case Constants.ACTION_GET_ALL_CLASS_REQUESTS:
@@ -349,9 +362,8 @@ public class ClientHandler implements Runnable {
         if (user != null) {
             this.currentUser = user;
 
-            // Log login
             String clientIP = clientSocket.getRemoteSocketAddress().toString();
-            authService.logLogin(user.getUserId(), clientIP, "Java Client", "success");
+            authService.logLogin(user.getUsername(), clientIP, "Java Client", "success");
 
             Message response = Message.createSuccessResponse(Constants.ACTION_LOGIN, Constants.MSG_LOGIN_SUCCESS);
             response.addData(Constants.KEY_USER, user);
@@ -387,7 +399,7 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_CHANGE_PASSWORD, Constants.MSG_INVALID_DATA);
         }
 
-        boolean success = authService.changePassword(currentUser.getUserId(), newPassword);
+        boolean success = authService.changePassword(currentUser.getUsername(), newPassword);
         if (success) {
             return Message.createSuccessResponse(Constants.ACTION_CHANGE_PASSWORD, "Đổi mật khẩu thành công");
         } else {
@@ -395,14 +407,8 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    /**
-     * Xử lý lấy thông tin sinh viên
-     */
     private Message handleGetStudentInfo(Message request) {
-        Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-
         if (currentUser.getRole() == User.UserRole.STUDENT) {
-            // Sinh viên chỉ có thể xem thông tin của mình
             var student = studentService.getStudentByUserId(currentUser.getUserId());
             if (student != null) {
                 Message response = Message.createSuccessResponse(Constants.ACTION_GET_STUDENT_INFO,
@@ -410,15 +416,27 @@ public class ClientHandler implements Runnable {
                 response.addData(Constants.KEY_STUDENT, student);
                 return response;
             }
-        } else if (studentId != null && (currentUser.getRole() == User.UserRole.ADMIN ||
-                currentUser.getRole() == User.UserRole.TEACHER)) {
-            // Admin và giáo viên có thể xem thông tin sinh viên theo ID
-            var student = studentService.getStudentById(studentId);
-            if (student != null) {
-                Message response = Message.createSuccessResponse(Constants.ACTION_GET_STUDENT_INFO,
-                        "Lấy thông tin thành công");
-                response.addData(Constants.KEY_STUDENT, student);
-                return response;
+        } else if (currentUser.getRole() == User.UserRole.ADMIN ||
+                currentUser.getRole() == User.UserRole.TEACHER) {
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null) {
+                    Student student = studentService.getStudentById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (studentCode != null && !studentCode.isEmpty()) {
+                StudentDAO studentDAO = new StudentDAO();
+                Student student = studentDAO.findByStudentCode(studentCode);
+                if (student != null) {
+                    Message response = Message.createSuccessResponse(Constants.ACTION_GET_STUDENT_INFO,
+                            "Lấy thông tin thành công");
+                    response.addData(Constants.KEY_STUDENT, student);
+                    return response;
+                }
             }
         }
 
@@ -583,9 +601,15 @@ public class ClientHandler implements Runnable {
      * Xử lý sinh viên tự cập nhật thông tin cá nhân (giới hạn một số field)
      */
     private Message handleStudentSelfUpdate(com.university.sms.model.Student student) {
-        // Lấy thông tin sinh viên hiện tại từ database
+        // ✅ REFACTORED: Lấy thông tin sinh viên hiện tại từ database bằng studentCode
         StudentDAO studentDAO = new StudentDAO();
-        com.university.sms.model.Student currentStudent = studentDAO.findById(student.getStudentId());
+        com.university.sms.model.Student currentStudent = null;
+        if (student.getStudentCode() != null && !student.getStudentCode().isEmpty()) {
+            currentStudent = studentDAO.findByStudentCode(student.getStudentCode());
+        } else if (student.getStudentId() > 0) {
+            // Fallback: use studentId if studentCode not available
+            currentStudent = studentDAO.findById(student.getStudentId());
+        }
 
         if (currentStudent == null) {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Không tìm thấy thông tin sinh viên");
@@ -618,21 +642,31 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền xóa sinh viên");
             }
 
-            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-            if (studentId == null || studentId <= 0) {
-                return Message.createErrorResponse(request.getAction(), "ID sinh viên không hợp lệ");
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null && studentId > 0) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student s = studentDAO.findById(studentId);
+                    if (s != null) {
+                        studentCode = s.getStudentCode();
+                    }
+                }
+            }
+            if (studentCode == null || studentCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code is required");
             }
 
-            // Get student info first
             StudentDAO studentDAO = new StudentDAO();
-            Student student = studentDAO.findById(studentId);
+            Student student = studentDAO.findByStudentCode(studentCode);
             if (student == null) {
                 return Message.createErrorResponse(request.getAction(), "Không tìm thấy sinh viên");
             }
 
-            // Step 1: Remove student from all enrollments and update current_students
+            // ✅ REFACTORED: Step 1: Remove student from all enrollments and update
+            // current_students
             EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-            List<Enrollment> enrollments = enrollmentDAO.findByStudentId(studentId);
+            List<Enrollment> enrollments = enrollmentDAO.findByStudentCode(student.getStudentCode());
 
             CourseDAO courseDAO = new CourseDAO();
             for (Enrollment enrollment : enrollments) {
@@ -640,21 +674,21 @@ public class ClientHandler implements Runnable {
                 enrollmentDAO.deleteEnrollment(enrollment.getEnrollmentId());
 
                 // Decrease current_students count
-                Course course = courseDAO.findById(enrollment.getCourseId());
+                Course course = courseDAO.findByCourseCode(enrollment.getCourseCode());
                 if (course != null && course.getCurrentStudents() > 0) {
-                    courseDAO.updateCurrentStudents(enrollment.getCourseId(), course.getCurrentStudents() - 1);
+                    courseDAO.updateCurrentStudents(course.getCourseId(), course.getCurrentStudents() - 1);
                 }
             }
 
-            // Step 2: Remove student from all course registrations and update
+            // ✅ REFACTORED: Step 2: Remove student from all course registrations and update
             // current_students
             CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
-            List<CourseRegistration> registrations = registrationDAO.findByStudent(studentId);
+            List<CourseRegistration> registrations = registrationDAO.findByStudent(student.getStudentCode());
 
             for (CourseRegistration registration : registrations) {
                 // Only count APPROVED registrations
                 if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
-                    Course course = courseDAO.findById(registration.getCourseId());
+                    Course course = courseDAO.findByCourseCode(registration.getCourseCode());
                     if (course != null && course.getCurrentStudents() > 0) {
                         courseDAO.updateCurrentStudents(registration.getCourseId(), course.getCurrentStudents() - 1);
                     }
@@ -663,13 +697,11 @@ public class ClientHandler implements Runnable {
                 registrationDAO.delete(registration.getRegistrationId());
             }
 
-            // Step 3: Deactivate user
             UserDAO userDAO = new UserDAO();
-            boolean success = userDAO.deactivateUser(student.getUserId());
+            boolean success = userDAO.deactivateUser(student.getUsername());
 
             if (success) {
-                LOGGER.info("Student deactivated and removed from all courses: " + studentId + " ("
-                        + student.getStudentCode() + ") by "
+                LOGGER.info("Student deactivated and removed from all courses: " + student.getStudentCode() + " by "
                         + currentUser.getUsername() + " - Removed " + enrollments.size() + " enrollments and "
                         + registrations.size() + " registrations");
                 return Message.createSuccessResponse(request.getAction(),
@@ -777,11 +809,22 @@ public class ClientHandler implements Runnable {
         if (currentUser.getRole() != User.UserRole.ADMIN) {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_UNAUTHORIZED);
         }
-        Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
-        if (courseId == null || courseId <= 0) {
+        // ✅ REFACTORED: Use courseCode instead of courseId
+        String courseCode = request.getData("courseCode", String.class);
+        if (courseCode == null || courseCode.isEmpty()) {
+            // Fallback: try courseId if courseCode not provided
+            Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+            if (courseId != null && courseId > 0) {
+                Course course = new CourseDAO().findById(courseId);
+                if (course != null) {
+                    courseCode = course.getCourseCode();
+                }
+            }
+        }
+        if (courseCode == null || courseCode.isEmpty()) {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_INVALID_DATA);
         }
-        boolean ok = courseService.deleteCourse(courseId);
+        boolean ok = courseService.deleteCourse(courseCode);
         if (ok) {
             return Message.createSuccessResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_SUCCESS);
         }
@@ -802,18 +845,29 @@ public class ClientHandler implements Runnable {
                     return Message.createErrorResponse(Constants.ACTION_GET_ENROLLMENTS,
                             Constants.MSG_STUDENT_NOT_FOUND);
                 }
-                var list = enrollmentDAO.findByStudentId(me.getStudentId());
+                var list = enrollmentDAO.findByStudentCode(me.getStudentCode());
                 Message resp = Message.createSuccessResponse(Constants.ACTION_GET_ENROLLMENTS, Constants.MSG_SUCCESS);
                 resp.addData(Constants.KEY_ENROLLMENTS, list);
                 return resp;
             }
 
-            // Admin/Teacher: có thể truyền studentId để lấy danh sách theo SV
-            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-            if (studentId == null || studentId <= 0) {
+            // ✅ REFACTORED: Admin/Teacher: có thể truyền studentCode hoặc studentId để lấy
+            // danh sách theo SV
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                // Fallback: try studentId if studentCode not provided
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null && studentId > 0) {
+                    Student student = new StudentDAO().findById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (studentCode == null || studentCode.isEmpty()) {
                 return Message.createErrorResponse(Constants.ACTION_GET_ENROLLMENTS, Constants.MSG_INVALID_DATA);
             }
-            var list = enrollmentDAO.findByStudentId(studentId);
+            var list = enrollmentDAO.findByStudentCode(studentCode);
             Message resp = Message.createSuccessResponse(Constants.ACTION_GET_ENROLLMENTS, Constants.MSG_SUCCESS);
             resp.addData(Constants.KEY_ENROLLMENTS, list);
             return resp;
@@ -830,23 +884,35 @@ public class ClientHandler implements Runnable {
         try {
             com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
 
-            int targetStudentId;
+            // ✅ REFACTORED: Use studentCode instead of studentId
+            String targetStudentCode;
             if (currentUser.getRole() == User.UserRole.STUDENT) {
                 var me = studentService.getStudentByUserId(currentUser.getUserId());
                 if (me == null) {
                     return Message.createErrorResponse(Constants.ACTION_GET_STUDENT_GRADES,
                             Constants.MSG_STUDENT_NOT_FOUND);
                 }
-                targetStudentId = me.getStudentId();
+                targetStudentCode = me.getStudentCode();
             } else {
-                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-                if (studentId == null || studentId <= 0) {
+                // ✅ REFACTORED: Try studentCode first, fallback to studentId
+                String studentCode = request.getData("studentCode", String.class);
+                if (studentCode == null || studentCode.isEmpty()) {
+                    // Fallback: try studentId if studentCode not provided
+                    Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                    if (studentId != null && studentId > 0) {
+                        Student student = new StudentDAO().findById(studentId);
+                        if (student != null) {
+                            studentCode = student.getStudentCode();
+                        }
+                    }
+                }
+                if (studentCode == null || studentCode.isEmpty()) {
                     return Message.createErrorResponse(Constants.ACTION_GET_STUDENT_GRADES, Constants.MSG_INVALID_DATA);
                 }
-                targetStudentId = studentId;
+                targetStudentCode = studentCode;
             }
 
-            var all = enrollmentDAO.findByStudentId(targetStudentId);
+            var all = enrollmentDAO.findByStudentCode(targetStudentCode);
             // Lọc những dòng có điểm cuối kỳ (finalGrade hoặc letterGrade)
             java.util.List<com.university.sms.model.Enrollment> grades = new java.util.ArrayList<>();
             for (var e : all) {
@@ -869,20 +935,46 @@ public class ClientHandler implements Runnable {
      */
     private Message handleEnrollCourse(Message request) {
         try {
-            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-            Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
-            if (studentId == null || courseId == null) {
+            // ✅ REFACTORED: Use codes instead of IDs to avoid conflicts
+            String studentCode = request.getData("studentCode", String.class);
+            String courseCode = request.getData("courseCode", String.class);
+
+            // Fallback: try IDs if codes not provided
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null && studentId > 0) {
+                    Student student = new StudentDAO().findById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+                if (courseId != null) {
+                    Course course = new CourseDAO().findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
+            }
+
+            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
                 return Message.createErrorResponse(Constants.ACTION_ENROLL_COURSE, Constants.MSG_INVALID_DATA);
             }
 
             com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
-            com.university.sms.model.Enrollment existing = enrollmentDAO.findByStudentAndCourse(studentId, courseId);
+            com.university.sms.model.Enrollment existing = enrollmentDAO.findByStudentAndCourse(
+                    studentCode, courseCode);
             boolean ok;
             if (existing == null) {
-                com.university.sms.model.Enrollment e = new com.university.sms.model.Enrollment(studentId, courseId);
-                ok = enrollmentDAO.addEnrollment(e);
+                com.university.sms.model.Enrollment e = new com.university.sms.model.Enrollment();
+                e.setStudentCode(studentCode);
+                e.setCourseCode(courseCode);
+                ok = enrollmentDAO.save(e);
                 if (ok) {
-                    courseService.incrementCurrentStudents(courseId);
+                    // ✅ REFACTORED: Update current_students using courseCode
+                    courseService.incrementCurrentStudents(courseCode);
                     saveDataOrigin("enrollment", e.getEnrollmentId(), clientSource);
                 }
             } else {
@@ -903,21 +995,45 @@ public class ClientHandler implements Runnable {
      */
     private Message handleDropCourse(Message request) {
         try {
-            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-            Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
-            if (studentId == null || courseId == null) {
+            // ✅ REFACTORED: Use codes instead of IDs to avoid conflicts
+            String studentCode = request.getData("studentCode", String.class);
+            String courseCode = request.getData("courseCode", String.class);
+
+            // Fallback: try IDs if codes not provided
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null && studentId > 0) {
+                    Student student = new StudentDAO().findById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+                if (courseId != null) {
+                    Course course = new CourseDAO().findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
+            }
+
+            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
                 return Message.createErrorResponse(Constants.ACTION_DROP_COURSE, Constants.MSG_INVALID_DATA);
             }
 
             com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
-            com.university.sms.model.Enrollment existing = enrollmentDAO.findByStudentAndCourse(studentId, courseId);
+            com.university.sms.model.Enrollment existing = enrollmentDAO.findByStudentAndCourse(
+                    studentCode, courseCode);
             if (existing == null) {
                 return Message.createErrorResponse(Constants.ACTION_DROP_COURSE, Constants.MSG_INVALID_DATA);
             }
 
             boolean ok = enrollmentDAO.deleteEnrollment(existing.getEnrollmentId());
             if (ok) {
-                courseService.decrementCurrentStudents(courseId);
+                // ✅ REFACTORED: Update current_students using courseCode
+                courseService.decrementCurrentStudents(courseCode);
                 return Message.createSuccessResponse(Constants.ACTION_DROP_COURSE, Constants.MSG_SUCCESS);
             }
             return Message.createErrorResponse(Constants.ACTION_DROP_COURSE, Constants.MSG_DATABASE_ERROR);
@@ -1098,42 +1214,72 @@ public class ClientHandler implements Runnable {
 
             com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
             for (com.university.sms.model.Student student : students) {
                 try {
-                    // Ensure user exists and map userId
-                    int userId = student.getUserId();
+                    // ✅ REFACTORED: Ensure user exists based on username (code-based approach)
+                    String username = student.getUsername();
                     boolean userOk = true;
-                    if (userId <= 0 || userDAO.findById(userId) == null) {
-                        // Try to find by username = studentCode
-                        com.university.sms.model.User byUsername = userDAO.findByUsername(student.getStudentCode());
-                        if (byUsername != null) {
-                            student.setUserId(byUsername.getUserId());
-                        } else {
-                            // Create a minimal user from student info
-                            com.university.sms.model.User u = new com.university.sms.model.User();
-                            u.setUsername(student.getStudentCode());
-                            u.setPassword("password");
-                            u.setFullName(student.getFullName());
-                            u.setEmail(student.getEmail());
-                            u.setPhone(student.getPhone());
-                            u.setAddress(student.getAddress());
-                            u.setRole(com.university.sms.model.User.UserRole.STUDENT);
-                            userOk = userDAO.addUser(u);
-                            if (userOk) {
-                                student.setUserId(u.getUserId());
-                                saveDataOrigin("user", u.getUserId(), clientSource);
-                            }
+                    if (username == null || username.isEmpty()) {
+                        // Fallback: use studentCode as username if not set
+                        username = student.getStudentCode();
+                        student.setUsername(username);
+                    }
+
+                    // Check if user exists by username
+                    com.university.sms.model.User existingUser = userDAO.findByUsername(username);
+                    if (existingUser == null) {
+                        // Create a minimal user from student info
+                        com.university.sms.model.User u = new com.university.sms.model.User();
+                        u.setUsername(username);
+                        u.setPassword("password");
+                        u.setFullName(student.getFullName());
+                        u.setEmail(student.getEmail());
+                        u.setPhone(student.getPhone());
+                        u.setAddress(student.getAddress());
+                        u.setRole(com.university.sms.model.User.UserRole.STUDENT);
+                        userOk = userDAO.addUser(u);
+                        if (userOk) {
+                            saveDataOrigin("user", u.getUserId(), clientSource);
                         }
                     }
 
-                    if (userOk && studentDAO.addOrUpdate(student)) {
+                    // ✅ REFACTORED: Ensure class exists (if specified)
+                    String classCode = student.getClassCode();
+                    boolean classOk = true;
+                    if (classCode != null && !classCode.isEmpty()) {
+                        com.university.sms.model.Class existingClass = classDAO.findByCode(classCode);
+                        if (existingClass == null) {
+                            classOk = false;
+                            LOGGER.warning(
+                                    "Class code not found: " + classCode + " for student " + student.getStudentCode());
+                        }
+                    }
+
+                    // ✅ REFACTORED: Ensure faculty exists
+                    String facultyCode = student.getFacultyCode();
+                    boolean facultyOk = true;
+                    if (facultyCode != null && !facultyCode.isEmpty()) {
+                        com.university.sms.model.Faculty existingFaculty = facultyDAO.findByCode(facultyCode);
+                        if (existingFaculty == null) {
+                            facultyOk = false;
+                            LOGGER.warning("Faculty code not found: " + facultyCode + " for student "
+                                    + student.getStudentCode());
+                        }
+                    }
+
+                    if (userOk && classOk && facultyOk && studentDAO.addOrUpdate(student)) {
                         saveDataOrigin("student", student.getStudentId(), clientSource);
                         successCount++;
                     } else {
                         failCount++;
+                        LOGGER.warning("Failed to save student: " + student.getStudentCode());
                     }
                 } catch (Exception ex) {
                     failCount++;
+                    LOGGER.severe("Error uploading student: " + ex.getMessage());
+                    ex.printStackTrace();
                 }
             }
 
@@ -1168,12 +1314,74 @@ public class ClientHandler implements Runnable {
             int failCount = 0;
 
             com.university.sms.dao.CourseDAO courseDAO = new com.university.sms.dao.CourseDAO();
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.dao.SubjectDAO subjectDAO = new com.university.sms.dao.SubjectDAO();
+            com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
             for (com.university.sms.model.Course course : courses) {
-                if (courseDAO.addOrUpdate(course)) {
-                    saveDataOrigin("course", course.getCourseId(), clientSource);
-                    successCount++;
-                } else {
+                try {
+                    // ✅ REFACTORED: Ensure subject exists
+                    String subjectCode = course.getSubjectCode();
+                    boolean subjectOk = true;
+                    if (subjectCode != null && !subjectCode.isEmpty()) {
+                        com.university.sms.model.Subject existingSubject = subjectDAO.findByCode(subjectCode);
+                        if (existingSubject == null) {
+                            subjectOk = false;
+                            LOGGER.warning(
+                                    "Subject code not found: " + subjectCode + " for course " + course.getCourseCode());
+                        }
+                    }
+
+                    // ✅ REFACTORED: Ensure class exists (if specified)
+                    String classCode = course.getClassCode();
+                    boolean classOk = true;
+                    if (classCode != null && !classCode.isEmpty()) {
+                        com.university.sms.model.Class existingClass = classDAO.findByCode(classCode);
+                        if (existingClass == null) {
+                            classOk = false;
+                            LOGGER.warning(
+                                    "Class code not found: " + classCode + " for course " + course.getCourseCode());
+                        }
+                    }
+
+                    // ✅ REFACTORED: Ensure teacher user exists based on username (code-based
+                    // approach)
+                    String teacherUsername = course.getTeacherUsername();
+                    boolean userOk = true;
+                    if (teacherUsername != null && !teacherUsername.isEmpty()) {
+                        // Check if teacher user exists by username
+                        com.university.sms.model.User existingUser = userDAO.findByUsername(teacherUsername);
+                        if (existingUser == null) {
+                            // Create a minimal teacher user from course info
+                            com.university.sms.model.User u = new com.university.sms.model.User();
+                            u.setUsername(teacherUsername);
+                            u.setPassword("password");
+                            u.setFullName(course.getTeacherName() != null ? course.getTeacherName() : teacherUsername);
+                            u.setEmail(teacherUsername + "@csv-teacher.edu.vn"); // Generate email from username
+                            u.setRole(com.university.sms.model.User.UserRole.TEACHER);
+                            userOk = userDAO.addUser(u);
+                            if (userOk) {
+                                saveDataOrigin("user", u.getUserId(), clientSource);
+                            }
+                        }
+                    }
+
+                    if (subjectOk && classOk && userOk && courseDAO.save(course)) {
+                        if (course.getCourseId() > 0) {
+                            saveDataOrigin("course", course.getCourseId(), clientSource);
+                            successCount++;
+                        } else {
+                            failCount++;
+                            LOGGER.warning("Failed to save course: " + course.getCourseCode() + " - ID not set");
+                        }
+                    } else {
+                        failCount++;
+                        LOGGER.warning(
+                                "Failed to save course: " + course.getCourseCode() + " - " + course.getCourseName());
+                    }
+                } catch (Exception ex) {
                     failCount++;
+                    LOGGER.severe("Error uploading course " + course.getCourseCode() + ": " + ex.getMessage());
+                    ex.printStackTrace();
                 }
             }
 
@@ -1198,11 +1406,20 @@ public class ClientHandler implements Runnable {
                     .getData("enrollments");
 
             if (enrollments == null || enrollments.isEmpty()) {
+                LOGGER.warning("DEBUG: No enrollments in request");
                 return Message.createErrorResponse(Constants.ACTION_UPLOAD_ENROLLMENTS,
                         "No enrollments to upload");
             }
 
-            LOGGER.info("Uploading " + enrollments.size() + " enrollments from client");
+            LOGGER.info("DEBUG: Uploading " + enrollments.size() + " enrollments from client");
+
+            // Debug first enrollment
+            if (!enrollments.isEmpty()) {
+                com.university.sms.model.Enrollment first = enrollments.get(0);
+                LOGGER.info("DEBUG: First enrollment -> ID=" + first.getEnrollmentId() +
+                        ", student=" + first.getStudentId() + ", course=" + first.getCourseId() +
+                        ", status=" + first.getEnrollmentStatus());
+            }
 
             int successCount = 0;
             int failCount = 0;
@@ -1210,30 +1427,32 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.Enrollment e : enrollments) {
                 try {
-                    // Prefer upsert by (student_id, course_id): insert if not exists
-                    com.university.sms.model.Enrollment existing = enrollmentDAO
-                            .findByStudentAndCourse(e.getStudentId(), e.getCourseId());
-                    boolean ok;
-                    if (existing == null) {
-                        ok = enrollmentDAO.addEnrollment(e);
-                    } else {
-                        // If exists, update simple mutable fields if provided
-                        if (e.getEnrollmentStatus() != null) {
-                            ok = enrollmentDAO.updateEnrollmentStatus(existing.getEnrollmentId(),
-                                    e.getEnrollmentStatus());
-                        } else {
-                            ok = true; // nothing to update
-                        }
-                        e.setEnrollmentId(existing.getEnrollmentId());
-                    }
+                    LOGGER.info("DEBUG: Processing enrollment student=" + e.getStudentId() +
+                            ", course=" + e.getCourseId() + ", CSV_ID=" + e.getEnrollmentId());
+
+                    // Use save() method which handles INSERT IGNORE with all fields
+                    boolean ok = enrollmentDAO.save(e);
+
+                    LOGGER.info("DEBUG: save() returned " + ok + ", enrollmentId after save=" + e.getEnrollmentId());
+
                     if (ok) {
-                        saveDataOrigin("enrollment", e.getEnrollmentId(), clientSource);
-                        successCount++;
+                        if (e.getEnrollmentId() > 0) {
+                            saveDataOrigin("enrollment", e.getEnrollmentId(), clientSource);
+                            successCount++;
+                            LOGGER.info("DEBUG: SUCCESS - enrollment ID=" + e.getEnrollmentId() + " saved with origin");
+                        } else {
+                            failCount++;
+                            LOGGER.warning("DEBUG: FAIL - enrollmentId is 0 after save");
+                        }
                     } else {
                         failCount++;
+                        LOGGER.warning("DEBUG: FAIL - save() returned false for student=" + e.getStudentId() +
+                                ", course=" + e.getCourseId());
                     }
                 } catch (Exception ex) {
                     failCount++;
+                    LOGGER.severe("DEBUG: EXCEPTION saving enrollment: " + ex.getMessage());
+                    ex.printStackTrace();
                 }
             }
 
@@ -1288,6 +1507,419 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             LOGGER.severe("Error handling upload users: " + e.getMessage());
             return Message.createErrorResponse(Constants.ACTION_UPLOAD_USERS, "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload faculties từ client
+     */
+    private Message handleUploadFaculties(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.Faculty> faculties = (List<com.university.sms.model.Faculty>) request
+                    .getData("faculties");
+
+            if (faculties == null || faculties.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_FACULTIES, "No faculties to upload");
+            }
+
+            LOGGER.info("Uploading " + faculties.size() + " faculties from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+
+            for (com.university.sms.model.Faculty f : faculties) {
+                try {
+                    // ✅ REFACTORED: Ensure head teacher user exists based on username (code-based
+                    // approach)
+                    String headTeacherUsername = f.getHeadTeacherUsername();
+                    boolean userOk = true;
+                    if (headTeacherUsername != null && !headTeacherUsername.isEmpty()) {
+                        // Check if head teacher user exists by username
+                        com.university.sms.model.User existingUser = userDAO.findByUsername(headTeacherUsername);
+                        if (existingUser == null) {
+                            // Create a minimal teacher user from faculty info
+                            com.university.sms.model.User u = new com.university.sms.model.User();
+                            u.setUsername(headTeacherUsername);
+                            u.setPassword("password");
+                            u.setFullName(
+                                    f.getHeadTeacherName() != null ? f.getHeadTeacherName() : headTeacherUsername);
+                            u.setEmail(headTeacherUsername + "@csv-teacher.edu.vn"); // Generate email from username
+                            u.setRole(com.university.sms.model.User.UserRole.TEACHER);
+                            userOk = userDAO.addUser(u);
+                            if (userOk) {
+                                saveDataOrigin("user", u.getUserId(), clientSource);
+                            }
+                        }
+                    }
+
+                    if (userOk && facultyDAO.save(f)) {
+                        saveDataOrigin("faculty", f.getFacultyId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                        LOGGER.warning("Failed to save faculty: " + f.getFacultyCode() + " - " + f.getFacultyName());
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                    LOGGER.severe("Error uploading faculty " + f.getFacultyCode() + ": " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+
+            String message = String.format("Uploaded %d faculties successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_FACULTIES, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload faculties: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_FACULTIES, "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload classes từ client
+     */
+    private Message handleUploadClasses(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.Class> classes = (List<com.university.sms.model.Class>) request
+                    .getData("classes");
+
+            if (classes == null || classes.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASSES, "No classes to upload");
+            }
+
+            LOGGER.info("Uploading " + classes.size() + " classes from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+
+            for (com.university.sms.model.Class c : classes) {
+                try {
+                    // ✅ REFACTORED: Ensure faculty exists
+                    String facultyCode = c.getFacultyCode();
+                    boolean facultyOk = true;
+                    if (facultyCode != null && !facultyCode.isEmpty()) {
+                        com.university.sms.model.Faculty existingFaculty = facultyDAO.findByCode(facultyCode);
+                        if (existingFaculty == null) {
+                            facultyOk = false;
+                            LOGGER.warning("Faculty code not found: " + facultyCode + " for class " + c.getClassCode());
+                        }
+                    }
+
+                    // ✅ REFACTORED: Ensure teacher user exists based on username (code-based
+                    // approach)
+                    String teacherUsername = c.getTeacherUsername();
+                    boolean userOk = true;
+                    if (teacherUsername != null && !teacherUsername.isEmpty()) {
+                        // Check if teacher user exists by username
+                        com.university.sms.model.User existingUser = userDAO.findByUsername(teacherUsername);
+                        if (existingUser == null) {
+                            // Create a minimal teacher user from class info
+                            com.university.sms.model.User u = new com.university.sms.model.User();
+                            u.setUsername(teacherUsername);
+                            u.setPassword("password");
+                            u.setFullName(teacherUsername); // Class model doesn't have teacher name, use username
+                            u.setEmail(teacherUsername + "@csv-teacher.edu.vn"); // Generate email from username
+                            u.setRole(com.university.sms.model.User.UserRole.TEACHER);
+                            userOk = userDAO.addUser(u);
+                            if (userOk) {
+                                saveDataOrigin("user", u.getUserId(), clientSource);
+                            }
+                        }
+                    }
+
+                    if (facultyOk && userOk && classDAO.save(c)) {
+                        saveDataOrigin("class", c.getClassId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                        LOGGER.warning("Failed to save class: " + c.getClassCode() + " - " + c.getClassName());
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                    LOGGER.severe("Error uploading class " + c.getClassCode() + ": " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+
+            String message = String.format("Uploaded %d classes successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASSES, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload classes: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASSES, "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload subjects từ client
+     */
+    private Message handleUploadSubjects(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.Subject> subjects = (List<com.university.sms.model.Subject>) request
+                    .getData("subjects");
+
+            if (subjects == null || subjects.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_SUBJECTS, "No subjects to upload");
+            }
+
+            LOGGER.info("Uploading " + subjects.size() + " subjects from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            com.university.sms.dao.SubjectDAO subjectDAO = new com.university.sms.dao.SubjectDAO();
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+
+            for (com.university.sms.model.Subject s : subjects) {
+                try {
+                    // ✅ REFACTORED: Ensure faculty exists
+                    String facultyCode = s.getFacultyCode();
+                    boolean facultyOk = true;
+                    if (facultyCode != null && !facultyCode.isEmpty()) {
+                        com.university.sms.model.Faculty existingFaculty = facultyDAO.findByCode(facultyCode);
+                        if (existingFaculty == null) {
+                            facultyOk = false;
+                            LOGGER.warning(
+                                    "Faculty code not found: " + facultyCode + " for subject " + s.getSubjectCode());
+                        }
+                    }
+
+                    // ✅ REFACTORED: Ensure prerequisite subject exists (if specified)
+                    String prerequisiteCode = s.getPrerequisiteSubjectCode();
+                    boolean prerequisiteOk = true;
+                    if (prerequisiteCode != null && !prerequisiteCode.isEmpty()) {
+                        com.university.sms.model.Subject existingPrereq = subjectDAO.findByCode(prerequisiteCode);
+                        if (existingPrereq == null) {
+                            prerequisiteOk = false;
+                            LOGGER.warning("Prerequisite subject code not found: " + prerequisiteCode + " for subject "
+                                    + s.getSubjectCode());
+                        }
+                    }
+
+                    if (facultyOk && prerequisiteOk && subjectDAO.save(s)) {
+                        saveDataOrigin("subject", s.getSubjectId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                        LOGGER.warning("Failed to save subject: " + s.getSubjectCode() + " - " + s.getSubjectName());
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                    LOGGER.severe("Error uploading subject " + s.getSubjectCode() + ": " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+
+            String message = String.format("Uploaded %d subjects successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_SUBJECTS, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload subjects: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_SUBJECTS, "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload grades từ client
+     */
+    private Message handleUploadGrades(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.Grade> grades = (List<com.university.sms.model.Grade>) request
+                    .getData("grades");
+
+            if (grades == null || grades.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_GRADES, "No grades to upload");
+            }
+
+            LOGGER.info("Uploading " + grades.size() + " grades from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            com.university.sms.dao.GradeDAO gradeDAO = new com.university.sms.dao.GradeDAO();
+
+            for (com.university.sms.model.Grade g : grades) {
+                try {
+                    if (gradeDAO.save(g)) {
+                        saveDataOrigin("grade", g.getGradeId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                }
+            }
+
+            String message = String.format("Uploaded %d grades successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_GRADES, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload grades: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_GRADES, "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload class opening requests từ client
+     */
+    private Message handleUploadClassOpeningRequests(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.ClassOpeningRequest> requests = (List<com.university.sms.model.ClassOpeningRequest>) request
+                    .getData("requests");
+
+            if (requests == null || requests.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
+                        "No class opening requests to upload");
+            }
+
+            LOGGER.info("Uploading " + requests.size() + " class opening requests from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            ClassOpeningRequestService service = new ClassOpeningRequestService();
+
+            for (com.university.sms.model.ClassOpeningRequest r : requests) {
+                try {
+                    if (service.submitRequest(r)) {
+                        saveDataOrigin("class_opening_request", r.getRequestId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                }
+            }
+
+            String message = String.format("Uploaded %d class opening requests successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload class opening requests: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
+                    "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload course registrations từ client
+     */
+    private Message handleUploadCourseRegistrations(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.CourseRegistration> registrations = (List<com.university.sms.model.CourseRegistration>) request
+                    .getData("registrations");
+
+            if (registrations == null || registrations.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
+                        "No course registrations to upload");
+            }
+
+            LOGGER.info("Uploading " + registrations.size() + " course registrations from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            CourseRegistrationDAO dao = new CourseRegistrationDAO();
+
+            for (com.university.sms.model.CourseRegistration r : registrations) {
+                try {
+                    if (dao.save(r)) {
+                        saveDataOrigin("course_registration", r.getRegistrationId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                }
+            }
+
+            String message = String.format("Uploaded %d course registrations successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload course registrations: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
+                    "Error: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Xử lý upload notifications từ client
+     */
+    private Message handleUploadNotifications(Message request) {
+        try {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.Notification> notifications = (List<com.university.sms.model.Notification>) request
+                    .getData("notifications");
+
+            if (notifications == null || notifications.isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS,
+                        "No notifications to upload");
+            }
+
+            LOGGER.info("Uploading " + notifications.size() + " notifications from client");
+
+            int successCount = 0;
+            int failCount = 0;
+            NotificationService service = new NotificationService();
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+
+            for (com.university.sms.model.Notification n : notifications) {
+                try {
+                    // ✅ REFACTORED: Ensure sender user exists based on username (code-based
+                    // approach)
+                    String senderUsername = n.getSenderUsername();
+                    boolean userOk = true;
+                    if (senderUsername != null && !senderUsername.isEmpty()) {
+                        // Check if sender user exists by username
+                        com.university.sms.model.User existingUser = userDAO.findByUsername(senderUsername);
+                        if (existingUser == null) {
+                            // Create a minimal user from notification info
+                            com.university.sms.model.User u = new com.university.sms.model.User();
+                            u.setUsername(senderUsername);
+                            u.setPassword("password");
+                            u.setFullName(n.getSenderName() != null ? n.getSenderName() : senderUsername);
+                            u.setEmail(senderUsername + "@csv-admin.edu.vn"); // Generate email from username
+                            u.setRole(com.university.sms.model.User.UserRole.ADMIN); // Default to ADMIN for
+                                                                                     // notifications
+                            userOk = userDAO.addUser(u);
+                            if (userOk) {
+                                saveDataOrigin("user", u.getUserId(), clientSource);
+                            }
+                        }
+                    }
+
+                    if (userOk && service.createNotification(n)) {
+                        saveDataOrigin("notification", n.getNotificationId(), clientSource);
+                        successCount++;
+                    } else {
+                        failCount++;
+                        LOGGER.warning("Failed to save notification: " + n.getNotificationId() + " - " + n.getTitle());
+                    }
+                } catch (Exception ex) {
+                    failCount++;
+                    LOGGER.severe("Error uploading notification " + n.getNotificationId() + ": " + ex.getMessage());
+                    ex.printStackTrace();
+                }
+            }
+
+            String message = String.format("Uploaded %d notifications successfully, %d failed",
+                    successCount, failCount);
+            return Message.createSuccessResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS, message);
+        } catch (Exception e) {
+            LOGGER.severe("Error handling upload notifications: " + e.getMessage());
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS,
+                    "Error: " + e.getMessage());
         }
     }
 
@@ -1376,8 +2008,21 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetMyClassRequests(Message request) {
         try {
-            int teacherId = (Integer) request.getData(Constants.KEY_TEACHER_ID);
-            List<ClassOpeningRequest> requests = classRequestService.getRequestsByTeacher(teacherId);
+            String teacherUsername = request.getData("teacherUsername", String.class);
+            if (teacherUsername == null || teacherUsername.isEmpty()) {
+                Integer teacherId = request.getData(Constants.KEY_TEACHER_ID, Integer.class);
+                if (teacherId != null) {
+                    UserDAO userDAO = new UserDAO();
+                    User teacher = userDAO.findById(teacherId);
+                    if (teacher != null) {
+                        teacherUsername = teacher.getUsername();
+                    }
+                }
+            }
+            if (teacherUsername == null || teacherUsername.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Teacher username is required");
+            }
+            List<ClassOpeningRequest> requests = classRequestService.getRequestsByTeacher(teacherUsername);
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData(Constants.KEY_CLASS_REQUESTS, requests);
             return response;
@@ -1434,8 +2079,21 @@ public class ClientHandler implements Runnable {
     private Message handleCancelClassRequest(Message request) {
         try {
             int requestId = (Integer) request.getData(Constants.KEY_REQUEST_ID);
-            int teacherId = (Integer) request.getData(Constants.KEY_TEACHER_ID);
-            boolean success = classRequestService.cancelRequest(requestId, teacherId);
+            String teacherUsername = request.getData("teacherUsername", String.class);
+            if (teacherUsername == null || teacherUsername.isEmpty()) {
+                Integer teacherId = request.getData(Constants.KEY_TEACHER_ID, Integer.class);
+                if (teacherId != null) {
+                    UserDAO userDAO = new UserDAO();
+                    User teacher = userDAO.findById(teacherId);
+                    if (teacher != null) {
+                        teacherUsername = teacher.getUsername();
+                    }
+                }
+            }
+            if (teacherUsername == null || teacherUsername.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Teacher username is required");
+            }
+            boolean success = classRequestService.cancelRequest(requestId, teacherUsername);
 
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Request cancelled successfully");
@@ -1460,11 +2118,10 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Thiếu thông tin request ID");
             }
 
-            // Lấy adminId từ currentUser thay vì từ request
-            int adminId = currentUser.getUserId();
+            String adminUsername = currentUser.getUsername();
             String note = request.getData(Constants.KEY_NOTE, String.class);
 
-            boolean success = classRequestService.approveRequest(requestId, adminId, note);
+            boolean success = classRequestService.approveRequest(requestId, adminUsername, note);
 
             if (success) {
                 LOGGER.info("Admin " + currentUser.getUsername() + " approved request " + requestId);
@@ -1494,15 +2151,14 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Thiếu thông tin request ID");
             }
 
-            // Lấy adminId từ currentUser thay vì từ request
-            int adminId = currentUser.getUserId();
+            String adminUsername = currentUser.getUsername();
             String reason = request.getData(Constants.KEY_REASON, String.class);
 
             if (reason == null || reason.trim().isEmpty()) {
                 return Message.createErrorResponse(request.getAction(), "Vui lòng nhập lý do từ chối");
             }
 
-            boolean success = classRequestService.rejectRequest(requestId, adminId, reason);
+            boolean success = classRequestService.rejectRequest(requestId, adminUsername, reason);
 
             if (success) {
                 LOGGER.info("Admin " + currentUser.getUsername() + " rejected request " + requestId);
@@ -1566,17 +2222,24 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetMyRegistrations(Message request) {
         try {
-            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
-
-            // Try to get student by ID first, if not found try by user_id
-            Student student = studentService.getStudentById(studentIdOrUserId);
-            if (student == null) {
-                student = studentService.getStudentByUserId(studentIdOrUserId);
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentIdOrUserId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentIdOrUserId != null) {
+                    Student student = studentService.getStudentById(studentIdOrUserId);
+                    if (student == null) {
+                        student = studentService.getStudentByUserId(studentIdOrUserId);
+                    }
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (studentCode == null || studentCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code is required");
             }
 
-            int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
-
-            List<CourseRegistration> registrations = registrationService.getRegistrationsByStudent(studentId);
+            List<CourseRegistration> registrations = registrationService.getRegistrationsByStudent(studentCode);
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
             return response;
@@ -1588,8 +2251,20 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetCourseRegistrations(Message request) {
         try {
-            int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
-            List<CourseRegistration> registrations = registrationService.getRegistrationsByCourse(courseId);
+            String courseCode = request.getData("courseCode", String.class);
+            if (courseCode == null || courseCode.isEmpty()) {
+                Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+                if (courseId != null) {
+                    Course course = new CourseDAO().findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Course code is required");
+            }
+            List<CourseRegistration> registrations = registrationService.getRegistrationsByCourse(courseCode);
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
             return response;
@@ -1613,27 +2288,38 @@ public class ClientHandler implements Runnable {
 
     private Message handleRegisterCourse(Message request) {
         try {
-            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
-            int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
-            String notes = (String) request.getData(Constants.KEY_NOTE);
+            String studentCode = request.getData("studentCode", String.class);
+            String courseCode = request.getData("courseCode", String.class);
+            String notes = request.getData(Constants.KEY_NOTE, String.class);
 
-            // Try to get student by ID first, if not found try by user_id
-            Student student = studentService.getStudentById(studentIdOrUserId);
-            if (student == null) {
-                LOGGER.info("Student not found by ID " + studentIdOrUserId + ", trying user_id lookup");
-                student = studentService.getStudentByUserId(studentIdOrUserId);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentIdOrUserId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentIdOrUserId != null) {
+                    Student student = studentService.getStudentById(studentIdOrUserId);
+                    if (student == null) {
+                        student = studentService.getStudentByUserId(studentIdOrUserId);
+                    }
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+                if (courseId != null) {
+                    Course course = new CourseDAO().findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
             }
 
-            if (student == null) {
-                LOGGER.severe("Student not found for ID/UserID: " + studentIdOrUserId);
+            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
                 return Message.createErrorResponse(request.getAction(),
-                        "Student not found. Please ensure your profile is complete.");
+                        "Student code and course code are required");
             }
 
-            int studentId = student.getStudentId();
-            LOGGER.info("Registering course for student_id=" + studentId + " (from input=" + studentIdOrUserId + ")");
-
-            boolean success = registrationService.registerCourse(studentId, courseId, notes);
+            boolean success = registrationService.registerCourse(studentCode, courseCode, notes);
 
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Registration submitted successfully");
@@ -1649,9 +2335,21 @@ public class ClientHandler implements Runnable {
     private Message handleCancelRegistration(Message request) {
         try {
             int registrationId = (Integer) request.getData(Constants.KEY_REGISTRATION_ID);
-            int studentId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null) {
+                    Student student = studentService.getStudentById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (studentCode == null || studentCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code is required");
+            }
 
-            boolean success = registrationService.cancelRegistration(registrationId, studentId);
+            boolean success = registrationService.cancelRegistration(registrationId, studentCode);
 
             if (success) {
                 return Message.createSuccessResponse(request.getAction(), "Registration cancelled successfully");
@@ -1700,19 +2398,38 @@ public class ClientHandler implements Runnable {
 
     private Message handleValidateRegistration(Message request) {
         try {
-            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
-            int courseId = (Integer) request.getData(Constants.KEY_COURSE_ID);
+            String studentCode = request.getData("studentCode", String.class);
+            String courseCode = request.getData("courseCode", String.class);
 
-            // Try to get student by ID first, if not found try by user_id
-            Student student = studentService.getStudentById(studentIdOrUserId);
-            if (student == null) {
-                student = studentService.getStudentByUserId(studentIdOrUserId);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentIdOrUserId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentIdOrUserId != null) {
+                    Student student = studentService.getStudentById(studentIdOrUserId);
+                    if (student == null) {
+                        student = studentService.getStudentByUserId(studentIdOrUserId);
+                    }
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+                if (courseId != null) {
+                    Course course = new CourseDAO().findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
             }
 
-            int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
+            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Student code and course code are required");
+            }
 
             CourseRegistrationService.RegistrationValidation validation = registrationService
-                    .validateRegistration(studentId, courseId);
+                    .validateRegistration(studentCode, courseCode);
 
             Message response = Message.createSuccessResponse(request.getAction(), validation.getMessage());
             response.addData("valid", validation.isValid());
@@ -1726,19 +2443,29 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetStudentCredits(Message request) {
         try {
-            Integer studentIdOrUserId = (Integer) request.getData(Constants.KEY_STUDENT_ID);
-            String academicYear = (String) request.getData(Constants.KEY_ACADEMIC_YEAR);
-            int semester = (Integer) request.getData(Constants.KEY_SEMESTER);
+            String studentCode = request.getData("studentCode", String.class);
+            String academicYear = request.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
+            Integer semester = request.getData(Constants.KEY_SEMESTER, Integer.class);
 
-            // Try to get student by ID first, if not found try by user_id
-            Student student = studentService.getStudentById(studentIdOrUserId);
-            if (student == null) {
-                student = studentService.getStudentByUserId(studentIdOrUserId);
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentIdOrUserId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentIdOrUserId != null) {
+                    Student student = studentService.getStudentById(studentIdOrUserId);
+                    if (student == null) {
+                        student = studentService.getStudentByUserId(studentIdOrUserId);
+                    }
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
             }
 
-            int studentId = (student != null) ? student.getStudentId() : studentIdOrUserId;
+            if (studentCode == null || studentCode.isEmpty() || academicYear == null || semester == null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Student code, academic year, and semester are required");
+            }
 
-            int credits = registrationService.getStudentCredits(studentId, academicYear, semester);
+            int credits = registrationService.getStudentCredits(studentCode, academicYear, semester);
 
             Message response = Message.createSuccessResponse(request.getAction(), "Success");
             response.addData("credits", credits);
@@ -1843,9 +2570,8 @@ public class ClientHandler implements Runnable {
 
             boolean success = userDAO.updateUser(teacher);
 
-            // Update password if provided
             if (password != null && !password.isEmpty()) {
-                userDAO.changePassword(userId, password);
+                userDAO.changePassword(teacher.getUsername(), password);
             }
 
             if (success) {
@@ -1878,7 +2604,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Không tìm thấy giảng viên");
             }
 
-            boolean success = userDAO.deactivateUser(userId);
+            boolean success = userDAO.deactivateUser(teacher.getUsername());
 
             if (success) {
                 LOGGER.info("Teacher deactivated: " + teacher.getUsername() + " by " + currentUser.getUsername());
@@ -2001,16 +2727,24 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetCoursesByTeacher(Message request) {
         try {
-            Integer teacherId = request.getData("teacherId", Integer.class);
-            if (teacherId == null) {
-                return Message.createErrorResponse(request.getAction(), "Teacher ID is required");
+            // ✅ REFACTORED: Use teacherUsername instead of teacherId
+            String teacherUsername = request.getData("teacherUsername", String.class);
+            if (teacherUsername == null) {
+                return Message.createErrorResponse(request.getAction(), "Teacher Username is required");
+            }
+
+            // Get teacher to fetch teacherUsername
+            UserDAO userDAO = new UserDAO();
+            User teacher = userDAO.findByUsername(teacherUsername);
+            if (teacher == null) {
+                return Message.createErrorResponse(request.getAction(), "Teacher not found");
             }
 
             CourseDAO courseDAO = new CourseDAO();
-            List<com.university.sms.model.Course> courses = courseDAO.findByTeacherId(teacherId);
+            List<com.university.sms.model.Course> courses = courseDAO.findByTeacherUsername(teacher.getUsername());
 
             LOGGER.info("ClientHandler: Retrieved " + courses.size() + " active courses (ONGOING) for teacher "
-                    + teacherId);
+                    + teacher.getUsername());
 
             Message response = Message.createSuccessResponse(request.getAction(),
                     "Found " + courses.size() + " courses");
@@ -2178,19 +2912,31 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetEnrollmentsByCourse(Message request) {
         try {
-            Integer courseId = request.getData("courseId", Integer.class);
-            if (courseId == null) {
-                return Message.createErrorResponse(request.getAction(), "Course ID is required");
+            // ✅ REFACTORED: Use courseCode instead of courseId
+            String courseCode = request.getData("courseCode", String.class);
+            if (courseCode == null || courseCode.isEmpty()) {
+                // Fallback: try courseId if courseCode not provided
+                Integer courseId = request.getData("courseId", Integer.class);
+                if (courseId != null) {
+                    CourseDAO courseDAO = new CourseDAO();
+                    Course course = courseDAO.findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Course code or ID is required");
             }
 
             EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO.findByCourseId(courseId);
+            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO.findByCourseCode(courseCode);
 
             Message response = Message.createSuccessResponse(request.getAction(),
                     "Found " + enrollments.size() + " enrollments");
             response.addData("enrollments", enrollments);
 
-            LOGGER.info("Retrieved " + enrollments.size() + " enrollments for course " + courseId);
+            LOGGER.info("Retrieved " + enrollments.size() + " enrollments for course " + courseCode);
             return response;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error getting enrollments by course", e);
@@ -2266,23 +3012,61 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetGrades(Message request) {
         try {
+            // ✅ REFACTORED: Ưu tiên codes, fallback về IDs
+            String studentCode = request.getData(Constants.KEY_STUDENT_CODE, String.class);
+            String courseCode = request.getData(Constants.KEY_COURSE_CODE, String.class);
             Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
             Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
             Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
 
             List<Grade> grades;
 
-            if (enrollmentId != null) {
-                grades = gradeService.getGradesByEnrollment(enrollmentId);
+            if (studentCode != null && courseCode != null) {
+                grades = gradeService.getGradesByStudentAndCourse(studentCode, courseCode);
+            } else if (enrollmentId != null) {
+                // Fallback: tìm enrollment để lấy codes
+                EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+                Enrollment enrollment = enrollmentDAO.findById(enrollmentId);
+                if (enrollment != null) {
+                    grades = gradeService.getGradesByStudentAndCourse(
+                            enrollment.getStudentCode(), enrollment.getCourseCode());
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Enrollment không tồn tại");
+                }
             } else if (studentId != null && courseId != null) {
-                grades = gradeService.getGradesByStudentAndCourse(studentId, courseId);
+                StudentDAO studentDAO = new StudentDAO();
+                CourseDAO courseDAO = new CourseDAO();
+                Student student = studentDAO.findById(studentId);
+                Course course = courseDAO.findById(courseId);
+                if (student != null && course != null) {
+                    grades = gradeService.getGradesByStudentAndCourse(
+                            student.getStudentCode(), course.getCourseCode());
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Student hoặc Course không tồn tại");
+                }
+            } else if (studentCode != null) {
+                grades = gradeService.getGradesByStudent(studentCode);
             } else if (studentId != null) {
-                grades = gradeService.getGradesByStudent(studentId);
+                StudentDAO studentDAO = new StudentDAO();
+                Student student = studentDAO.findById(studentId);
+                if (student != null) {
+                    grades = gradeService.getGradesByStudent(student.getStudentCode());
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Student không tồn tại");
+                }
+            } else if (courseCode != null) {
+                grades = gradeService.getGradesByCourse(courseCode);
             } else if (courseId != null) {
-                grades = gradeService.getGradesByCourse(courseId);
+                CourseDAO courseDAO = new CourseDAO();
+                Course course = courseDAO.findById(courseId);
+                if (course != null) {
+                    grades = gradeService.getGradesByCourse(course.getCourseCode());
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Course không tồn tại");
+                }
             } else {
                 return Message.createErrorResponse(request.getAction(),
-                        "enrollment_id, student_id, hoặc course_id is required");
+                        "student_code/course_code, enrollment_id, student_id, hoặc course_id is required");
             }
 
             Message response = Message.createSuccessResponse(request.getAction(),
@@ -2298,12 +3082,30 @@ public class ClientHandler implements Runnable {
 
     private Message handleCalculateFinalGrade(Message request) {
         try {
-            Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
-            if (enrollmentId == null) {
-                return Message.createErrorResponse(request.getAction(), "Enrollment ID is required");
+            // ✅ REFACTORED: Ưu tiên studentCode và courseCode, fallback về enrollmentId
+            String studentCode = request.getData(Constants.KEY_STUDENT_CODE, String.class);
+            String courseCode = request.getData(Constants.KEY_COURSE_CODE, String.class);
+
+            if (studentCode == null || courseCode == null) {
+                // Fallback: dùng enrollmentId
+                Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
+                if (enrollmentId == null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Student code and course code (or enrollment ID) are required");
+                }
+
+                // Tìm enrollment để lấy studentCode và courseCode
+                EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+                Enrollment enrollment = enrollmentDAO.findById(enrollmentId);
+                if (enrollment == null) {
+                    return Message.createErrorResponse(request.getAction(), "Enrollment không tồn tại");
+                }
+
+                studentCode = enrollment.getStudentCode();
+                courseCode = enrollment.getCourseCode();
             }
 
-            boolean result = gradeService.finalizeCourseGrade(enrollmentId);
+            boolean result = gradeService.finalizeCourseGrade(studentCode, courseCode);
 
             if (result) {
                 return Message.createSuccessResponse(request.getAction(), "Tính điểm tổng kết thành công");
@@ -2324,14 +3126,23 @@ public class ClientHandler implements Runnable {
             Integer userId = request.getData(Constants.KEY_USER_ID, Integer.class);
 
             List<Notification> notifications;
+            String username = null;
 
             if (userId != null) {
-                notifications = notificationService.getNotificationsByUser(userId);
+                UserDAO userDAO = new UserDAO();
+                User user = userDAO.findById(userId);
+                if (user != null) {
+                    username = user.getUsername();
+                }
             } else if (currentUser != null) {
-                notifications = notificationService.getNotificationsByUser(currentUser.getUserId());
-            } else {
-                return Message.createErrorResponse(request.getAction(), "User ID is required");
+                username = currentUser.getUsername();
             }
+
+            if (username == null || username.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "User information is required");
+            }
+
+            notifications = notificationService.getNotificationsByUser(username);
 
             // Count unread
             int unreadCount = 0;
@@ -2360,9 +3171,8 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Notification data is required");
             }
 
-            // Set sender to current user if not set
-            if (notification.getSenderId() <= 0 && currentUser != null) {
-                notification.setSenderId(currentUser.getUserId());
+            if (notification.getSenderUsername() == null && currentUser != null) {
+                notification.setSenderUsername(currentUser.getUsername());
             }
 
             boolean result = notificationService.createNotification(notification);
@@ -2392,8 +3202,7 @@ public class ClientHandler implements Runnable {
                     return Message.createErrorResponse(request.getAction(), "Đánh dấu đã đọc thất bại");
                 }
             } else if (currentUser != null) {
-                // Mark all notifications of user as read
-                boolean result = notificationService.markAllAsReadForUser(currentUser.getUserId());
+                boolean result = notificationService.markAllAsReadForUser(currentUser.getUsername());
                 if (result) {
                     return Message.createSuccessResponse(request.getAction(),
                             "Đánh dấu tất cả thông báo đã đọc thành công");
@@ -2430,15 +3239,21 @@ public class ClientHandler implements Runnable {
             List<?> timetable = null;
 
             if ("STUDENT".equalsIgnoreCase(userRole)) {
-                // Get student timetable
-                StudentDAO studentDAO = new StudentDAO();
-                Student student = studentDAO.findByUserId(userId);
-                if (student != null) {
-                    timetable = timetableService.getStudentTimetable(student.getStudentId());
+                UserDAO userDAO = new UserDAO();
+                User user = userDAO.findById(userId);
+                if (user != null) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student student = studentDAO.findByUsername(user.getUsername());
+                    if (student != null) {
+                        timetable = timetableService.getStudentTimetable(student.getStudentCode());
+                    }
                 }
             } else if ("TEACHER".equalsIgnoreCase(userRole)) {
-                // Get teacher timetable
-                timetable = timetableService.getTeacherTimetable(userId);
+                UserDAO userDAO = new UserDAO();
+                User user = userDAO.findById(userId);
+                if (user != null) {
+                    timetable = timetableService.getTeacherTimetable(user.getUsername());
+                }
             }
 
             Message response = Message.createSuccessResponse(request.getAction(), "Timetable retrieved successfully");
@@ -2455,21 +3270,29 @@ public class ClientHandler implements Runnable {
         try {
             Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
 
-            // If not provided, try to get from current user
-            if (studentId == null && currentUser != null
-                    && "STUDENT".equalsIgnoreCase(currentUser.getRole().toString())) {
-                StudentDAO studentDAO = new StudentDAO();
-                Student student = studentDAO.findByUserId(currentUser.getUserId());
-                if (student != null) {
-                    studentId = student.getStudentId();
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                if (studentId != null) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student student = studentDAO.findById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                } else if (currentUser != null
+                        && "STUDENT".equalsIgnoreCase(currentUser.getRole().toString())) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student student = studentDAO.findByUsername(currentUser.getUsername());
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
                 }
             }
 
-            if (studentId == null) {
-                return Message.createErrorResponse(request.getAction(), "Student ID is required");
+            if (studentCode == null || studentCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code is required");
             }
 
-            var transcript = transcriptService.generateTranscript(studentId);
+            var transcript = transcriptService.generateTranscript(studentCode);
 
             if (transcript == null) {
                 return Message.createErrorResponse(request.getAction(), "Cannot generate transcript");
@@ -2490,16 +3313,27 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetSemesterTranscript(Message request) {
         try {
-            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+            String studentCode = request.getData("studentCode", String.class);
             String academicYear = request.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
             Integer semester = request.getData(Constants.KEY_SEMESTER, Integer.class);
 
-            if (studentId == null || academicYear == null || semester == null) {
-                return Message.createErrorResponse(request.getAction(),
-                        "Student ID, academic year and semester are required");
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student student = studentDAO.findById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
             }
 
-            var semesterRecord = transcriptService.getSemesterTranscript(studentId, academicYear, semester);
+            if (studentCode == null || studentCode.isEmpty() || academicYear == null || semester == null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Student code, academic year and semester are required");
+            }
+
+            var semesterRecord = transcriptService.getSemesterTranscript(studentCode, academicYear, semester);
 
             if (semesterRecord == null) {
                 return Message.createErrorResponse(request.getAction(), "Semester transcript not found");
@@ -2519,13 +3353,13 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetHonorStudents(Message request) {
         try {
-            Integer facultyId = request.getData(Constants.KEY_FACULTY_ID, Integer.class);
+            String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
 
-            if (facultyId == null) {
+            if (facultyCode == null) {
                 return Message.createErrorResponse(request.getAction(), "Faculty ID is required");
             }
 
-            List<?> honorStudents = transcriptService.getHonorStudents(facultyId);
+            List<?> honorStudents = transcriptService.getHonorStudents(facultyCode);
 
             Message response = Message.createSuccessResponse(request.getAction(),
                     "Honor students retrieved successfully");
@@ -2540,13 +3374,23 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetFacultyStatistics(Message request) {
         try {
-            Integer facultyId = request.getData(Constants.KEY_FACULTY_ID, Integer.class);
-
-            if (facultyId == null) {
-                return Message.createErrorResponse(request.getAction(), "Faculty ID is required");
+            String facultyCode = request.getData("facultyCode", String.class);
+            if (facultyCode == null || facultyCode.isEmpty()) {
+                Integer facultyId = request.getData(Constants.KEY_FACULTY_ID, Integer.class);
+                if (facultyId != null) {
+                    com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+                    com.university.sms.model.Faculty faculty = facultyDAO.findById(facultyId);
+                    if (faculty != null) {
+                        facultyCode = faculty.getFacultyCode();
+                    }
+                }
             }
 
-            Map<String, Object> statistics = transcriptService.getFacultyStatistics(facultyId);
+            if (facultyCode == null || facultyCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Faculty code is required");
+            }
+
+            Map<String, Object> statistics = transcriptService.getFacultyStatistics(facultyCode);
 
             Message response = Message.createSuccessResponse(request.getAction(),
                     "Faculty statistics retrieved successfully");
@@ -2561,14 +3405,33 @@ public class ClientHandler implements Runnable {
 
     private Message handleValidateSchedule(Message request) {
         try {
-            Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
-            Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+            String studentCode = request.getData("studentCode", String.class);
+            String courseCode = request.getData("courseCode", String.class);
 
-            if (studentId == null || courseId == null) {
-                return Message.createErrorResponse(request.getAction(), "Student ID and Course ID are required");
+            if (studentCode == null || studentCode.isEmpty()) {
+                Integer studentId = request.getData(Constants.KEY_STUDENT_ID, Integer.class);
+                if (studentId != null) {
+                    Student student = studentService.getStudentById(studentId);
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+            if (courseCode == null || courseCode.isEmpty()) {
+                Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+                if (courseId != null) {
+                    Course course = new CourseDAO().findById(courseId);
+                    if (course != null) {
+                        courseCode = course.getCourseCode();
+                    }
+                }
             }
 
-            boolean isValid = timetableService.validateSchedule(studentId, courseId);
+            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code and course code are required");
+            }
+
+            boolean isValid = timetableService.validateSchedule(studentCode, courseCode);
 
             if (isValid) {
                 return Message.createSuccessResponse(request.getAction(), "No schedule conflict");

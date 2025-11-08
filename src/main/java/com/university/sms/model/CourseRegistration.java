@@ -5,22 +5,34 @@ import java.sql.Timestamp;
 
 /**
  * Model cho đăng ký học phần của sinh viên
+ * ✅ REFACTORED: Dùng student_code và course_code làm FK (client-safe)
  */
 public class CourseRegistration implements Serializable {
     private static final long serialVersionUID = 1L;
 
+    // Primary key
     private int registrationId;
-    private int studentId;
-    private int courseId;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
+    private String studentCode; // FK to students.student_code
+    private String courseCode; // FK to courses.course_code
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int studentId; // Legacy field, use studentCode instead
+    @Deprecated
+    private int courseId; // Legacy field, use courseCode instead
+
+    // Registration data
     private Timestamp registrationDate;
     private RegistrationStatus registrationStatus;
     private Timestamp cancelDate;
     private String notes;
+    private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     // Related information (from joins)
-    private String studentCode;
     private String studentName;
-    private String courseCode;
     private String subjectName;
     private String teacherName;
     private String scheduleDay;
@@ -37,6 +49,14 @@ public class CourseRegistration implements Serializable {
         this.registrationStatus = RegistrationStatus.PENDING;
     }
 
+    public CourseRegistration(String studentCode, String courseCode) {
+        this();
+        this.studentCode = studentCode;
+        this.courseCode = courseCode;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public CourseRegistration(int studentId, int courseId) {
         this();
         this.studentId = studentId;
@@ -98,6 +118,22 @@ public class CourseRegistration implements Serializable {
 
     public void setNotes(String notes) {
         this.notes = notes;
+    }
+
+    public Timestamp getCreatedAt() {
+        return createdAt;
+    }
+
+    public void setCreatedAt(Timestamp createdAt) {
+        this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     // Related information getters/setters
@@ -183,8 +219,3 @@ public class CourseRegistration implements Serializable {
                 '}';
     }
 }
-
-
-
-
-

@@ -4,18 +4,32 @@ import java.sql.Timestamp;
 
 /**
  * Model class cho bảng subjects
+ * ✅ REFACTORED: Dùng faculty_code, prerequisite_subject_code làm FK
+ * (client-safe)
  */
 public class Subject implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
+
+    // Primary key
     private int subjectId;
-    private String subjectCode;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
+    private String subjectCode; // UNIQUE identifier for subject
     private String subjectName;
     private int credits;
-    private int facultyId;
-    private Integer prerequisiteSubjectId;
+    private String facultyCode; // FK to faculties.faculty_code
+    private String prerequisiteSubjectCode; // FK to subjects.subject_code
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int facultyId; // Legacy field, use facultyCode instead
+    @Deprecated
+    private Integer prerequisiteSubjectId; // Legacy field, use prerequisiteSubjectCode instead
+
     private String description;
     private boolean isRequired;
     private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     // Faculty information (from join)
     private String facultyName;
@@ -28,6 +42,16 @@ public class Subject implements java.io.Serializable {
         this.isRequired = true;
     }
 
+    public Subject(String subjectCode, String subjectName, int credits, String facultyCode) {
+        this();
+        this.subjectCode = subjectCode;
+        this.subjectName = subjectName;
+        this.credits = credits;
+        this.facultyCode = facultyCode;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public Subject(String subjectCode, String subjectName, int credits, int facultyId) {
         this();
         this.subjectCode = subjectCode;
@@ -69,18 +93,39 @@ public class Subject implements java.io.Serializable {
         this.credits = credits;
     }
 
+    public String getFacultyCode() {
+        return facultyCode;
+    }
+
+    public void setFacultyCode(String facultyCode) {
+        this.facultyCode = facultyCode;
+    }
+
+    public String getPrerequisiteSubjectCode() {
+        return prerequisiteSubjectCode;
+    }
+
+    public void setPrerequisiteSubjectCode(String prerequisiteSubjectCode) {
+        this.prerequisiteSubjectCode = prerequisiteSubjectCode;
+    }
+
+    // Deprecated getters/setters (keep for backward compat)
+    @Deprecated
     public int getFacultyId() {
         return facultyId;
     }
 
+    @Deprecated
     public void setFacultyId(int facultyId) {
         this.facultyId = facultyId;
     }
 
+    @Deprecated
     public Integer getPrerequisiteSubjectId() {
         return prerequisiteSubjectId;
     }
 
+    @Deprecated
     public void setPrerequisiteSubjectId(Integer prerequisiteSubjectId) {
         this.prerequisiteSubjectId = prerequisiteSubjectId;
     }
@@ -107,6 +152,14 @@ public class Subject implements java.io.Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public String getFacultyName() {

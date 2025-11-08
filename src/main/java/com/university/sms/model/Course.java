@@ -5,14 +5,30 @@ import java.sql.Timestamp;
 
 /**
  * Model class cho bảng courses
+ * ✅ REFACTORED: Dùng subject_code, teacher_username, class_code làm FK
+ * (client-safe)
  */
 public class Course implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
+
+    // Primary key
     private int courseId;
-    private String courseCode;
-    private int subjectId;
-    private int teacherId;
-    private Integer classId;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
+    private String courseCode; // UNIQUE identifier for course
+    private String subjectCode; // FK to subjects.subject_code
+    private String teacherUsername; // FK to users.username (teacher)
+    private String classCode; // FK to classes.class_code
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private int subjectId; // Legacy field, use subjectCode instead
+    @Deprecated
+    private int teacherId; // Legacy field, use teacherUsername instead
+    @Deprecated
+    private Integer classId; // Legacy field, use classCode instead
+
+    // Course data
     private String academicYear;
     private int semester;
     private String scheduleDay;
@@ -24,11 +40,11 @@ public class Course implements java.io.Serializable {
     private Date startDate;
     private Date endDate;
     private Timestamp createdAt;
+    private Timestamp updatedAt;
     private String weeks; // e.g., "1-16" or "1-8,10-16"
 
     // Related information (from joins)
     private String subjectName;
-    private String subjectCode;
     private int credits;
     private String teacherName;
     private String className;
@@ -44,6 +60,17 @@ public class Course implements java.io.Serializable {
         this.courseStatus = CourseStatus.PLANNING;
     }
 
+    public Course(String courseCode, String subjectCode, String teacherUsername, String academicYear, int semester) {
+        this();
+        this.courseCode = courseCode;
+        this.subjectCode = subjectCode;
+        this.teacherUsername = teacherUsername;
+        this.academicYear = academicYear;
+        this.semester = semester;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public Course(String courseCode, int subjectId, int teacherId, String academicYear, int semester) {
         this();
         this.courseCode = courseCode;
@@ -70,26 +97,49 @@ public class Course implements java.io.Serializable {
         this.courseCode = courseCode;
     }
 
+    public String getTeacherUsername() {
+        return teacherUsername;
+    }
+
+    public void setTeacherUsername(String teacherUsername) {
+        this.teacherUsername = teacherUsername;
+    }
+
+    public String getClassCode() {
+        return classCode;
+    }
+
+    public void setClassCode(String classCode) {
+        this.classCode = classCode;
+    }
+
+    // Deprecated getters/setters (keep for backward compat)
+    @Deprecated
     public int getSubjectId() {
         return subjectId;
     }
 
+    @Deprecated
     public void setSubjectId(int subjectId) {
         this.subjectId = subjectId;
     }
 
+    @Deprecated
     public int getTeacherId() {
         return teacherId;
     }
 
+    @Deprecated
     public void setTeacherId(int teacherId) {
         this.teacherId = teacherId;
     }
 
+    @Deprecated
     public Integer getClassId() {
         return classId;
     }
 
+    @Deprecated
     public void setClassId(Integer classId) {
         this.classId = classId;
     }
@@ -180,6 +230,14 @@ public class Course implements java.io.Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public String getSubjectName() {

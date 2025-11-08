@@ -4,21 +4,33 @@ import java.sql.Timestamp;
 
 /**
  * Model class cho bảng faculties
+ * ✅ REFACTORED: Dùng head_teacher_username làm FK (client-safe)
  */
 public class Faculty implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
+
+    // Primary key
     private int facultyId;
-    private String facultyCode;
+
+    // ✅ NEW: Foreign key dùng code (KHÔNG bị conflict giữa clients)
+    private String facultyCode; // UNIQUE identifier for faculty
     private String facultyName;
     private String description;
-    private Integer headTeacherId;
+    private String headTeacherUsername; // FK to users.username (teacher)
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
+    @Deprecated
+    private Integer headTeacherId; // Legacy field, use headTeacherUsername instead
+
     private Timestamp createdAt;
+    private Timestamp updatedAt;
 
     // Teacher information (from join)
     private String headTeacherName;
 
     // Constructors
-    public Faculty() {}
+    public Faculty() {
+    }
 
     public Faculty(String facultyCode, String facultyName, String description) {
         this.facultyCode = facultyCode;
@@ -59,10 +71,21 @@ public class Faculty implements java.io.Serializable {
         this.description = description;
     }
 
+    public String getHeadTeacherUsername() {
+        return headTeacherUsername;
+    }
+
+    public void setHeadTeacherUsername(String headTeacherUsername) {
+        this.headTeacherUsername = headTeacherUsername;
+    }
+
+    // Deprecated getters/setters (keep for backward compat)
+    @Deprecated
     public Integer getHeadTeacherId() {
         return headTeacherId;
     }
 
+    @Deprecated
     public void setHeadTeacherId(Integer headTeacherId) {
         this.headTeacherId = headTeacherId;
     }
@@ -73,6 +96,14 @@ public class Faculty implements java.io.Serializable {
 
     public void setCreatedAt(Timestamp createdAt) {
         this.createdAt = createdAt;
+    }
+
+    public Timestamp getUpdatedAt() {
+        return updatedAt;
+    }
+
+    public void setUpdatedAt(Timestamp updatedAt) {
+        this.updatedAt = updatedAt;
     }
 
     public String getHeadTeacherName() {
@@ -93,4 +124,3 @@ public class Faculty implements java.io.Serializable {
                 '}';
     }
 }
-

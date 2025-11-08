@@ -5,12 +5,25 @@ import java.sql.Timestamp;
 
 /**
  * Model class cho bảng enrollments
+ * ✅ REFACTORED: Dùng student_code và course_code làm FK (client-safe)
  */
 public class Enrollment implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
+
+    // Primary key
     private int enrollmentId;
-    private int studentId;
-    private int courseId;
+
+    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
+    private String studentCode; // FK to students.student_code
+    private String courseCode; // FK to courses.course_code
+
+    // ⚠️ DEPRECATED: Giữ lại để backward compatibility, nhưng không dùng làm FK
+    @Deprecated
+    private int studentId; // Legacy field, use studentCode instead
+    @Deprecated
+    private int courseId; // Legacy field, use courseCode instead
+
+    // Enrollment data
     private Timestamp enrollmentDate;
     private EnrollmentStatus enrollmentStatus;
     private BigDecimal regularGrade; // Điểm bài tập
@@ -22,9 +35,7 @@ public class Enrollment implements java.io.Serializable {
     private BigDecimal attendanceRate;
 
     // Related information (from joins)
-    private String studentCode;
     private String studentName;
-    private String courseCode;
     private String subjectName;
     private int credits;
 
@@ -38,6 +49,14 @@ public class Enrollment implements java.io.Serializable {
         this.attendanceRate = BigDecimal.ZERO;
     }
 
+    public Enrollment(String studentCode, String courseCode) {
+        this();
+        this.studentCode = studentCode;
+        this.courseCode = courseCode;
+    }
+
+    // Legacy constructor (deprecated)
+    @Deprecated
     public Enrollment(int studentId, int courseId) {
         this();
         this.studentId = studentId;

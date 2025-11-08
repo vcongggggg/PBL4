@@ -65,15 +65,15 @@ public class CourseService {
     }
 
     /**
-     * Lấy khóa học theo giáo viên
+     * ✅ REFACTORED: Lấy khóa học theo giáo viên (dùng teacherUsername)
      */
-    public List<Course> getCoursesByTeacher(int teacherId) {
-        if (teacherId <= 0) {
+    public List<Course> getCoursesByTeacher(String teacherUsername) {
+        if (teacherUsername == null || teacherUsername.trim().isEmpty()) {
             return List.of();
         }
 
         try {
-            return courseDAO.findByTeacherId(teacherId);
+            return courseDAO.findByTeacherUsername(teacherUsername);
         } catch (Exception e) {
             LOGGER.severe("Error getting courses by teacher: " + e.getMessage());
             return List.of();
@@ -97,15 +97,15 @@ public class CourseService {
     }
 
     /**
-     * Lấy khóa học theo môn học
+     * ✅ REFACTORED: Lấy khóa học theo môn học (dùng subjectCode)
      */
-    public List<Course> getCoursesBySubject(int subjectId) {
-        if (subjectId <= 0) {
+    public List<Course> getCoursesBySubject(String subjectCode) {
+        if (subjectCode == null || subjectCode.trim().isEmpty()) {
             return List.of();
         }
 
         try {
-            return courseDAO.findBySubjectId(subjectId);
+            return courseDAO.findBySubjectCode(subjectCode);
         } catch (Exception e) {
             LOGGER.severe("Error getting courses by subject: " + e.getMessage());
             return List.of();
@@ -121,10 +121,10 @@ public class CourseService {
             return false;
         }
 
-        // Validate required fields
+        // ✅ REFACTORED: Validate required fields (dùng codes thay vì IDs)
         if (course.getCourseCode() == null || course.getCourseCode().trim().isEmpty() ||
-                course.getSubjectId() <= 0 ||
-                course.getTeacherId() <= 0 ||
+                course.getSubjectCode() == null || course.getSubjectCode().trim().isEmpty() ||
+                course.getTeacherUsername() == null || course.getTeacherUsername().trim().isEmpty() ||
                 course.getAcademicYear() == null || course.getAcademicYear().trim().isEmpty() ||
                 course.getSemester() <= 0) {
 
@@ -173,18 +173,25 @@ public class CourseService {
     }
 
     /**
-     * Cập nhật trạng thái khóa học
+     * ✅ REFACTORED: Cập nhật trạng thái khóa học (dùng courseCode)
      */
-    public boolean updateCourseStatus(int courseId, Course.CourseStatus status) {
-        if (courseId <= 0 || status == null) {
+    public boolean updateCourseStatus(String courseCode, Course.CourseStatus status) {
+        if (courseCode == null || courseCode.trim().isEmpty() || status == null) {
             LOGGER.warning("Cannot update course status: Invalid input");
             return false;
         }
 
         try {
-            boolean success = courseDAO.updateCourseStatus(courseId, status);
+            // Get course to get courseId
+            Course course = courseDAO.findByCourseCode(courseCode);
+            if (course == null) {
+                LOGGER.warning("Cannot update course status: Course not found - " + courseCode);
+                return false;
+            }
+
+            boolean success = courseDAO.updateCourseStatus(course.getCourseId(), status);
             if (success) {
-                LOGGER.info("Course status updated successfully: " + courseId + " -> " + status);
+                LOGGER.info("Course status updated successfully: " + courseCode + " -> " + status);
             }
             return success;
         } catch (Exception e) {
@@ -194,50 +201,51 @@ public class CourseService {
     }
 
     /**
-     * Xóa khóa học
+     * ✅ REFACTORED: Xóa khóa học (dùng courseCode)
      */
-    public boolean deleteCourse(int courseId) {
-        if (courseId <= 0) {
-            LOGGER.warning("Cannot delete course: Invalid course ID");
+    public boolean deleteCourse(String courseCode) {
+        if (courseCode == null || courseCode.trim().isEmpty()) {
+            LOGGER.warning("Cannot delete course: Invalid course code");
             return false;
         }
 
         try {
-            Course course = courseDAO.findById(courseId);
+            Course course = courseDAO.findByCourseCode(courseCode);
             if (course == null) {
-                LOGGER.warning("Cannot delete course: Course not found - " + courseId);
+                LOGGER.warning("Cannot delete course: Course not found - " + courseCode);
                 return false;
             }
 
-            LOGGER.info("Starting to delete course: " + courseId + " (Current students: " + course.getCurrentStudents()
-                    + ")");
+            LOGGER.info(
+                    "Starting to delete course: " + courseCode + " (Current students: " + course.getCurrentStudents()
+                            + ")");
 
-            // Bước 1: Xóa tất cả enrollments (điểm) của lớp này
             EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO.findByCourseId(courseId);
+            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO
+                    .findByCourseCode(course.getCourseCode());
             int enrollmentsDeleted = 0;
             for (com.university.sms.model.Enrollment enrollment : enrollments) {
                 if (enrollmentDAO.deleteEnrollment(enrollment.getEnrollmentId())) {
                     enrollmentsDeleted++;
                 }
             }
-            LOGGER.info("Deleted " + enrollmentsDeleted + " enrollments for course " + courseId);
+            LOGGER.info("Deleted " + enrollmentsDeleted + " enrollments for course " + course.getCourseCode());
 
-            // Bước 2: Xóa tất cả course registrations của lớp này
             CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
-            List<com.university.sms.model.CourseRegistration> registrations = registrationDAO.findByCourse(courseId);
+            List<com.university.sms.model.CourseRegistration> registrations = registrationDAO
+                    .findByCourse(course.getCourseCode());
             int registrationsDeleted = 0;
             for (com.university.sms.model.CourseRegistration registration : registrations) {
                 if (registrationDAO.delete(registration.getRegistrationId())) {
                     registrationsDeleted++;
                 }
             }
-            LOGGER.info("Deleted " + registrationsDeleted + " course registrations for course " + courseId);
+            LOGGER.info(
+                    "Deleted " + registrationsDeleted + " course registrations for course " + course.getCourseCode());
 
-            // Bước 3: Xóa course
-            boolean success = courseDAO.deleteCourse(courseId);
+            boolean success = courseDAO.deleteCourse(course.getCourseId());
             if (success) {
-                LOGGER.info("Course deleted successfully: " + courseId +
+                LOGGER.info("Course deleted successfully: " + courseCode +
                         " (Removed " + enrollmentsDeleted + " enrollments, " +
                         registrationsDeleted + " registrations)");
             }
@@ -282,23 +290,18 @@ public class CourseService {
         }
     }
 
-    /**
-     * Kiểm tra khóa học có thể đăng ký không
-     */
-    public boolean canEnrollInCourse(int courseId) {
+    public boolean canEnrollInCourse(String courseCode) {
         try {
-            Course course = courseDAO.findById(courseId);
+            Course course = courseDAO.findByCourseCode(courseCode);
             if (course == null) {
                 return false;
             }
 
-            // Check if course is in planning or ongoing status
             if (course.getCourseStatus() != Course.CourseStatus.PLANNING &&
                     course.getCourseStatus() != Course.CourseStatus.ONGOING) {
                 return false;
             }
 
-            // Check if course has available slots
             return course.getCurrentStudents() < course.getMaxStudents();
         } catch (Exception e) {
             LOGGER.severe("Error checking course enrollment availability: " + e.getMessage());
@@ -306,51 +309,42 @@ public class CourseService {
         }
     }
 
-    /**
-     * Tăng số lượng sinh viên hiện tại
-     */
-    public boolean incrementCurrentStudents(int courseId) {
-        if (courseId <= 0) {
+    public boolean incrementCurrentStudents(String courseCode) {
+        if (courseCode == null || courseCode.trim().isEmpty()) {
             return false;
         }
 
         try {
-            Course course = courseDAO.findById(courseId);
+            Course course = courseDAO.findByCourseCode(courseCode);
             if (course == null || course.getCurrentStudents() >= course.getMaxStudents()) {
                 return false;
             }
 
-            return courseDAO.updateCurrentStudents(courseId, course.getCurrentStudents() + 1);
+            return courseDAO.updateCurrentStudents(course.getCourseId(), course.getCurrentStudents() + 1);
         } catch (Exception e) {
             LOGGER.severe("Error incrementing current students: " + e.getMessage());
             return false;
         }
     }
 
-    /**
-     * Giảm số lượng sinh viên hiện tại
-     */
-    public boolean decrementCurrentStudents(int courseId) {
-        if (courseId <= 0) {
+    public boolean decrementCurrentStudents(String courseCode) {
+        if (courseCode == null || courseCode.trim().isEmpty()) {
             return false;
         }
 
         try {
-            Course course = courseDAO.findById(courseId);
+            Course course = courseDAO.findByCourseCode(courseCode);
             if (course == null || course.getCurrentStudents() <= 0) {
                 return false;
             }
 
-            return courseDAO.updateCurrentStudents(courseId, course.getCurrentStudents() - 1);
+            return courseDAO.updateCurrentStudents(course.getCourseId(), course.getCurrentStudents() - 1);
         } catch (Exception e) {
             LOGGER.severe("Error decrementing current students: " + e.getMessage());
             return false;
         }
     }
 
-    /**
-     * Lấy thống kê khóa học
-     */
     public CourseStatistics getCourseStatistics(String academicYear, int semester) {
         try {
             List<Course> courses = courseDAO.findByAcademicYearAndSemester(academicYear, semester);
@@ -390,22 +384,15 @@ public class CourseService {
         }
     }
 
-    /**
-     * Validate course code format
-     */
     private boolean isValidCourseCode(String courseCode) {
         if (courseCode == null || courseCode.trim().isEmpty()) {
             return false;
         }
 
-        // Course code format: SUBJECT_YEAR_SEMESTER (e.g., CNTT101_2024_1)
         String codeRegex = "^[A-Z]+\\d+_\\d{4}_\\d+$";
         return courseCode.matches(codeRegex);
     }
 
-    /**
-     * Inner class for course statistics
-     */
     public static class CourseStatistics {
         private int totalCourses;
         private int planningCourses;
@@ -414,7 +401,6 @@ public class CourseService {
         private int cancelledCourses;
         private int totalEnrollments;
 
-        // Getters and setters
         public int getTotalCourses() {
             return totalCourses;
         }
@@ -464,9 +450,6 @@ public class CourseService {
         }
     }
 
-    /**
-     * Lấy tổng số lượng khóa học
-     */
     public int getTotalCount() {
         try {
             return courseDAO.getTotalCount();

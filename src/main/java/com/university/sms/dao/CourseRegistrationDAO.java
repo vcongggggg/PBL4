@@ -11,31 +11,32 @@ import java.util.logging.Logger;
 
 /**
  * DAO for managing course registrations
+ * ✅ REFACTORED: Dùng student_code, course_code thay vì student_id, course_id
  */
 public class CourseRegistrationDAO {
     private static final Logger LOGGER = Logger.getLogger(CourseRegistrationDAO.class.getName());
 
     /**
-     * Find all registrations
+     * ✅ REFACTORED: Find all registrations
      */
     public List<CourseRegistration> findAll() {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
-                     "s.student_code, u.full_name as student_name, " +
-                     "c.course_code, sub.subject_name, sub.credits, " +
-                     "u2.full_name as teacher_name, " +
-                     "c.schedule_day, c.schedule_time, c.room " +
-                     "FROM course_registrations cr " +
-                     "JOIN students s ON cr.student_id = s.student_id " +
-                     "JOIN users u ON s.user_id = u.user_id " +
-                     "JOIN courses c ON cr.course_id = c.course_id " +
-                     "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                     "JOIN users u2 ON c.teacher_id = u2.user_id " +
-                     "ORDER BY cr.registration_date DESC";
+                "s.student_code, u.full_name as student_name, " +
+                "c.course_code, sub.subject_name, sub.credits, " +
+                "u2.full_name as teacher_name, " +
+                "c.schedule_day, c.schedule_time, c.room " +
+                "FROM course_registrations cr " +
+                "JOIN students s ON cr.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u2 ON c.teacher_username = u2.username " +
+                "ORDER BY cr.registration_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
                 registrations.add(extractRegistrationFromResultSet(rs));
@@ -54,20 +55,20 @@ public class CourseRegistrationDAO {
      */
     public CourseRegistration findById(int registrationId) {
         String sql = "SELECT cr.*, " +
-                     "s.student_code, u.full_name as student_name, " +
-                     "c.course_code, sub.subject_name, sub.credits, " +
-                     "u2.full_name as teacher_name, " +
-                     "c.schedule_day, c.schedule_time, c.room " +
-                     "FROM course_registrations cr " +
-                     "JOIN students s ON cr.student_id = s.student_id " +
-                     "JOIN users u ON s.user_id = u.user_id " +
-                     "JOIN courses c ON cr.course_id = c.course_id " +
-                     "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                     "JOIN users u2 ON c.teacher_id = u2.user_id " +
-                     "WHERE cr.registration_id = ?";
+                "s.student_code, u.full_name as student_name, " +
+                "c.course_code, sub.subject_name, sub.credits, " +
+                "u2.full_name as teacher_name, " +
+                "c.schedule_day, c.schedule_time, c.room " +
+                "FROM course_registrations cr " +
+                "JOIN students s ON cr.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u2 ON c.teacher_username = u2.username " +
+                "WHERE cr.registration_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, registrationId);
             ResultSet rs = pstmt.executeQuery();
@@ -85,28 +86,28 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Find registrations by student
+     * ✅ REFACTORED: Find registrations by student (dùng student_code)
      */
-    public List<CourseRegistration> findByStudent(int studentId) {
+    public List<CourseRegistration> findByStudent(String studentCode) {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
-                     "s.student_code, u.full_name as student_name, " +
-                     "c.course_code, sub.subject_name, sub.credits, " +
-                     "u2.full_name as teacher_name, " +
-                     "c.schedule_day, c.schedule_time, c.room " +
-                     "FROM course_registrations cr " +
-                     "JOIN students s ON cr.student_id = s.student_id " +
-                     "JOIN users u ON s.user_id = u.user_id " +
-                     "JOIN courses c ON cr.course_id = c.course_id " +
-                     "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                     "JOIN users u2 ON c.teacher_id = u2.user_id " +
-                     "WHERE cr.student_id = ? " +
-                     "ORDER BY cr.registration_date DESC";
+                "s.student_code, u.full_name as student_name, " +
+                "c.course_code, sub.subject_name, sub.credits, " +
+                "u2.full_name as teacher_name, " +
+                "c.schedule_day, c.schedule_time, c.room " +
+                "FROM course_registrations cr " +
+                "JOIN students s ON cr.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u2 ON c.teacher_username = u2.username " +
+                "WHERE cr.student_code = ? " +
+                "ORDER BY cr.registration_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, studentId);
+            pstmt.setString(1, studentCode);
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {
@@ -122,28 +123,28 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Find registrations by course
+     * ✅ REFACTORED: Find registrations by course (dùng course_code)
      */
-    public List<CourseRegistration> findByCourse(int courseId) {
+    public List<CourseRegistration> findByCourse(String courseCode) {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
-                     "s.student_code, u.full_name as student_name, " +
-                     "c.course_code, sub.subject_name, sub.credits, " +
-                     "u2.full_name as teacher_name, " +
-                     "c.schedule_day, c.schedule_time, c.room " +
-                     "FROM course_registrations cr " +
-                     "JOIN students s ON cr.student_id = s.student_id " +
-                     "JOIN users u ON s.user_id = u.user_id " +
-                     "JOIN courses c ON cr.course_id = c.course_id " +
-                     "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                     "JOIN users u2 ON c.teacher_id = u2.user_id " +
-                     "WHERE cr.course_id = ? " +
-                     "ORDER BY cr.registration_date DESC";
+                "s.student_code, u.full_name as student_name, " +
+                "c.course_code, sub.subject_name, sub.credits, " +
+                "u2.full_name as teacher_name, " +
+                "c.schedule_day, c.schedule_time, c.room " +
+                "FROM course_registrations cr " +
+                "JOIN students s ON cr.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u2 ON c.teacher_username = u2.username " +
+                "WHERE cr.course_code = ? " +
+                "ORDER BY cr.registration_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, courseId);
+            pstmt.setString(1, courseCode);
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {
@@ -164,21 +165,21 @@ public class CourseRegistrationDAO {
     public List<CourseRegistration> findByStatus(RegistrationStatus status) {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
-                     "s.student_code, u.full_name as student_name, " +
-                     "c.course_code, sub.subject_name, sub.credits, " +
-                     "u2.full_name as teacher_name, " +
-                     "c.schedule_day, c.schedule_time, c.room " +
-                     "FROM course_registrations cr " +
-                     "JOIN students s ON cr.student_id = s.student_id " +
-                     "JOIN users u ON s.user_id = u.user_id " +
-                     "JOIN courses c ON cr.course_id = c.course_id " +
-                     "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                     "JOIN users u2 ON c.teacher_id = u2.user_id " +
-                     "WHERE cr.registration_status = ? " +
-                     "ORDER BY cr.registration_date DESC";
+                "s.student_code, u.full_name as student_name, " +
+                "c.course_code, sub.subject_name, sub.credits, " +
+                "u2.full_name as teacher_name, " +
+                "c.schedule_day, c.schedule_time, c.room " +
+                "FROM course_registrations cr " +
+                "JOIN students s ON cr.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u2 ON c.teacher_username = u2.username " +
+                "WHERE cr.registration_status = ? " +
+                "ORDER BY cr.registration_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, status.name());
             ResultSet rs = pstmt.executeQuery();
@@ -196,18 +197,79 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Insert new registration
+     * ✅ REFACTORED: Lưu registration (insert nếu chưa có ID, update nếu đã có ID)
+     */
+    public boolean save(CourseRegistration registration) {
+        if (registration.getRegistrationId() > 0) {
+            // Check if exists
+            CourseRegistration existing = findById(registration.getRegistrationId());
+            if (existing != null) {
+                // Update existing registration
+                return update(registration);
+            }
+        }
+        // Insert new registration (có thể với ID từ CSV)
+        return insertWithId(registration);
+    }
+
+    /**
+     * ✅ REFACTORED: Insert registration with specific ID (for CSV import)
+     */
+    private boolean insertWithId(CourseRegistration registration) {
+        String sql = registration.getRegistrationId() > 0
+                ? "INSERT IGNORE INTO course_registrations (registration_id, student_code, course_code, registration_status, notes, created_at) VALUES (?, ?, ?, ?, ?, ?)"
+                : "INSERT IGNORE INTO course_registrations (student_code, course_code, registration_status, notes) VALUES (?, ?, ?, ?)";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+
+            int paramIndex = 1;
+            if (registration.getRegistrationId() > 0) {
+                pstmt.setInt(paramIndex++, registration.getRegistrationId());
+            }
+
+            pstmt.setString(paramIndex++, registration.getStudentCode());
+            pstmt.setString(paramIndex++, registration.getCourseCode());
+            pstmt.setString(paramIndex++, registration.getRegistrationStatus().name());
+            pstmt.setString(paramIndex++, registration.getNotes());
+
+            if (registration.getRegistrationId() > 0 && registration.getCreatedAt() != null) {
+                pstmt.setTimestamp(paramIndex++, registration.getCreatedAt());
+            }
+
+            int affectedRows = pstmt.executeUpdate();
+
+            if (affectedRows > 0 && registration.getRegistrationId() == 0) {
+                ResultSet generatedKeys = pstmt.getGeneratedKeys();
+                if (generatedKeys.next()) {
+                    registration.setRegistrationId(generatedKeys.getInt(1));
+                }
+            }
+
+            LOGGER.info("Registration processed: Student " + registration.getStudentCode() +
+                    " -> Course " + registration.getCourseCode() + " (inserted=" + (affectedRows > 0) + ")");
+            return true; // Always return true for INSERT IGNORE
+
+        } catch (SQLException e) {
+            LOGGER.severe("Error inserting registration: " + e.getMessage());
+            e.printStackTrace();
+            return false;
+        }
+    }
+
+    /**
+     * ✅ REFACTORED: Insert new registration
      */
     public boolean insert(CourseRegistration registration) {
         String sql = "INSERT INTO course_registrations " +
-                     "(student_id, course_id, registration_status, notes) " +
-                     "VALUES (?, ?, ?, ?)";
+                "(student_code, course_code, registration_status, notes) " +
+                "VALUES (?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            pstmt.setInt(1, registration.getStudentId());
-            pstmt.setInt(2, registration.getCourseId());
+            pstmt.setString(1, registration.getStudentCode());
+            pstmt.setString(2, registration.getCourseCode());
             pstmt.setString(3, registration.getRegistrationStatus().name());
             pstmt.setString(4, registration.getNotes());
 
@@ -234,13 +296,13 @@ public class CourseRegistrationDAO {
      */
     public boolean update(CourseRegistration registration) {
         String sql = "UPDATE course_registrations SET " +
-                     "registration_status = ?, " +
-                     "notes = ?, " +
-                     "cancel_date = ? " +
-                     "WHERE registration_id = ?";
+                "registration_status = ?, " +
+                "notes = ?, " +
+                "cancel_date = ? " +
+                "WHERE registration_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, registration.getRegistrationStatus().name());
             pstmt.setString(2, registration.getNotes());
@@ -262,12 +324,12 @@ public class CourseRegistrationDAO {
      */
     public boolean cancel(int registrationId) {
         String sql = "UPDATE course_registrations SET " +
-                     "registration_status = 'CANCELLED', " +
-                     "cancel_date = NOW() " +
-                     "WHERE registration_id = ?";
+                "registration_status = 'CANCELLED', " +
+                "cancel_date = NOW() " +
+                "WHERE registration_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, registrationId);
             return pstmt.executeUpdate() > 0;
@@ -287,7 +349,7 @@ public class CourseRegistrationDAO {
         String sql = "DELETE FROM course_registrations WHERE registration_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, registrationId);
             return pstmt.executeUpdate() > 0;
@@ -301,18 +363,18 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Check if student already registered for a course
+     * ✅ REFACTORED: Check if student already registered for a course
      */
-    public boolean isAlreadyRegistered(int studentId, int courseId) {
+    public boolean isAlreadyRegistered(String studentCode, String courseCode) {
         String sql = "SELECT COUNT(*) FROM course_registrations " +
-                     "WHERE student_id = ? AND course_id = ? " +
-                     "AND registration_status != 'CANCELLED'";
+                "WHERE student_code = ? AND course_code = ? " +
+                "AND registration_status != 'CANCELLED'";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, studentId);
-            pstmt.setInt(2, courseId);
+            pstmt.setString(1, studentCode);
+            pstmt.setString(2, courseCode);
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
@@ -328,23 +390,23 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Check if student can register (check schedule conflict)
+     * ✅ REFACTORED: Check if student can register (check schedule conflict)
      */
-    public boolean hasScheduleConflict(int studentId, int courseId) {
+    public boolean hasScheduleConflict(String studentCode, String courseCode) {
         String sql = "SELECT COUNT(*) FROM course_registrations cr1 " +
-                     "JOIN courses c1 ON cr1.course_id = c1.course_id " +
-                     "JOIN courses c2 ON c2.course_id = ? " +
-                     "WHERE cr1.student_id = ? " +
-                     "AND cr1.registration_status = 'APPROVED' " +
-                     "AND c1.schedule_day = c2.schedule_day " +
-                     "AND c1.schedule_time = c2.schedule_time " +
-                     "AND c1.course_id != c2.course_id";
+                "JOIN courses c1 ON cr1.course_code = c1.course_code " +
+                "JOIN courses c2 ON c2.course_code = ? " +
+                "WHERE cr1.student_code = ? " +
+                "AND cr1.registration_status = 'APPROVED' " +
+                "AND c1.schedule_day = c2.schedule_day " +
+                "AND c1.schedule_time = c2.schedule_time " +
+                "AND c1.course_code != c2.course_code";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, courseId);
-            pstmt.setInt(2, studentId);
+            pstmt.setString(1, courseCode);
+            pstmt.setString(2, studentCode);
             ResultSet rs = pstmt.executeQuery();
 
             if (rs.next()) {
@@ -360,22 +422,22 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Get total registered credits for student in a semester
+     * ✅ REFACTORED: Get total registered credits for student in a semester
      */
-    public int getTotalCredits(int studentId, String academicYear, int semester) {
+    public int getTotalCredits(String studentCode, String academicYear, int semester) {
         String sql = "SELECT SUM(sub.credits) " +
-                     "FROM course_registrations cr " +
-                     "JOIN courses c ON cr.course_id = c.course_id " +
-                     "JOIN subjects sub ON c.subject_id = sub.subject_id " +
-                     "WHERE cr.student_id = ? " +
-                     "AND c.academic_year = ? " +
-                     "AND c.semester = ? " +
-                     "AND cr.registration_status = 'APPROVED'";
+                "FROM course_registrations cr " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "WHERE cr.student_code = ? " +
+                "AND c.academic_year = ? " +
+                "AND c.semester = ? " +
+                "AND cr.registration_status = 'APPROVED'";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, studentId);
+            pstmt.setString(1, studentCode);
             pstmt.setString(2, academicYear);
             pstmt.setInt(3, semester);
             ResultSet rs = pstmt.executeQuery();
@@ -393,14 +455,14 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * Extract CourseRegistration from ResultSet
+     * ✅ REFACTORED: Extract CourseRegistration from ResultSet
      */
     private CourseRegistration extractRegistrationFromResultSet(ResultSet rs) throws SQLException {
         CourseRegistration registration = new CourseRegistration();
 
         registration.setRegistrationId(rs.getInt("registration_id"));
-        registration.setStudentId(rs.getInt("student_id"));
-        registration.setCourseId(rs.getInt("course_id"));
+        registration.setStudentCode(rs.getString("student_code"));
+        registration.setCourseCode(rs.getString("course_code"));
         registration.setRegistrationDate(rs.getTimestamp("registration_date"));
         registration.setRegistrationStatus(RegistrationStatus.valueOf(rs.getString("registration_status")));
         registration.setCancelDate(rs.getTimestamp("cancel_date"));
@@ -420,8 +482,3 @@ public class CourseRegistrationDAO {
         return registration;
     }
 }
-
-
-
-
-

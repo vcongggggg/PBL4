@@ -6,9 +6,6 @@ import com.university.sms.model.Subject;
 import java.util.List;
 import java.util.logging.Logger;
 
-/**
- * Service class for Subject business logic
- */
 public class SubjectService {
     private static final Logger LOGGER = Logger.getLogger(SubjectService.class.getName());
     private SubjectDAO subjectDAO;
@@ -17,37 +14,22 @@ public class SubjectService {
         this.subjectDAO = new SubjectDAO();
     }
 
-    /**
-     * Get all subjects
-     */
     public List<Subject> getAllSubjects() {
         return subjectDAO.findAll();
     }
 
-    /**
-     * Get subject by ID
-     */
     public Subject getSubjectById(int subjectId) {
         return subjectDAO.findById(subjectId);
     }
 
-    /**
-     * Get subject by code
-     */
     public Subject getSubjectByCode(String subjectCode) {
         return subjectDAO.findByCode(subjectCode);
     }
 
-    /**
-     * Get subjects by faculty
-     */
-    public List<Subject> getSubjectsByFaculty(int facultyId) {
-        return subjectDAO.findByFaculty(facultyId);
+    public List<Subject> getSubjectsByFaculty(String facultyCode) {
+        return subjectDAO.findByFaculty(facultyCode);
     }
 
-    /**
-     * Search subjects
-     */
     public List<Subject> searchSubjects(String keyword) {
         if (keyword == null || keyword.trim().isEmpty()) {
             return getAllSubjects();
@@ -55,11 +37,7 @@ public class SubjectService {
         return subjectDAO.search(keyword.trim());
     }
 
-    /**
-     * Add new subject
-     */
     public boolean addSubject(Subject subject) {
-        // Validation
         if (subject.getSubjectCode() == null || subject.getSubjectCode().trim().isEmpty()) {
             LOGGER.warning("Subject code is required");
             return false;
@@ -85,11 +63,7 @@ public class SubjectService {
         return subjectDAO.insert(subject);
     }
 
-    /**
-     * Update subject
-     */
     public boolean updateSubject(Subject subject) {
-        // Validation
         if (subject.getSubjectId() <= 0) {
             LOGGER.warning("Invalid subject ID");
             return false;
@@ -101,7 +75,6 @@ public class SubjectService {
             return false;
         }
 
-        // Check duplicate code (excluding current subject)
         Subject duplicateCode = subjectDAO.findByCode(subject.getSubjectCode());
         if (duplicateCode != null && duplicateCode.getSubjectId() != subject.getSubjectId()) {
             LOGGER.warning("Subject code already exists: " + subject.getSubjectCode());
@@ -111,9 +84,6 @@ public class SubjectService {
         return subjectDAO.update(subject);
     }
 
-    /**
-     * Delete subject
-     */
     public boolean deleteSubject(int subjectId) {
         Subject existing = subjectDAO.findById(subjectId);
         if (existing == null) {
@@ -121,10 +91,6 @@ public class SubjectService {
             return false;
         }
 
-        // TODO: Check if subject is being used in courses/requests
-        // For now, just delete
         return subjectDAO.delete(subjectId);
     }
 }
-
-

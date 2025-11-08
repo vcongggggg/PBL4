@@ -11,28 +11,30 @@ import java.util.logging.Logger;
 
 /**
  * DAO for managing class opening requests
+ * ✅ REFACTORED: Dùng teacher_username, subject_code, approved_by_username thay
+ * vì IDs
  */
 public class ClassOpeningRequestDAO {
     private static final Logger LOGGER = Logger.getLogger(ClassOpeningRequestDAO.class.getName());
 
     /**
-     * Find all class opening requests
+     * ✅ REFACTORED: Find all class opening requests
      */
     public List<ClassOpeningRequest> findAll() {
         List<ClassOpeningRequest> requests = new ArrayList<>();
         String sql = "SELECT cor.*, " +
-                     "u.full_name as teacher_name, " +
-                     "s.subject_name, s.subject_code, s.credits, " +
-                     "u2.full_name as approver_name " +
-                     "FROM class_opening_requests cor " +
-                     "JOIN users u ON cor.teacher_id = u.user_id " +
-                     "JOIN subjects s ON cor.subject_id = s.subject_id " +
-                     "LEFT JOIN users u2 ON cor.approved_by = u2.user_id " +
-                     "ORDER BY cor.request_date DESC";
+                "u.full_name as teacher_name, " +
+                "s.subject_name, s.subject_code, s.credits, " +
+                "u2.full_name as approver_name " +
+                "FROM class_opening_requests cor " +
+                "JOIN users u ON cor.teacher_username = u.username " +
+                "JOIN subjects s ON cor.subject_code = s.subject_code " +
+                "LEFT JOIN users u2 ON cor.approved_by_username = u2.username " +
+                "ORDER BY cor.request_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             Statement stmt = conn.createStatement();
-             ResultSet rs = stmt.executeQuery(sql)) {
+                Statement stmt = conn.createStatement();
+                ResultSet rs = stmt.executeQuery(sql)) {
 
             while (rs.next()) {
                 requests.add(extractRequestFromResultSet(rs));
@@ -51,17 +53,17 @@ public class ClassOpeningRequestDAO {
      */
     public ClassOpeningRequest findById(int requestId) {
         String sql = "SELECT cor.*, " +
-                     "u.full_name as teacher_name, " +
-                     "s.subject_name, s.subject_code, s.credits, " +
-                     "u2.full_name as approver_name " +
-                     "FROM class_opening_requests cor " +
-                     "JOIN users u ON cor.teacher_id = u.user_id " +
-                     "JOIN subjects s ON cor.subject_id = s.subject_id " +
-                     "LEFT JOIN users u2 ON cor.approved_by = u2.user_id " +
-                     "WHERE cor.request_id = ?";
+                "u.full_name as teacher_name, " +
+                "s.subject_name, s.subject_code, s.credits, " +
+                "u2.full_name as approver_name " +
+                "FROM class_opening_requests cor " +
+                "JOIN users u ON cor.teacher_username = u.username " +
+                "JOIN subjects s ON cor.subject_code = s.subject_code " +
+                "LEFT JOIN users u2 ON cor.approved_by_username = u2.username " +
+                "WHERE cor.request_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, requestId);
             ResultSet rs = pstmt.executeQuery();
@@ -79,25 +81,25 @@ public class ClassOpeningRequestDAO {
     }
 
     /**
-     * Find requests by teacher
+     * ✅ REFACTORED: Find requests by teacher (dùng username)
      */
-    public List<ClassOpeningRequest> findByTeacher(int teacherId) {
+    public List<ClassOpeningRequest> findByTeacher(String teacherUsername) {
         List<ClassOpeningRequest> requests = new ArrayList<>();
         String sql = "SELECT cor.*, " +
-                     "u.full_name as teacher_name, " +
-                     "s.subject_name, s.subject_code, s.credits, " +
-                     "u2.full_name as approver_name " +
-                     "FROM class_opening_requests cor " +
-                     "JOIN users u ON cor.teacher_id = u.user_id " +
-                     "JOIN subjects s ON cor.subject_id = s.subject_id " +
-                     "LEFT JOIN users u2 ON cor.approved_by = u2.user_id " +
-                     "WHERE cor.teacher_id = ? " +
-                     "ORDER BY cor.request_date DESC";
+                "u.full_name as teacher_name, " +
+                "s.subject_name, s.subject_code, s.credits, " +
+                "u2.full_name as approver_name " +
+                "FROM class_opening_requests cor " +
+                "JOIN users u ON cor.teacher_username = u.username " +
+                "JOIN subjects s ON cor.subject_code = s.subject_code " +
+                "LEFT JOIN users u2 ON cor.approved_by_username = u2.username " +
+                "WHERE cor.teacher_username = ? " +
+                "ORDER BY cor.request_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, teacherId);
+            pstmt.setString(1, teacherUsername);
             ResultSet rs = pstmt.executeQuery();
 
             while (rs.next()) {
@@ -118,18 +120,18 @@ public class ClassOpeningRequestDAO {
     public List<ClassOpeningRequest> findByStatus(RequestStatus status) {
         List<ClassOpeningRequest> requests = new ArrayList<>();
         String sql = "SELECT cor.*, " +
-                     "u.full_name as teacher_name, " +
-                     "s.subject_name, s.subject_code, s.credits, " +
-                     "u2.full_name as approver_name " +
-                     "FROM class_opening_requests cor " +
-                     "JOIN users u ON cor.teacher_id = u.user_id " +
-                     "JOIN subjects s ON cor.subject_id = s.subject_id " +
-                     "LEFT JOIN users u2 ON cor.approved_by = u2.user_id " +
-                     "WHERE cor.request_status = ? " +
-                     "ORDER BY cor.request_date DESC";
+                "u.full_name as teacher_name, " +
+                "s.subject_name, s.subject_code, s.credits, " +
+                "u2.full_name as approver_name " +
+                "FROM class_opening_requests cor " +
+                "JOIN users u ON cor.teacher_username = u.username " +
+                "JOIN subjects s ON cor.subject_code = s.subject_code " +
+                "LEFT JOIN users u2 ON cor.approved_by_username = u2.username " +
+                "WHERE cor.request_status = ? " +
+                "ORDER BY cor.request_date DESC";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, status.name());
             ResultSet rs = pstmt.executeQuery();
@@ -147,19 +149,19 @@ public class ClassOpeningRequestDAO {
     }
 
     /**
-     * Insert new request
+     * ✅ REFACTORED: Insert new request
      */
     public boolean insert(ClassOpeningRequest request) {
         String sql = "INSERT INTO class_opening_requests " +
-                     "(teacher_id, subject_id, academic_year, semester, schedule_day, " +
-                     "schedule_time, room, max_students, reason, request_status) " +
-                     "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "(teacher_username, subject_code, academic_year, semester, schedule_day, " +
+                "schedule_time, room, max_students, reason, request_status) " +
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            pstmt.setInt(1, request.getTeacherId());
-            pstmt.setInt(2, request.getSubjectId());
+            pstmt.setString(1, request.getTeacherUsername());
+            pstmt.setString(2, request.getSubjectCode());
             pstmt.setString(3, request.getAcademicYear());
             pstmt.setInt(4, request.getSemester());
             pstmt.setString(5, request.getScheduleDay());
@@ -188,21 +190,21 @@ public class ClassOpeningRequestDAO {
     }
 
     /**
-     * Update request
+     * ✅ REFACTORED: Update request
      */
     public boolean update(ClassOpeningRequest request) {
         String sql = "UPDATE class_opening_requests SET " +
-                     "subject_id = ?, academic_year = ?, semester = ?, " +
-                     "schedule_day = ?, schedule_time = ?, room = ?, " +
-                     "max_students = ?, reason = ?, request_status = ?, " +
-                     "admin_note = ?, approved_by = ?, approved_course_id = ?, " +
-                     "decision_date = ? " +
-                     "WHERE request_id = ?";
+                "subject_code = ?, academic_year = ?, semester = ?, " +
+                "schedule_day = ?, schedule_time = ?, room = ?, " +
+                "max_students = ?, reason = ?, request_status = ?, " +
+                "admin_note = ?, approved_by_username = ?, approved_course_code = ?, " +
+                "decision_date = ? " +
+                "WHERE request_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
-            pstmt.setInt(1, request.getSubjectId());
+            pstmt.setString(1, request.getSubjectCode());
             pstmt.setString(2, request.getAcademicYear());
             pstmt.setInt(3, request.getSemester());
             pstmt.setString(4, request.getScheduleDay());
@@ -212,19 +214,19 @@ public class ClassOpeningRequestDAO {
             pstmt.setString(8, request.getReason());
             pstmt.setString(9, request.getRequestStatus().name());
             pstmt.setString(10, request.getAdminNote());
-            
-            if (request.getApprovedBy() != null) {
-                pstmt.setInt(11, request.getApprovedBy());
+
+            if (request.getApprovedByUsername() != null && !request.getApprovedByUsername().isEmpty()) {
+                pstmt.setString(11, request.getApprovedByUsername());
             } else {
-                pstmt.setNull(11, Types.INTEGER);
+                pstmt.setNull(11, Types.VARCHAR);
             }
-            
-            if (request.getApprovedBy() != null) {
-                pstmt.setInt(11, request.getApprovedBy());
+
+            if (request.getApprovedCourseCode() != null && !request.getApprovedCourseCode().isEmpty()) {
+                pstmt.setString(12, request.getApprovedCourseCode());
             } else {
-                pstmt.setNull(11, Types.INTEGER);
+                pstmt.setNull(12, Types.VARCHAR);
             }
-            
+
             pstmt.setTimestamp(13, request.getDecisionDate());
             pstmt.setInt(14, request.getRequestId());
 
@@ -239,23 +241,23 @@ public class ClassOpeningRequestDAO {
     }
 
     /**
-     * Approve request
+     * ✅ REFACTORED: Approve request
      */
-    public boolean approve(int requestId, int adminId, String note, int approvedCourseId) {
+    public boolean approve(int requestId, String approverUsername, String note, String approvedCourseCode) {
         String sql = "UPDATE class_opening_requests SET " +
-                     "request_status = 'APPROVED', " +
-                     "admin_note = ?, " +
-                     "approved_by = ?, " +
-                     "approved_course_id = ?, " +
-                     "decision_date = NOW() " +
-                     "WHERE request_id = ?";
+                "request_status = 'APPROVED', " +
+                "admin_note = ?, " +
+                "approved_by_username = ?, " +
+                "approved_course_code = ?, " +
+                "decision_date = NOW() " +
+                "WHERE request_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, note);
-            pstmt.setInt(2, adminId);
-            pstmt.setInt(3, approvedCourseId);
+            pstmt.setString(2, approverUsername);
+            pstmt.setString(3, approvedCourseCode);
             pstmt.setInt(4, requestId);
 
             return pstmt.executeUpdate() > 0;
@@ -269,21 +271,21 @@ public class ClassOpeningRequestDAO {
     }
 
     /**
-     * Reject request
+     * ✅ REFACTORED: Reject request
      */
-    public boolean reject(int requestId, int adminId, String reason) {
+    public boolean reject(int requestId, String approverUsername, String reason) {
         String sql = "UPDATE class_opening_requests SET " +
-                     "request_status = 'REJECTED', " +
-                     "admin_note = ?, " +
-                     "approved_by = ?, " +
-                     "decision_date = NOW() " +
-                     "WHERE request_id = ?";
+                "request_status = 'REJECTED', " +
+                "admin_note = ?, " +
+                "approved_by_username = ?, " +
+                "decision_date = NOW() " +
+                "WHERE request_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, reason);
-            pstmt.setInt(2, adminId);
+            pstmt.setString(2, approverUsername);
             pstmt.setInt(3, requestId);
 
             return pstmt.executeUpdate() > 0;
@@ -303,7 +305,7 @@ public class ClassOpeningRequestDAO {
         String sql = "DELETE FROM class_opening_requests WHERE request_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
-             PreparedStatement pstmt = conn.prepareStatement(sql)) {
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setInt(1, requestId);
             return pstmt.executeUpdate() > 0;
@@ -317,14 +319,14 @@ public class ClassOpeningRequestDAO {
     }
 
     /**
-     * Extract ClassOpeningRequest from ResultSet
+     * ✅ REFACTORED: Extract ClassOpeningRequest from ResultSet
      */
     private ClassOpeningRequest extractRequestFromResultSet(ResultSet rs) throws SQLException {
         ClassOpeningRequest request = new ClassOpeningRequest();
 
         request.setRequestId(rs.getInt("request_id"));
-        request.setTeacherId(rs.getInt("teacher_id"));
-        request.setSubjectId(rs.getInt("subject_id"));
+        request.setTeacherUsername(rs.getString("teacher_username"));
+        request.setSubjectCode(rs.getString("subject_code"));
         request.setAcademicYear(rs.getString("academic_year"));
         request.setSemester(rs.getInt("semester"));
         request.setScheduleDay(rs.getString("schedule_day"));
@@ -334,12 +336,17 @@ public class ClassOpeningRequestDAO {
         request.setReason(rs.getString("reason"));
         request.setRequestStatus(RequestStatus.valueOf(rs.getString("request_status")));
         request.setAdminNote(rs.getString("admin_note"));
-        
-        int approvedBy = rs.getInt("approved_by");
+
+        String approvedByUsername = rs.getString("approved_by_username");
         if (!rs.wasNull()) {
-            request.setApprovedBy(approvedBy);
+            request.setApprovedByUsername(approvedByUsername);
         }
-        
+
+        String approvedCourseCode = rs.getString("approved_course_code");
+        if (!rs.wasNull()) {
+            request.setApprovedCourseCode(approvedCourseCode);
+        }
+
         request.setRequestDate(rs.getTimestamp("request_date"));
         request.setDecisionDate(rs.getTimestamp("decision_date"));
         request.setCreatedAt(rs.getTimestamp("created_at"));
@@ -354,8 +361,3 @@ public class ClassOpeningRequestDAO {
         return request;
     }
 }
-
-
-
-
-

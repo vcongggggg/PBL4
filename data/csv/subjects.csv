@@ -1,0 +1,7 @@
+subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt
+20,DTVT_CSV101,Ky thuat so CSV,4,DTVT_CSV,,Mon hoc Ky thuat so tu CSV,true,2024-06-01 07:00:00
+21,DTVT_CSV201,Vi xu ly CSV,3,DTVT_CSV,DTVT_CSV101,Mon hoc Vi xu ly tu CSV,true,2024-06-01 07:00:00
+22,DTVT_CSV301,Truyen thong so CSV,4,DTVT_CSV,DTVT_CSV201,Mon hoc Truyen thong tu CSV,true,2024-06-01 07:00:00
+23,QTKD_CSV101,Marketing co ban CSV,3,QTKD_CSV,,Mon hoc Marketing tu CSV,true,2024-06-01 07:00:00
+24,QTKD_CSV201,Quan tri nhan luc CSV,3,QTKD_CSV,,Mon hoc Nhan luc tu CSV,true,2024-06-01 07:00:00
+25,XDDD_CSV101,Co hoc ket cau CSV,4,XDDD_CSV,,Mon hoc Co hoc tu CSV,true,2024-06-01 07:00:00

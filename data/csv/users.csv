@@ -1,3 +1,9 @@
 userId,username,password,fullName,email,phone,address,role,isActive,createdAt
-1,admin,password,Quản trị viên hệ thống,admin@university.edu.vn,0123456789,Trường Đại học ABC,ADMIN,true,2025-09-26 22:16:05.0
-10,sv999,password,Nguyễn Test,bin@gmail.com,0900000000,Hà Nội,STUDENT,true,2025-10-31 09:50:00.0
+101,csv_admin,csvpass123,Quan tri vien CSV,csv_admin@csv.edu.vn,0911111111,Da Nang,admin,true,2024-06-01 07:00:00
+102,csv_gv01,csvpass123,Nguyen Minh Tuan,tuannm@csv.edu.vn,0922222222,Da Nang,teacher,true,2024-06-01 07:00:00
+103,csv_gv02,csvpass123,Le Thi Hong,hongle@csv.edu.vn,0933333333,Da Nang,teacher,true,2024-06-01 07:00:00
+104,csv_gv03,csvpass123,Pham Quoc Hung,hungpq@csv.edu.vn,0944444444,Da Nang,teacher,true,2024-06-01 07:00:00
+105,csv_sv01,csvpass123,Tran Van Dat,dattv@csv-student.edu.vn,0955555555,Quang Nam,student,true,2024-06-01 07:00:00
+106,csv_sv02,csvpass123,Vo Thi Mai,maivt@csv-student.edu.vn,0966666666,Hue,student,true,2024-06-01 07:00:00
+107,csv_sv03,csvpass123,Dang Hoang Long,longdh@csv-student.edu.vn,0977777777,Da Nang,student,true,2024-06-01 07:00:00
+108,csv_sv04,csvpass123,Bui Thanh Tam,tambt@csv-student.edu.vn,0988888888,Quang Tri,student,true,2024-06-01 07:00:00
