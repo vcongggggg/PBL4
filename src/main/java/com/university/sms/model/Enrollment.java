@@ -17,12 +17,6 @@ public class Enrollment implements java.io.Serializable {
     private String studentCode; // FK to students.student_code
     private String courseCode; // FK to courses.course_code
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility, nhưng không dùng làm FK
-    @Deprecated
-    private int studentId; // Legacy field, use studentCode instead
-    @Deprecated
-    private int courseId; // Legacy field, use courseCode instead
-
     // Enrollment data
     private Timestamp enrollmentDate;
     private EnrollmentStatus enrollmentStatus;
@@ -55,14 +49,6 @@ public class Enrollment implements java.io.Serializable {
         this.courseCode = courseCode;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public Enrollment(int studentId, int courseId) {
-        this();
-        this.studentId = studentId;
-        this.courseId = courseId;
-    }
-
     // Getters and Setters
     public int getEnrollmentId() {
         return enrollmentId;
@@ -70,22 +56,6 @@ public class Enrollment implements java.io.Serializable {
 
     public void setEnrollmentId(int enrollmentId) {
         this.enrollmentId = enrollmentId;
-    }
-
-    public int getStudentId() {
-        return studentId;
-    }
-
-    public void setStudentId(int studentId) {
-        this.studentId = studentId;
-    }
-
-    public int getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(int courseId) {
-        this.courseId = courseId;
     }
 
     public Timestamp getEnrollmentDate() {

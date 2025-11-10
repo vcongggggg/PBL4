@@ -20,12 +20,6 @@ public class Subject implements java.io.Serializable {
     private String facultyCode; // FK to faculties.faculty_code
     private String prerequisiteSubjectCode; // FK to subjects.subject_code
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int facultyId; // Legacy field, use facultyCode instead
-    @Deprecated
-    private Integer prerequisiteSubjectId; // Legacy field, use prerequisiteSubjectCode instead
-
     private String description;
     private boolean isRequired;
     private Timestamp createdAt;
@@ -48,16 +42,6 @@ public class Subject implements java.io.Serializable {
         this.subjectName = subjectName;
         this.credits = credits;
         this.facultyCode = facultyCode;
-    }
-
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public Subject(String subjectCode, String subjectName, int credits, int facultyId) {
-        this();
-        this.subjectCode = subjectCode;
-        this.subjectName = subjectName;
-        this.credits = credits;
-        this.facultyId = facultyId;
     }
 
     // Getters and Setters
@@ -107,27 +91,6 @@ public class Subject implements java.io.Serializable {
 
     public void setPrerequisiteSubjectCode(String prerequisiteSubjectCode) {
         this.prerequisiteSubjectCode = prerequisiteSubjectCode;
-    }
-
-    // Deprecated getters/setters (keep for backward compat)
-    @Deprecated
-    public int getFacultyId() {
-        return facultyId;
-    }
-
-    @Deprecated
-    public void setFacultyId(int facultyId) {
-        this.facultyId = facultyId;
-    }
-
-    @Deprecated
-    public Integer getPrerequisiteSubjectId() {
-        return prerequisiteSubjectId;
-    }
-
-    @Deprecated
-    public void setPrerequisiteSubjectId(Integer prerequisiteSubjectId) {
-        this.prerequisiteSubjectId = prerequisiteSubjectId;
     }
 
     public String getDescription() {

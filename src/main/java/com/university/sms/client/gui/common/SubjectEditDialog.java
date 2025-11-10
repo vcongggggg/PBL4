@@ -190,12 +190,13 @@ public class SubjectEditDialog extends JDialog {
           List<Faculty> faculties = get();
           if (faculties != null) {
             for (Faculty faculty : faculties) {
-              facultyCombo.addItem(new FacultyItem(faculty.getFacultyId(), faculty.getFacultyName()));
+              facultyCombo.addItem(new FacultyItem(faculty.getFacultyCode(), faculty.getFacultyName()));
             }
             // Set selection if editing
             if (subject != null) {
               for (int i = 0; i < facultyCombo.getItemCount(); i++) {
-                if (facultyCombo.getItemAt(i).id == subject.getFacultyId()) {
+                FacultyItem item = facultyCombo.getItemAt(i);
+                if (item.code != null && item.code.equals(subject.getFacultyCode())) {
                   facultyCombo.setSelectedIndex(i);
                   break;
                 }
@@ -234,16 +235,17 @@ public class SubjectEditDialog extends JDialog {
           if (subjects != null) {
             for (Subject subj : subjects) {
               // Don't include current subject if editing
-              if (subject == null || subj.getSubjectId() != subject.getSubjectId()) {
+              if (subject == null
+                  || (subj.getSubjectCode() != null && !subj.getSubjectCode().equals(subject.getSubjectCode()))) {
                 prerequisiteCombo.addItem(
-                    new SubjectItem(subj.getSubjectId(), subj.getSubjectCode() + " - " + subj.getSubjectName()));
+                    new SubjectItem(subj.getSubjectCode(), subj.getSubjectCode() + " - " + subj.getSubjectName()));
               }
             }
             // Set selection if editing
-            if (subject != null && subject.getPrerequisiteSubjectId() != null) {
+            if (subject != null && subject.getPrerequisiteSubjectCode() != null) {
               for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
                 SubjectItem item = prerequisiteCombo.getItemAt(i);
-                if (item.id != null && item.id.equals(subject.getPrerequisiteSubjectId())) {
+                if (item.code != null && item.code.equals(subject.getPrerequisiteSubjectCode())) {
                   prerequisiteCombo.setSelectedIndex(i);
                   break;
                 }
@@ -298,10 +300,10 @@ public class SubjectEditDialog extends JDialog {
     newSubject.setSubjectCode(code);
     newSubject.setSubjectName(name);
     newSubject.setCredits((Integer) creditsSpinner.getValue());
-    newSubject.setFacultyId(((FacultyItem) facultyCombo.getSelectedItem()).id);
+    newSubject.setFacultyCode(((FacultyItem) facultyCombo.getSelectedItem()).code);
 
     SubjectItem prereqItem = (SubjectItem) prerequisiteCombo.getSelectedItem();
-    newSubject.setPrerequisiteSubjectId(prereqItem != null ? prereqItem.id : null);
+    newSubject.setPrerequisiteSubjectCode(prereqItem != null && prereqItem.code != null ? prereqItem.code : null);
 
     newSubject.setRequired(requiredCheckbox.isSelected());
     newSubject.setDescription(descriptionArea.getText().trim());
@@ -351,11 +353,11 @@ public class SubjectEditDialog extends JDialog {
 
   // Helper classes for ComboBox items
   private static class FacultyItem {
-    int id;
+    String code;
     String name;
 
-    FacultyItem(int id, String name) {
-      this.id = id;
+    FacultyItem(String code, String name) {
+      this.code = code;
       this.name = name;
     }
 
@@ -366,11 +368,11 @@ public class SubjectEditDialog extends JDialog {
   }
 
   private static class SubjectItem {
-    Integer id;
+    String code;
     String name;
 
-    SubjectItem(Integer id, String name) {
-      this.id = id;
+    SubjectItem(String code, String name) {
+      this.code = code;
       this.name = name;
     }
 

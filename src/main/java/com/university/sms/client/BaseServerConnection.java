@@ -49,8 +49,23 @@ public abstract class BaseServerConnection implements IServerConnection {
       startMessageListener();
       onConnect();
       return true;
+    } catch (java.net.ConnectException e) {
+      LOGGER.log(Level.SEVERE,
+          "Cannot connect to server " + serverHost + ":" + serverPort + " - Server may not be running", e);
+      connected = false;
+      return false;
+    } catch (java.net.UnknownHostException e) {
+      LOGGER.log(Level.SEVERE, "Unknown host: " + serverHost, e);
+      connected = false;
+      return false;
     } catch (IOException e) {
-      LOGGER.log(Level.SEVERE, "Error connecting to server", e);
+      LOGGER.log(Level.SEVERE, "Error connecting to server " + serverHost + ":" + serverPort, e);
+      e.printStackTrace();
+      connected = false;
+      return false;
+    } catch (Exception e) {
+      LOGGER.log(Level.SEVERE, "Unexpected error during connection: " + e.getMessage(), e);
+      e.printStackTrace();
       connected = false;
       return false;
     }

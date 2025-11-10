@@ -256,23 +256,25 @@ public class CSVServerConnection extends BaseServerConnection {
 
   /**
    * Xóa sinh viên - gửi lên server, không xóa khỏi CSV local
+   * Implement interface IServerConnection.deleteStudent(String)
    */
-  public Message deleteStudent(int studentId) {
+  @Override
+  public Message deleteStudent(String studentCode) {
     try {
-      // Gửi yêu cầu xóa student lên server
+      // Gửi yêu cầu xóa student lên server (server expect studentCode)
       Message request = Message.createRequest(Constants.ACTION_DELETE_STUDENT);
-      request.addData(Constants.KEY_STUDENT_ID, studentId);
+      request.addData("studentCode", studentCode);
 
       Message response = sendCSVRequestAndWait(request, 60);
 
       if (response.isSuccess()) {
-        LOGGER.info("Student deleted from server: " + studentId);
+        LOGGER.info("Student deleted from server: " + studentCode);
         // Xóa đồng thời trên CSV local để đồng bộ dữ liệu client-side
-        boolean removed = csvDataService.deleteStudent(studentId);
+        boolean removed = csvDataService.deleteStudent(studentCode);
         if (removed) {
-          LOGGER.info("Student deleted from local CSV: " + studentId);
+          LOGGER.info("Student deleted from local CSV: " + studentCode);
         } else {
-          LOGGER.warning("Student not found in local CSV: " + studentId);
+          LOGGER.warning("Student not found in local CSV: " + studentCode);
         }
       }
 
@@ -280,7 +282,7 @@ public class CSVServerConnection extends BaseServerConnection {
 
     } catch (Exception e) {
       LOGGER.severe("Error deleting student: " + e.getMessage());
-      return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Error: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_DELETE_STUDENT, "Error: " + e.getMessage());
     }
   }
 
@@ -884,5 +886,20 @@ public class CSVServerConnection extends BaseServerConnection {
   @Override
   public Message sendRequest(Message request) {
     return sendCSVRequestAndWait(request, 60);
+  }
+
+  /**
+   * Lấy thống kê server (admin only)
+   * Implement interface IServerConnection.getServerStatistics()
+   */
+  @Override
+  public Message getServerStatistics() {
+    try {
+      Message request = Message.createRequest(Constants.ACTION_GET_SERVER_STATISTICS);
+      return sendCSVRequestAndWait(request, 30);
+    } catch (Exception e) {
+      LOGGER.severe("Error getting server statistics: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_GET_SERVER_STATISTICS, "Error: " + e.getMessage());
+    }
   }
 }

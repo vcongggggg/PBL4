@@ -39,11 +39,11 @@ public class NotificationDialog extends JDialog {
         super(parent, "Gửi thông báo", true);
         this.serverConnection = serverConnection;
         this.currentUser = currentUser;
-        
+
         initComponents();
         setupLayout();
         setupListeners();
-        
+
         setSize(600, 500);
         setLocationRelativeTo(parent);
     }
@@ -63,7 +63,7 @@ public class NotificationDialog extends JDialog {
         targetTypeCombo = new JComboBox<>(TargetType.values());
         targetTypeCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, 
+            public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof TargetType) {
@@ -82,17 +82,25 @@ public class NotificationDialog extends JDialog {
         priorityCombo.setSelectedItem(Priority.MEDIUM);
         priorityCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, 
+            public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof Priority) {
                     Priority p = (Priority) value;
                     String icon = "";
                     switch (p) {
-                        case URGENT: icon = "⚠️ "; break;
-                        case HIGH: icon = "🔴 "; break;
-                        case MEDIUM: icon = "🟡 "; break;
-                        case LOW: icon = "🔵 "; break;
+                        case URGENT:
+                            icon = "⚠️ ";
+                            break;
+                        case HIGH:
+                            icon = "🔴 ";
+                            break;
+                        case MEDIUM:
+                            icon = "🟡 ";
+                            break;
+                        case LOW:
+                            icon = "🔵 ";
+                            break;
                     }
                     setText(icon + p.getDisplayName());
                 }
@@ -107,7 +115,7 @@ public class NotificationDialog extends JDialog {
         // Buttons
         sendButton = new JButton("Gửi thông báo");
         sendButton.setIcon(UIManager.getIcon("FileView.hardDriveIcon"));
-        
+
         cancelButton = new JButton("Hủy");
         cancelButton.setIcon(UIManager.getIcon("OptionPane.warningIcon"));
     }
@@ -118,7 +126,7 @@ public class NotificationDialog extends JDialog {
         // Main panel with form
         JPanel mainPanel = new JPanel(new GridBagLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
@@ -127,7 +135,8 @@ public class NotificationDialog extends JDialog {
         int row = 0;
 
         // Title
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.weightx = 0.0;
         mainPanel.add(new JLabel("Tiêu đề: *"), gbc);
         gbc.gridx = 1;
@@ -136,7 +145,8 @@ public class NotificationDialog extends JDialog {
         row++;
 
         // Target Type
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.weightx = 0.0;
         mainPanel.add(new JLabel("Gửi đến: *"), gbc);
         gbc.gridx = 1;
@@ -145,7 +155,8 @@ public class NotificationDialog extends JDialog {
         row++;
 
         // Target ID
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.weightx = 0.0;
         mainPanel.add(new JLabel("Đối tượng:"), gbc);
         gbc.gridx = 1;
@@ -154,7 +165,8 @@ public class NotificationDialog extends JDialog {
         row++;
 
         // Priority
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.weightx = 0.0;
         mainPanel.add(new JLabel("Mức độ: *"), gbc);
         gbc.gridx = 1;
@@ -163,7 +175,8 @@ public class NotificationDialog extends JDialog {
         row++;
 
         // Expires At
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.weightx = 0.0;
         mainPanel.add(new JLabel("Hết hạn:"), gbc);
         gbc.gridx = 1;
@@ -172,7 +185,8 @@ public class NotificationDialog extends JDialog {
         row++;
 
         // Content
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.weightx = 0.0;
         gbc.anchor = GridBagConstraints.NORTHWEST;
         mainPanel.add(new JLabel("Nội dung: *"), gbc);
@@ -215,7 +229,7 @@ public class NotificationDialog extends JDialog {
 
     private void updateTargetIdCombo(TargetType targetType) {
         targetIdCombo.removeAllItems();
-        
+
         if (targetType == TargetType.ALL) {
             targetIdCombo.setEnabled(false);
             return;
@@ -249,7 +263,7 @@ public class NotificationDialog extends JDialog {
         try {
             Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
             Message response = serverConnection.sendRequest(request);
-            
+
             if (response.isSuccess()) {
                 List<?> faculties = response.getData(Constants.KEY_FACULTIES, List.class);
                 if (faculties != null) {
@@ -267,7 +281,7 @@ public class NotificationDialog extends JDialog {
         try {
             Message request = Message.createRequest(Constants.ACTION_GET_CLASSES);
             Message response = serverConnection.sendRequest(request);
-            
+
             if (response.isSuccess()) {
                 List<?> classes = response.getData(Constants.KEY_CLASSES, List.class);
                 if (classes != null) {
@@ -285,7 +299,7 @@ public class NotificationDialog extends JDialog {
         try {
             Message request = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
             Message response = serverConnection.sendRequest(request);
-            
+
             if (response.isSuccess()) {
                 List<?> students = response.getData(Constants.KEY_STUDENTS, List.class);
                 if (students != null) {
@@ -310,18 +324,24 @@ public class NotificationDialog extends JDialog {
             Notification notification = new Notification();
             notification.setTitle(titleField.getText().trim());
             notification.setContent(contentArea.getText().trim());
-            notification.setSenderId(currentUser.getUserId());
+            notification.setSenderUsername(currentUser.getUsername());
             notification.setTargetType((TargetType) targetTypeCombo.getSelectedItem());
             notification.setPriority((Priority) priorityCombo.getSelectedItem());
 
-            // Set target ID if applicable
+            // Set target code if applicable
             if (notification.getTargetType() != TargetType.ALL) {
                 Object selected = targetIdCombo.getSelectedItem();
                 if (selected != null) {
-                    // Extract ID from the selected object
-                    // Assuming toString() or getId() method exists
-                    // This is a simplification - in real app, extract proper ID
-                    notification.setTargetId(targetIdCombo.getSelectedIndex() + 1);
+                    // Extract code from the selected object
+                    String targetCode = null;
+                    if (selected instanceof com.university.sms.model.Faculty) {
+                        targetCode = ((com.university.sms.model.Faculty) selected).getFacultyCode();
+                    } else if (selected instanceof com.university.sms.model.Class) {
+                        targetCode = ((com.university.sms.model.Class) selected).getClassCode();
+                    } else if (selected instanceof com.university.sms.model.Student) {
+                        targetCode = ((com.university.sms.model.Student) selected).getStudentCode();
+                    }
+                    notification.setTargetCode(targetCode);
                 }
             }
 
@@ -391,7 +411,7 @@ public class NotificationDialog extends JDialog {
             return false;
         }
 
-        // Target ID (if not ALL)
+        // Target Code (if not ALL)
         TargetType targetType = (TargetType) targetTypeCombo.getSelectedItem();
         if (targetType != TargetType.ALL && targetIdCombo.getSelectedItem() == null) {
             JOptionPane.showMessageDialog(this,
@@ -426,4 +446,3 @@ public class NotificationDialog extends JDialog {
         return success;
     }
 }
-

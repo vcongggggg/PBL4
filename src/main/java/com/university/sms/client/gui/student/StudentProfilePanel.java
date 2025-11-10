@@ -372,7 +372,7 @@ public class StudentProfilePanel extends JPanel {
       protected Student doInBackground() throws Exception {
         try {
           Message request = Message.createRequest(Constants.ACTION_GET_STUDENT_INFO);
-          request.addData(Constants.KEY_STUDENT_ID, currentUser.getUserId());
+          // Student tự lấy thông tin của mình, không cần gửi studentId
 
           Message response = serverConnection.sendRequest(request);
 

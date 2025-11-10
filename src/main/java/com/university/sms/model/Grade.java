@@ -20,10 +20,6 @@ public class Grade implements Serializable {
     private String studentCode; // FK to enrollments(student_code, course_code)
     private String courseCode; // FK to enrollments(student_code, course_code)
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int enrollmentId; // Legacy field, use studentCode+courseCode instead
-
     // Grade data
     private GradeType gradeType;
     private String gradeName;
@@ -80,15 +76,6 @@ public class Grade implements Serializable {
         this.gradeName = gradeName;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public Grade(int enrollmentId, GradeType gradeType, String gradeName) {
-        this();
-        this.enrollmentId = enrollmentId;
-        this.gradeType = gradeType;
-        this.gradeName = gradeName;
-    }
-
     // Getters and Setters
     public int getGradeId() {
         return gradeId;
@@ -96,14 +83,6 @@ public class Grade implements Serializable {
 
     public void setGradeId(int gradeId) {
         this.gradeId = gradeId;
-    }
-
-    public int getEnrollmentId() {
-        return enrollmentId;
-    }
-
-    public void setEnrollmentId(int enrollmentId) {
-        this.enrollmentId = enrollmentId;
     }
 
     public GradeType getGradeType() {
@@ -247,7 +226,8 @@ public class Grade implements Serializable {
     public String toString() {
         return "Grade{" +
                 "gradeId=" + gradeId +
-                ", enrollmentId=" + enrollmentId +
+                ", studentCode='" + studentCode + '\'' +
+                ", courseCode='" + courseCode + '\'' +
                 ", gradeType=" + gradeType +
                 ", gradeName='" + gradeName + '\'' +
                 ", score=" + score +

@@ -68,9 +68,9 @@ public class ServerConnection extends BaseServerConnection {
     }
 
     @Override
-    public Message deleteStudent(int studentId) {
+    public Message deleteStudent(String studentCode) {
         Message request = Message.createRequest(Constants.ACTION_DELETE_STUDENT);
-        request.addData(Constants.KEY_STUDENT_ID, studentId);
+        request.addData("studentCode", studentCode);
         return sendRequest(request);
     }
 
@@ -113,5 +113,10 @@ public class ServerConnection extends BaseServerConnection {
         request.addData(Constants.KEY_PASSWORD, newPassword);
         return sendRequest(request);
     }
-}
 
+    @Override
+    public Message getServerStatistics() {
+        Message request = Message.createRequest(Constants.ACTION_GET_SERVER_STATISTICS);
+        return sendRequest(request);
+    }
+}

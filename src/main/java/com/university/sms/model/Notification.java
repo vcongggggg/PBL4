@@ -21,12 +21,6 @@ public class Notification implements Serializable {
     private TargetType targetType;
     private String targetCode; // FK to faculty_code/class_code/student_code depending on targetType
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int senderId; // Legacy field, use senderUsername instead
-    @Deprecated
-    private Integer targetId; // Legacy field, use targetCode instead
-
     private Priority priority;
     private boolean isRead;
     private Timestamp createdAt;
@@ -102,15 +96,6 @@ public class Notification implements Serializable {
         this.senderUsername = senderUsername;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public Notification(String title, String content, int senderId) {
-        this();
-        this.title = title;
-        this.content = content;
-        this.senderId = senderId;
-    }
-
     // Getters and Setters
     public int getNotificationId() {
         return notificationId;
@@ -158,27 +143,6 @@ public class Notification implements Serializable {
 
     public void setTargetCode(String targetCode) {
         this.targetCode = targetCode;
-    }
-
-    // Deprecated getters/setters (keep for backward compat)
-    @Deprecated
-    public int getSenderId() {
-        return senderId;
-    }
-
-    @Deprecated
-    public void setSenderId(int senderId) {
-        this.senderId = senderId;
-    }
-
-    @Deprecated
-    public Integer getTargetId() {
-        return targetId;
-    }
-
-    @Deprecated
-    public void setTargetId(Integer targetId) {
-        this.targetId = targetId;
     }
 
     public Priority getPriority() {
@@ -282,8 +246,9 @@ public class Notification implements Serializable {
         return "Notification{" +
                 "notificationId=" + notificationId +
                 ", title='" + title + '\'' +
-                ", senderId=" + senderId +
+                ", senderUsername='" + senderUsername + '\'' +
                 ", targetType=" + targetType +
+                ", targetCode='" + targetCode + '\'' +
                 ", priority=" + priority +
                 ", isRead=" + isRead +
                 ", createdAt=" + createdAt +

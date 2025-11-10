@@ -20,14 +20,6 @@ public class Student implements java.io.Serializable {
     private String classCode; // FK to classes.class_code
     private String facultyCode; // FK to faculties.faculty_code
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int userId; // Legacy field, use username instead
-    @Deprecated
-    private Integer classId; // Legacy field, use classCode instead
-    @Deprecated
-    private int facultyId; // Legacy field, use facultyCode instead
-
     // Student data
     private int admissionYear;
     private StudentStatus studentStatus;
@@ -75,16 +67,6 @@ public class Student implements java.io.Serializable {
         this.admissionYear = admissionYear;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public Student(int userId, String studentCode, int facultyId, int admissionYear) {
-        this();
-        this.userId = userId;
-        this.studentCode = studentCode;
-        this.facultyId = facultyId;
-        this.admissionYear = admissionYear;
-    }
-
     // Getters and Setters
     public int getStudentId() {
         return studentId;
@@ -92,14 +74,6 @@ public class Student implements java.io.Serializable {
 
     public void setStudentId(int studentId) {
         this.studentId = studentId;
-    }
-
-    public int getUserId() {
-        return userId;
-    }
-
-    public void setUserId(int userId) {
-        this.userId = userId;
     }
 
     public String getStudentCode() {
@@ -132,27 +106,6 @@ public class Student implements java.io.Serializable {
 
     public void setFacultyCode(String facultyCode) {
         this.facultyCode = facultyCode;
-    }
-
-    // Deprecated getters/setters (keep for backward compat)
-    @Deprecated
-    public Integer getClassId() {
-        return classId;
-    }
-
-    @Deprecated
-    public void setClassId(Integer classId) {
-        this.classId = classId;
-    }
-
-    @Deprecated
-    public int getFacultyId() {
-        return facultyId;
-    }
-
-    @Deprecated
-    public void setFacultyId(int facultyId) {
-        this.facultyId = facultyId;
     }
 
     public int getAdmissionYear() {

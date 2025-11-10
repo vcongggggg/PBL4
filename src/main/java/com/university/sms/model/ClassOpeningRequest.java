@@ -3,30 +3,16 @@ package com.university.sms.model;
 import java.io.Serializable;
 import java.sql.Timestamp;
 
-/**
- * Model cho yêu cầu mở lớp từ giảng viên
- * ✅ REFACTORED: Dùng teacher_username, subject_code, approved_by_username làm
- * FK (client-safe)
- */
 public class ClassOpeningRequest implements Serializable {
     private static final long serialVersionUID = 1L;
 
     // Primary key
     private int requestId;
 
-    // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
     private String teacherUsername; // FK to users.username (teacher)
     private String subjectCode; // FK to subjects.subject_code
     private String approvedByUsername; // FK to users.username (admin)
     private String approvedCourseCode; // FK to courses.course_code (when approved)
-
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int teacherId; // Legacy field, use teacherUsername instead
-    @Deprecated
-    private int subjectId; // Legacy field, use subjectCode instead
-    @Deprecated
-    private Integer approvedBy; // Legacy field, use approvedByUsername instead
 
     // Request data
     private String academicYear;
@@ -67,16 +53,6 @@ public class ClassOpeningRequest implements Serializable {
         this.semester = semester;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public ClassOpeningRequest(int teacherId, int subjectId, String academicYear, int semester) {
-        this();
-        this.teacherId = teacherId;
-        this.subjectId = subjectId;
-        this.academicYear = academicYear;
-        this.semester = semester;
-    }
-
     // Getters and Setters
     public int getRequestId() {
         return requestId;
@@ -108,27 +84,6 @@ public class ClassOpeningRequest implements Serializable {
 
     public void setApprovedCourseCode(String approvedCourseCode) {
         this.approvedCourseCode = approvedCourseCode;
-    }
-
-    // Deprecated getters/setters (keep for backward compat)
-    @Deprecated
-    public int getTeacherId() {
-        return teacherId;
-    }
-
-    @Deprecated
-    public void setTeacherId(int teacherId) {
-        this.teacherId = teacherId;
-    }
-
-    @Deprecated
-    public int getSubjectId() {
-        return subjectId;
-    }
-
-    @Deprecated
-    public void setSubjectId(int subjectId) {
-        this.subjectId = subjectId;
     }
 
     public String getAcademicYear() {
@@ -201,16 +156,6 @@ public class ClassOpeningRequest implements Serializable {
 
     public void setAdminNote(String adminNote) {
         this.adminNote = adminNote;
-    }
-
-    @Deprecated
-    public Integer getApprovedBy() {
-        return approvedBy;
-    }
-
-    @Deprecated
-    public void setApprovedBy(Integer approvedBy) {
-        this.approvedBy = approvedBy;
     }
 
     public Timestamp getRequestDate() {
@@ -290,7 +235,7 @@ public class ClassOpeningRequest implements Serializable {
     public String toString() {
         return "ClassOpeningRequest{" +
                 "requestId=" + requestId +
-                ", teacherId=" + teacherId +
+                ", teacherUsername=" + teacherUsername +
                 ", subjectName='" + subjectName + '\'' +
                 ", academicYear='" + academicYear + '\'' +
                 ", semester=" + semester +

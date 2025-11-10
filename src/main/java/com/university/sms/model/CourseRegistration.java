@@ -17,12 +17,6 @@ public class CourseRegistration implements Serializable {
     private String studentCode; // FK to students.student_code
     private String courseCode; // FK to courses.course_code
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int studentId; // Legacy field, use studentCode instead
-    @Deprecated
-    private int courseId; // Legacy field, use courseCode instead
-
     // Registration data
     private Timestamp registrationDate;
     private RegistrationStatus registrationStatus;
@@ -55,14 +49,6 @@ public class CourseRegistration implements Serializable {
         this.courseCode = courseCode;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public CourseRegistration(int studentId, int courseId) {
-        this();
-        this.studentId = studentId;
-        this.courseId = courseId;
-    }
-
     // Getters and Setters
     public int getRegistrationId() {
         return registrationId;
@@ -70,22 +56,6 @@ public class CourseRegistration implements Serializable {
 
     public void setRegistrationId(int registrationId) {
         this.registrationId = registrationId;
-    }
-
-    public int getStudentId() {
-        return studentId;
-    }
-
-    public void setStudentId(int studentId) {
-        this.studentId = studentId;
-    }
-
-    public int getCourseId() {
-        return courseId;
-    }
-
-    public void setCourseId(int courseId) {
-        this.courseId = courseId;
     }
 
     public Timestamp getRegistrationDate() {
@@ -213,8 +183,8 @@ public class CourseRegistration implements Serializable {
     public String toString() {
         return "CourseRegistration{" +
                 "registrationId=" + registrationId +
-                ", studentId=" + studentId +
-                ", courseId=" + courseId +
+                ", studentCode='" + studentCode + '\'' +
+                ", courseCode='" + courseCode + '\'' +
                 ", registrationStatus=" + registrationStatus +
                 '}';
     }

@@ -26,14 +26,14 @@ public class ClassOpeningRequestDialog extends JDialog {
     private JTextArea reasonArea;
 
     private List<Subject> subjects;
-    private int teacherId;
+    private String teacherUsername;
 
     /**
      * Constructor for new request
      */
-    public ClassOpeningRequestDialog(Frame owner, int teacherId, List<Subject> subjects) {
+    public ClassOpeningRequestDialog(Frame owner, String teacherUsername, List<Subject> subjects) {
         super(owner, "Gửi Yêu Cầu Mở Lớp", true);
-        this.teacherId = teacherId;
+        this.teacherUsername = teacherUsername;
         this.subjects = subjects;
         this.request = null;
 
@@ -46,7 +46,7 @@ public class ClassOpeningRequestDialog extends JDialog {
      */
     public ClassOpeningRequestDialog(Frame owner, ClassOpeningRequest request, List<Subject> subjects) {
         super(owner, "Chỉnh Sửa Yêu Cầu Mở Lớp", true);
-        this.teacherId = request.getTeacherId();
+        this.teacherUsername = request.getTeacherUsername();
         this.subjects = subjects;
         this.request = request;
 
@@ -218,7 +218,7 @@ public class ClassOpeningRequestDialog extends JDialog {
         // Find and select subject
         for (int i = 0; i < subjectCombo.getItemCount(); i++) {
             Subject subject = subjectCombo.getItemAt(i);
-            if (subject.getSubjectId() == request.getSubjectId()) {
+            if (subject.getSubjectCode() != null && subject.getSubjectCode().equals(request.getSubjectCode())) {
                 subjectCombo.setSelectedIndex(i);
                 break;
             }
@@ -320,12 +320,12 @@ public class ClassOpeningRequestDialog extends JDialog {
         // Create or update request object
         if (request == null) {
             request = new ClassOpeningRequest();
-            request.setTeacherId(teacherId);
+            request.setTeacherUsername(teacherUsername);
             request.setRequestStatus(RequestStatus.PENDING);
         }
 
         Subject selectedSubject = (Subject) subjectCombo.getSelectedItem();
-        request.setSubjectId(selectedSubject.getSubjectId());
+        request.setSubjectCode(selectedSubject.getSubjectCode());
         request.setAcademicYear(academicYear);
         request.setSemester((Integer) semesterCombo.getSelectedItem());
         request.setScheduleDay((String) dayCombo.getSelectedItem());

@@ -48,6 +48,7 @@ public class LoginFrame extends JFrame {
     private JButton connectButton;
     private JLabel statusLabel;
     private JProgressBar progressBar;
+    private JLabel clientTypeLabel;
 
     private IServerConnection serverConnection;
     private ConnectionFactory connectionFactory;
@@ -93,6 +94,12 @@ public class LoginFrame extends JFrame {
         progressBar = new JProgressBar();
         progressBar.setIndeterminate(false);
         progressBar.setVisible(false);
+
+        // Client type label
+        clientTypeLabel = new JLabel(
+                "Loại client: " + (connectionFactory instanceof CsvConnectionFactory ? "CSV" : "Regular"));
+        clientTypeLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+        clientTypeLabel.setForeground(new Color(100, 100, 100));
 
         // Initially disable login button
         loginButton.setEnabled(false);
@@ -147,6 +154,17 @@ public class LoginFrame extends JFrame {
         gbc.gridy = 5;
         gbc.fill = GridBagConstraints.HORIZONTAL;
         mainPanel.add(progressBar, gbc);
+
+        // Client info panel
+        JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
+        infoPanel.setBorder(BorderFactory.createTitledBorder("Thông tin Client"));
+        infoPanel.setBackground(new Color(250, 250, 250));
+        infoPanel.add(clientTypeLabel);
+
+        gbc.gridy = 6;
+        gbc.gridwidth = 2;
+        gbc.fill = GridBagConstraints.HORIZONTAL;
+        mainPanel.add(infoPanel, gbc);
 
         add(mainPanel, BorderLayout.CENTER);
 

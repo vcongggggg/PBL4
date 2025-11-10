@@ -20,14 +20,6 @@ public class Course implements java.io.Serializable {
     private String teacherUsername; // FK to users.username (teacher)
     private String classCode; // FK to classes.class_code
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private int subjectId; // Legacy field, use subjectCode instead
-    @Deprecated
-    private int teacherId; // Legacy field, use teacherUsername instead
-    @Deprecated
-    private Integer classId; // Legacy field, use classCode instead
-
     // Course data
     private String academicYear;
     private int semester;
@@ -69,17 +61,6 @@ public class Course implements java.io.Serializable {
         this.semester = semester;
     }
 
-    // Legacy constructor (deprecated)
-    @Deprecated
-    public Course(String courseCode, int subjectId, int teacherId, String academicYear, int semester) {
-        this();
-        this.courseCode = courseCode;
-        this.subjectId = subjectId;
-        this.teacherId = teacherId;
-        this.academicYear = academicYear;
-        this.semester = semester;
-    }
-
     // Getters and Setters
     public int getCourseId() {
         return courseId;
@@ -111,37 +92,6 @@ public class Course implements java.io.Serializable {
 
     public void setClassCode(String classCode) {
         this.classCode = classCode;
-    }
-
-    // Deprecated getters/setters (keep for backward compat)
-    @Deprecated
-    public int getSubjectId() {
-        return subjectId;
-    }
-
-    @Deprecated
-    public void setSubjectId(int subjectId) {
-        this.subjectId = subjectId;
-    }
-
-    @Deprecated
-    public int getTeacherId() {
-        return teacherId;
-    }
-
-    @Deprecated
-    public void setTeacherId(int teacherId) {
-        this.teacherId = teacherId;
-    }
-
-    @Deprecated
-    public Integer getClassId() {
-        return classId;
-    }
-
-    @Deprecated
-    public void setClassId(Integer classId) {
-        this.classId = classId;
     }
 
     public String getAcademicYear() {

@@ -38,17 +38,18 @@ public class GradeInputDialog extends JDialog {
     /**
      * Constructor for adding new grade
      */
-    public GradeInputDialog(Frame parent, IServerConnection serverConnection, int enrollmentId) {
+    public GradeInputDialog(Frame parent, IServerConnection serverConnection, String studentCode, String courseCode) {
         super(parent, "Nhập điểm mới", true);
         this.serverConnection = serverConnection;
         this.grade = new Grade();
-        this.grade.setEnrollmentId(enrollmentId);
+        this.grade.setStudentCode(studentCode);
+        this.grade.setCourseCode(courseCode);
         this.isEditMode = false;
-        
+
         initComponents();
         setupLayout();
         setupListeners();
-        
+
         setSize(500, 450);
         setLocationRelativeTo(parent);
     }
@@ -61,12 +62,12 @@ public class GradeInputDialog extends JDialog {
         this.serverConnection = serverConnection;
         this.grade = grade;
         this.isEditMode = true;
-        
+
         initComponents();
         setupLayout();
         setupListeners();
         populateFields();
-        
+
         setSize(500, 450);
         setLocationRelativeTo(parent);
     }
@@ -76,7 +77,7 @@ public class GradeInputDialog extends JDialog {
         gradeTypeCombo = new JComboBox<>(GradeType.values());
         gradeTypeCombo.setRenderer(new DefaultListCellRenderer() {
             @Override
-            public Component getListCellRendererComponent(JList<?> list, Object value, 
+            public Component getListCellRendererComponent(JList<?> list, Object value,
                     int index, boolean isSelected, boolean cellHasFocus) {
                 super.getListCellRendererComponent(list, value, index, isSelected, cellHasFocus);
                 if (value instanceof GradeType) {
@@ -119,7 +120,7 @@ public class GradeInputDialog extends JDialog {
         // Buttons
         saveButton = new JButton(isEditMode ? "Cập nhật" : "Lưu");
         saveButton.setIcon(UIManager.getIcon("FileView.floppyDriveIcon"));
-        
+
         cancelButton = new JButton("Hủy");
         cancelButton.setIcon(UIManager.getIcon("OptionPane.warningIcon"));
     }
@@ -130,7 +131,7 @@ public class GradeInputDialog extends JDialog {
         // Main panel with form
         JPanel mainPanel = new JPanel(new GridBagLayout());
         mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
-        
+
         GridBagConstraints gbc = new GridBagConstraints();
         gbc.insets = new Insets(5, 5, 5, 5);
         gbc.anchor = GridBagConstraints.WEST;
@@ -139,49 +140,56 @@ public class GradeInputDialog extends JDialog {
         int row = 0;
 
         // Grade Type
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         mainPanel.add(new JLabel("Loại điểm: *"), gbc);
         gbc.gridx = 1;
         mainPanel.add(gradeTypeCombo, gbc);
         row++;
 
         // Grade Name
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         mainPanel.add(new JLabel("Tên bài: *"), gbc);
         gbc.gridx = 1;
         mainPanel.add(gradeNameField, gbc);
         row++;
 
         // Score
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         mainPanel.add(new JLabel("Điểm đạt: *"), gbc);
         gbc.gridx = 1;
         mainPanel.add(scoreField, gbc);
         row++;
 
         // Max Score
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         mainPanel.add(new JLabel("Điểm tối đa: *"), gbc);
         gbc.gridx = 1;
         mainPanel.add(maxScoreField, gbc);
         row++;
 
         // Weight
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         mainPanel.add(new JLabel("Trọng số: *"), gbc);
         gbc.gridx = 1;
         mainPanel.add(weightField, gbc);
         row++;
 
         // Grade Date
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         mainPanel.add(new JLabel("Ngày: *"), gbc);
         gbc.gridx = 1;
         mainPanel.add(gradeDateField, gbc);
         row++;
 
         // Notes
-        gbc.gridx = 0; gbc.gridy = row;
+        gbc.gridx = 0;
+        gbc.gridy = row;
         gbc.anchor = GridBagConstraints.NORTHWEST;
         mainPanel.add(new JLabel("Ghi chú:"), gbc);
         gbc.gridx = 1;
@@ -218,24 +226,24 @@ public class GradeInputDialog extends JDialog {
         if (grade != null) {
             gradeTypeCombo.setSelectedItem(grade.getGradeType());
             gradeNameField.setText(grade.getGradeName());
-            
+
             if (grade.getScore() != null) {
                 scoreField.setText(grade.getScore().toString());
             }
-            
+
             if (grade.getMaxScore() != null) {
                 maxScoreField.setText(grade.getMaxScore().toString());
             }
-            
+
             if (grade.getWeight() != null) {
                 weightField.setText(grade.getWeight().toString());
             }
-            
+
             if (grade.getGradeDate() != null) {
                 SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
                 gradeDateField.setText(sdf.format(grade.getGradeDate()));
             }
-            
+
             if (grade.getNotes() != null) {
                 notesArea.setText(grade.getNotes());
             }
@@ -255,12 +263,12 @@ public class GradeInputDialog extends JDialog {
             grade.setScore(new BigDecimal(scoreField.getText().trim()));
             grade.setMaxScore(new BigDecimal(maxScoreField.getText().trim()));
             grade.setWeight(new BigDecimal(weightField.getText().trim()));
-            
+
             // Parse date
             SimpleDateFormat sdf = new SimpleDateFormat("yyyy-MM-dd");
             java.util.Date utilDate = sdf.parse(gradeDateField.getText().trim());
             grade.setGradeDate(new Date(utilDate.getTime()));
-            
+
             grade.setNotes(notesArea.getText().trim());
 
             // Send to server
@@ -385,4 +393,3 @@ public class GradeInputDialog extends JDialog {
         return success;
     }
 }
-

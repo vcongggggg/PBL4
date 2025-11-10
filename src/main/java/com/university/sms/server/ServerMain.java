@@ -2,6 +2,9 @@ package com.university.sms.server;
 
 import com.university.sms.util.DatabaseConnection;
 
+import java.sql.Connection;
+import java.sql.ResultSet;
+import java.sql.PreparedStatement;
 import java.util.Scanner;
 import java.util.logging.Logger;
 
@@ -15,16 +18,16 @@ public class ServerMain {
 
     public static void main(String[] args) {
         LOGGER.info("Starting Student Management System Server...");
-        
+
         // Initialize scanner for console commands
         scanner = new Scanner(System.in);
-        
+
         // Parse command line arguments
         int port = parsePort(args);
-        
+
         // Create and start server
         server = new StudentManagementServer(port);
-        
+
         // Add shutdown hook
         Runtime.getRuntime().addShutdownHook(new Thread(() -> {
             LOGGER.info("Shutdown signal received");
@@ -32,7 +35,7 @@ public class ServerMain {
                 server.stop();
             }
         }));
-        
+
         // Start server in separate thread
         Thread serverThread = new Thread(() -> {
             try {
@@ -42,19 +45,19 @@ public class ServerMain {
                 e.printStackTrace();
             }
         });
-        
+
         serverThread.start();
-        
+
         // Wait a moment for server to start
         try {
             Thread.sleep(2000);
         } catch (InterruptedException e) {
             Thread.currentThread().interrupt();
         }
-        
+
         // Print server info
         printServerInfo();
-        
+
         // Console command loop
         handleConsoleCommands();
     }
@@ -89,6 +92,11 @@ public class ServerMain {
         System.out.println("Server Status: " + (server.isRunning() ? "RUNNING" : "STOPPED"));
         System.out.println("Port: " + server.getPort());
         System.out.println("Database Status: " + (DatabaseConnection.testConnection() ? "CONNECTED" : "DISCONNECTED"));
+
+        // Print database version
+        int dbVersion = getServerDatabaseVersion();
+        System.out.println("Database Version: " + dbVersion);
+
         System.out.println("Connected Clients: " + server.getConnectedClientCount());
         System.out.println("=".repeat(60));
         System.out.println("\nAvailable Commands:");
@@ -103,15 +111,43 @@ public class ServerMain {
     }
 
     /**
+     * Get server database version
+     */
+    private static int getServerDatabaseVersion() {
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            String sql = "SELECT CAST(config_value AS UNSIGNED) as version " +
+                    "FROM system_config WHERE config_key = 'db_version'";
+            ResultSet rs = conn.createStatement().executeQuery(sql);
+
+            if (rs.next()) {
+                int version = rs.getInt("version");
+                return version;
+            }
+
+            // If not found, create initial version
+            PreparedStatement stmt = conn.prepareStatement(
+                    "INSERT INTO system_config (config_key, config_value, description) " +
+                            "VALUES ('db_version', '1', 'Database version')");
+            stmt.executeUpdate();
+            return 1;
+
+        } catch (Exception e) {
+            LOGGER.warning("Error getting server database version: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
      * Handle console commands
      */
     private static void handleConsoleCommands() {
         String command;
-        
+
         while (server.isRunning()) {
             System.out.print("SMS-Server> ");
             command = scanner.nextLine().trim().toLowerCase();
-            
+
             switch (command) {
                 case "status":
                     showStatus();
@@ -139,6 +175,13 @@ public class ServerMain {
                 case "db":
                     testDatabase();
                     break;
+                case "dbversion":
+                case "version":
+                    showDatabaseVersion();
+                    break;
+                case "csvversion":
+                    showCSVVersion();
+                    break;
                 default:
                     if (!command.isEmpty()) {
                         System.out.println("Unknown command: " + command + ". Type 'help' for available commands.");
@@ -157,6 +200,7 @@ public class ServerMain {
         System.out.println("Port: " + server.getPort());
         System.out.println("Connected Clients: " + server.getConnectedClientCount());
         System.out.println("Database: " + (DatabaseConnection.testConnection() ? "Connected" : "Disconnected"));
+        System.out.println("Database Version: " + getServerDatabaseVersion());
         System.out.println("Memory Usage: " + getMemoryUsage());
         System.out.println();
     }
@@ -167,7 +211,7 @@ public class ServerMain {
     private static void showClients() {
         System.out.println("\n--- Connected Clients ---");
         String[] clients = server.getConnectedClientInfo();
-        
+
         if (clients.length == 0) {
             System.out.println("No clients connected.");
         } else {
@@ -184,7 +228,7 @@ public class ServerMain {
     private static void showStatistics() {
         System.out.println("\n--- Server Statistics ---");
         StudentManagementServer.ServerStatistics stats = server.getStatistics();
-        
+
         System.out.println("Total Clients: " + stats.getConnectedClients());
         System.out.println("  - Admin Clients: " + stats.getAdminClients());
         System.out.println("  - Teacher Clients: " + stats.getTeacherClients());
@@ -201,7 +245,7 @@ public class ServerMain {
     private static void handleBroadcast() {
         System.out.print("Enter message to broadcast: ");
         String message = scanner.nextLine();
-        
+
         if (!message.trim().isEmpty()) {
             server.broadcastMessage(message);
             System.out.println("Message broadcasted to all clients.");
@@ -231,10 +275,90 @@ public class ServerMain {
         System.out.println("stats     - Show detailed server statistics");
         System.out.println("broadcast - Send a message to all connected clients");
         System.out.println("db        - Test database connection");
+        System.out.println("dbversion - Show database version");
+        System.out.println("csvversion - Show CSV source version");
         System.out.println("clear     - Clear the console screen");
         System.out.println("stop      - Stop the server and exit");
         System.out.println("help      - Show this help message");
         System.out.println();
+    }
+
+    /**
+     * Show database version
+     */
+    private static void showDatabaseVersion() {
+        System.out.println("\n--- Database Version ---");
+        int dbVersion = getServerDatabaseVersion();
+        System.out.println("Database Version: " + dbVersion);
+        System.out.println();
+    }
+
+    /**
+     * Show CSV source version
+     */
+    private static void showCSVVersion() {
+        System.out.println("\n--- CSV Source Version ---");
+        try {
+            int csvVersion = getCSVSourceVersion();
+            int csvCount = getCSVSourceCount();
+            // Format version tối đa 10 chữ số
+            String versionStr = String.valueOf(csvVersion);
+            if (versionStr.length() > 10) {
+                versionStr = versionStr.substring(0, 10);
+            }
+            System.out.println("CSV Source Version: " + versionStr);
+            System.out.println("CSV Source Records: " + csvCount);
+        } catch (Exception e) {
+            System.out.println("Error getting CSV version: " + e.getMessage());
+        }
+        System.out.println();
+    }
+
+    /**
+     * Get CSV source version from database
+     */
+    private static int getCSVSourceVersion() {
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            // Lấy timestamp của lần thay đổi cuối cùng từ data_origin cho source CSV
+            // UNIX_TIMESTAMP() trả về số giây (seconds since epoch), không cần chia cho
+            // 1000
+            String sql = "SELECT MAX(UNIX_TIMESTAMP(updated_at)) as last_update FROM data_origin WHERE source = 'CSV'";
+            ResultSet rs = conn.createStatement().executeQuery(sql);
+
+            if (rs.next()) {
+                long timestamp = rs.getLong("last_update");
+                if (!rs.wasNull() && timestamp > 0) {
+                    // UNIX_TIMESTAMP() đã trả về giây, không cần chia cho 1000
+                    // Chỉ cast về int (có thể mất precision nếu > Integer.MAX_VALUE)
+                    return (int) timestamp;
+                }
+            }
+
+            // Fallback: đếm số records nếu không có timestamp
+            return getCSVSourceCount();
+        } catch (Exception e) {
+            LOGGER.warning("Error getting CSV source version: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get CSV source record count
+     */
+    private static int getCSVSourceCount() {
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            String sql = "SELECT COUNT(*) as count FROM data_origin WHERE source = 'CSV'";
+            ResultSet rs = conn.createStatement().executeQuery(sql);
+
+            if (rs.next()) {
+                return rs.getInt("count");
+            }
+        } catch (Exception e) {
+            LOGGER.warning("Error getting CSV source count: " + e.getMessage());
+        }
+        return 0;
     }
 
     /**
@@ -253,7 +377,7 @@ public class ServerMain {
      */
     private static void testDatabase() {
         System.out.println("\nTesting database connection...");
-        
+
         try {
             boolean connected = DatabaseConnection.testConnection();
             if (connected) {
@@ -276,11 +400,9 @@ public class ServerMain {
         long totalMemory = runtime.totalMemory();
         long freeMemory = runtime.freeMemory();
         long usedMemory = totalMemory - freeMemory;
-        
-        return String.format("%.2f MB / %.2f MB", 
-            usedMemory / 1024.0 / 1024.0, 
-            totalMemory / 1024.0 / 1024.0);
+
+        return String.format("%.2f MB / %.2f MB",
+                usedMemory / 1024.0 / 1024.0,
+                totalMemory / 1024.0 / 1024.0);
     }
 }
-
-

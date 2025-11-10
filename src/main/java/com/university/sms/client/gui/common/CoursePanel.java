@@ -209,7 +209,7 @@ public class CoursePanel extends JPanel {
                 } else if (currentUser.getRole() == User.UserRole.TEACHER) {
                     // For teachers: get only courses taught by this teacher
                     Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
-                    request.addData("teacherId", currentUser.getUserId());
+                    request.addData("teacherUsername", currentUser.getUsername());
                     Message response = serverConnection.sendRequest(request);
                     if (response.isSuccess()) {
                         @SuppressWarnings("unchecked")
@@ -263,19 +263,20 @@ public class CoursePanel extends JPanel {
                     return new ArrayList<>();
                 }
 
-                // Get course IDs from enrollments
-                Set<Integer> courseIds = enrollments.stream()
-                        .map(Enrollment::getCourseId)
+                // Get course codes from enrollments
+                Set<String> courseCodes = enrollments.stream()
+                        .map(Enrollment::getCourseCode)
+                        .filter(code -> code != null && !code.isEmpty())
                         .collect(Collectors.toSet());
 
-                // Get all courses and filter by enrolled course IDs
+                // Get all courses and filter by enrolled course codes
                 Message allCoursesResponse = serverConnection.getAllCourses();
                 if (allCoursesResponse.isSuccess()) {
                     @SuppressWarnings("unchecked")
                     List<Course> allCourses = (List<Course>) allCoursesResponse.getData(Constants.KEY_COURSES);
                     if (allCourses != null) {
                         return allCourses.stream()
-                                .filter(c -> courseIds.contains(c.getCourseId()))
+                                .filter(c -> c.getCourseCode() != null && courseCodes.contains(c.getCourseCode()))
                                 .collect(Collectors.toList());
                     }
                 }
@@ -425,7 +426,7 @@ public class CoursePanel extends JPanel {
         courseMap = new HashMap<>();
         if (courses != null) {
             for (Course course : courses) {
-                courseMap.put(course.getCourseId() + "", course);
+                courseMap.put(course.getCourseCode(), course);
                 Object[] rowData = {
                         course.getCourseCode(),
                         course.getSubjectName(),
@@ -481,7 +482,7 @@ public class CoursePanel extends JPanel {
             @Override
             protected Message doInBackground() throws Exception {
                 Message request = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
-                request.addData("courseId", course.getCourseId());
+                request.addData("courseCode", course.getCourseCode());
                 return serverConnection.sendRequest(request);
             }
 
@@ -533,7 +534,8 @@ public class CoursePanel extends JPanel {
 
                 try {
                     Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
-                    gradeRequest.addData(Constants.KEY_ENROLLMENT, en.getEnrollmentId());
+                    gradeRequest.addData(Constants.KEY_STUDENT_CODE, en.getStudentCode());
+                    gradeRequest.addData(Constants.KEY_COURSE_CODE, en.getCourseCode());
                     Message gradeResponse = serverConnection.sendRequest(gradeRequest);
 
                     if (gradeResponse != null && gradeResponse.isSuccess()) {
@@ -698,7 +700,7 @@ public class CoursePanel extends JPanel {
             @Override
             protected Message doInBackground() throws Exception {
                 Message request = Message.createRequest(Constants.ACTION_DELETE_COURSE);
-                request.addData(Constants.KEY_COURSE_ID, selectedCourse.getCourseId());
+                request.addData("courseCode", selectedCourse.getCourseCode());
                 return serverConnection.sendRequest(request);
             }
 

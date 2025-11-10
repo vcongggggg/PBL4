@@ -22,10 +22,10 @@ import java.util.Map;
  */
 public class CourseRegistrationPanel extends JPanel {
     private static final long serialVersionUID = 1L;
-    
+
     private IServerConnection serverConnection;
     private User currentUser;
-    private int studentId;
+    private String studentCode;
 
     // Top table - Selected courses for registration
     private JTable selectedTable;
@@ -38,7 +38,7 @@ public class CourseRegistrationPanel extends JPanel {
     private List<Course> availableCourses = new ArrayList<>();
 
     // Registered courses (already in database)
-    private List<Integer> registeredCourseIds = new ArrayList<>();
+    private List<String> registeredCourseCodes = new ArrayList<>();
 
     // UI Components
     private JLabel totalCreditsLabel;
@@ -78,7 +78,7 @@ public class CourseRegistrationPanel extends JPanel {
         panel.setBorder(BorderFactory.createTitledBorder("Các môn đã chọn (Chưa đăng ký)"));
 
         // Table columns
-        String[] columns = {"Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Sĩ số"};
+        String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Sĩ số" };
         selectedModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -89,7 +89,7 @@ public class CourseRegistrationPanel extends JPanel {
         selectedTable = new JTable(selectedModel);
         selectedTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         selectedTable.setRowHeight(25);
-        
+
         JScrollPane scrollPane = new JScrollPane(selectedTable);
 
         // Button panel
@@ -114,17 +114,18 @@ public class CourseRegistrationPanel extends JPanel {
         searchField = new JTextField(30);
         searchField.addActionListener(e -> applySearchFilter());
         searchPanel.add(searchField);
-        
+
         JButton searchBtn = new JButton("Tìm");
         searchBtn.addActionListener(e -> applySearchFilter());
         searchPanel.add(searchBtn);
-        
+
         JButton refreshBtn = new JButton("Làm mới");
         refreshBtn.addActionListener(e -> loadAvailableCourses());
         searchPanel.add(refreshBtn);
 
         // Table columns
-        String[] columns = {"Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Còn lại/Tối đa", "Trạng thái"};
+        String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Còn lại/Tối đa",
+                "Trạng thái" };
         availableModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -135,14 +136,14 @@ public class CourseRegistrationPanel extends JPanel {
         availableTable = new JTable(availableModel);
         availableTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         availableTable.setRowHeight(25);
-        
+
         // Color coding for status
         availableTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
                     boolean isSelected, boolean hasFocus, int row, int column) {
                 Component c = super.getTableCellRendererComponent(table, value, isSelected, hasFocus, row, column);
-                
+
                 if (!isSelected) {
                     String status = (String) table.getValueAt(row, 8);
                     if ("Đã đăng ký".equals(status)) {
@@ -156,7 +157,7 @@ public class CourseRegistrationPanel extends JPanel {
                 return c;
             }
         });
-        
+
         JScrollPane scrollPane = new JScrollPane(availableTable);
 
         // Button panel
@@ -180,11 +181,11 @@ public class CourseRegistrationPanel extends JPanel {
         JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 5));
         totalCreditsLabel = new JLabel("Tổng tín chỉ đã chọn: 0");
         totalCreditsLabel.setFont(totalCreditsLabel.getFont().deriveFont(Font.BOLD, 14f));
-        
+
         conflictLabel = new JLabel("");
         conflictLabel.setForeground(Color.RED);
         conflictLabel.setFont(conflictLabel.getFont().deriveFont(Font.BOLD, 12f));
-        
+
         infoPanel.add(totalCreditsLabel);
         infoPanel.add(conflictLabel);
 
@@ -210,7 +211,10 @@ public class CourseRegistrationPanel extends JPanel {
 
     public void setCurrentUser(User user, int studentId) {
         this.currentUser = user;
-        this.studentId = studentId;
+        // Get studentCode from username
+        com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
+        com.university.sms.model.Student student = studentDAO.findByUsername(user.getUsername());
+        this.studentCode = student != null ? student.getStudentCode() : null;
         if (serverConnection != null) {
             loadRegisteredCourses(); // Load courses already registered by student first
             // loadAvailableCourses() will be called after registered courses are loaded
@@ -218,44 +222,44 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     private void loadRegisteredCourses() {
-        SwingWorker<List<Integer>, Void> worker = new SwingWorker<>() {
+        SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
             @Override
-            protected List<Integer> doInBackground() throws Exception {
-                List<Integer> ids = new ArrayList<>();
+            protected List<String> doInBackground() throws Exception {
+                List<String> codes = new ArrayList<>();
                 Message request = Message.createRequest(Constants.ACTION_GET_MY_REGISTRATIONS);
-                request.addData(Constants.KEY_STUDENT_ID, studentId);
-                
+                request.addData("studentCode", studentCode);
+
                 Message response = serverConnection.sendRequest(request);
-                
+
                 if (response != null && response.isSuccess()) {
                     @SuppressWarnings("unchecked")
-                    List<CourseRegistration> registrations = (List<CourseRegistration>) 
-                        response.getData(Constants.KEY_REGISTRATIONS);
-                    
+                    List<CourseRegistration> registrations = (List<CourseRegistration>) response
+                            .getData(Constants.KEY_REGISTRATIONS);
+
                     if (registrations != null) {
                         for (CourseRegistration reg : registrations) {
                             // Chỉ thêm những đăng ký đã được duyệt hoặc đang chờ duyệt
                             if (reg.getRegistrationStatus() != CourseRegistration.RegistrationStatus.CANCELLED) {
-                                ids.add(reg.getCourseId());
+                                codes.add(reg.getCourseCode());
                             }
                         }
                     }
                 }
-                return ids;
+                return codes;
             }
 
             @Override
             protected void done() {
                 try {
-                    registeredCourseIds = get();
+                    registeredCourseCodes = get();
                     loadAvailableCourses(); // Load available courses AFTER registered courses are loaded
                 } catch (Exception e) {
                     e.printStackTrace();
                     SwingUtilities.invokeLater(() -> {
                         JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
-                            "Không thể tải danh sách môn đã đăng ký: " + e.getMessage(),
-                            "Lỗi",
-                            JOptionPane.ERROR_MESSAGE);
+                                "Không thể tải danh sách môn đã đăng ký: " + e.getMessage(),
+                                "Lỗi",
+                                JOptionPane.ERROR_MESSAGE);
                     });
                 }
             }
@@ -269,7 +273,7 @@ public class CourseRegistrationPanel extends JPanel {
             protected List<Course> doInBackground() throws Exception {
                 Message request = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
                 Message response = serverConnection.sendRequest(request);
-                
+
                 if (response != null && response.isSuccess()) {
                     @SuppressWarnings("unchecked")
                     List<Course> courses = (List<Course>) response.getData(Constants.KEY_COURSES);
@@ -298,32 +302,32 @@ public class CourseRegistrationPanel extends JPanel {
     private void updateAvailableTable() {
         availableModel.setRowCount(0);
         String searchText = searchField.getText().trim().toLowerCase();
-        
+
         for (Course course : availableCourses) {
             // Skip if already selected or registered
-            if (isCourseSelected(course) || isCourseRegistered(course.getCourseId())) {
+            if (isCourseSelected(course) || isCourseRegistered(course.getCourseCode())) {
                 continue;
             }
-            
+
             // Apply search filter
             if (!searchText.isEmpty()) {
-                String searchableText = (course.getCourseCode() + " " + 
-                                        course.getCourseName() + " " + 
-                                        course.getTeacherName()).toLowerCase();
+                String searchableText = (course.getCourseCode() + " " +
+                        course.getCourseName() + " " +
+                        course.getTeacherName()).toLowerCase();
                 if (!searchableText.contains(searchText)) {
                     continue;
                 }
             }
-            
+
             int remaining = course.getMaxStudents() - course.getCurrentEnrollment();
             String availabilityText = remaining + "/" + course.getMaxStudents();
-            
+
             String status = "Có thể đăng ký";
             if (remaining <= 0) {
                 status = "Đã đầy";
             }
-            
-            availableModel.addRow(new Object[]{
+
+            availableModel.addRow(new Object[] {
                     course.getCourseCode(),
                     course.getCourseName(),
                     course.getCredits(),
@@ -348,7 +352,7 @@ public class CourseRegistrationPanel extends JPanel {
         }
 
         String courseCode = (String) availableModel.getValueAt(selectedRow, 0);
-        
+
         // Find course in availableCourses
         Course courseToAdd = null;
         for (Course c : availableCourses) {
@@ -357,11 +361,11 @@ public class CourseRegistrationPanel extends JPanel {
                 break;
             }
         }
-        
+
         if (courseToAdd == null) {
             return;
         }
-        
+
         // Check if already full
         if (courseToAdd.getCurrentEnrollment() >= courseToAdd.getMaxStudents()) {
             JOptionPane.showMessageDialog(this,
@@ -370,7 +374,7 @@ public class CourseRegistrationPanel extends JPanel {
                     JOptionPane.WARNING_MESSAGE);
             return;
         }
-        
+
         // Check for schedule conflict
         if (hasScheduleConflict(courseToAdd)) {
             int confirm = JOptionPane.showConfirmDialog(this,
@@ -382,12 +386,12 @@ public class CourseRegistrationPanel extends JPanel {
                 return;
             }
         }
-        
+
         // Add to selected list
         selectedCourses.add(courseToAdd);
-        
+
         // Update tables
-        selectedModel.addRow(new Object[]{
+        selectedModel.addRow(new Object[] {
                 courseToAdd.getCourseCode(),
                 courseToAdd.getCourseName(),
                 courseToAdd.getCredits(),
@@ -397,7 +401,7 @@ public class CourseRegistrationPanel extends JPanel {
                 courseToAdd.getRoom(),
                 courseToAdd.getCurrentEnrollment() + "/" + courseToAdd.getMaxStudents()
         });
-        
+
         updateAvailableTable();
         updateCreditsAndConflicts();
     }
@@ -414,7 +418,7 @@ public class CourseRegistrationPanel extends JPanel {
 
         selectedCourses.remove(selectedRow);
         selectedModel.removeRow(selectedRow);
-        
+
         updateAvailableTable();
         updateCreditsAndConflicts();
     }
@@ -427,7 +431,7 @@ public class CourseRegistrationPanel extends JPanel {
                     JOptionPane.INFORMATION_MESSAGE);
             return;
         }
-        
+
         // Check conflicts
         if (hasAnyConflict()) {
             int confirm = JOptionPane.showConfirmDialog(this,
@@ -439,30 +443,30 @@ public class CourseRegistrationPanel extends JPanel {
                 return;
             }
         }
-        
+
         int confirm = JOptionPane.showConfirmDialog(this,
                 String.format("Bạn có chắc muốn đăng ký %d môn học?\nTổng: %d tín chỉ",
                         selectedCourses.size(), getTotalCredits()),
                 "Xác nhận đăng ký",
                 JOptionPane.YES_NO_OPTION);
-        
+
         if (confirm != JOptionPane.YES_OPTION) {
             return;
         }
-        
+
         // Register courses
         SwingWorker<Map<Course, String>, Void> worker = new SwingWorker<>() {
             @Override
             protected Map<Course, String> doInBackground() throws Exception {
                 Map<Course, String> results = new HashMap<>();
-                
+
                 for (Course course : selectedCourses) {
                     Message request = Message.createRequest(Constants.ACTION_REGISTER_COURSE);
-                    request.addData(Constants.KEY_STUDENT_ID, studentId);
-                    request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
-                    
+                    request.addData("studentCode", studentCode);
+                    request.addData("courseCode", course.getCourseCode());
+
                     Message response = serverConnection.sendRequest(request);
-                    
+
                     if (response != null && response.isSuccess()) {
                         results.put(course, "Thành công");
                     } else {
@@ -470,7 +474,7 @@ public class CourseRegistrationPanel extends JPanel {
                         results.put(course, "Lỗi: " + error);
                     }
                 }
-                
+
                 return results;
             }
 
@@ -478,34 +482,33 @@ public class CourseRegistrationPanel extends JPanel {
             protected void done() {
                 try {
                     Map<Course, String> results = get();
-                    
+
                     // Show results
                     StringBuilder message = new StringBuilder("Kết quả đăng ký:\n\n");
                     int successCount = 0;
-                    
+
                     for (Map.Entry<Course, String> entry : results.entrySet()) {
                         Course course = entry.getKey();
                         String result = entry.getValue();
-                        
+
                         message.append(course.getCourseCode())
                                 .append(" - ")
                                 .append(course.getCourseName())
                                 .append(": ")
                                 .append(result)
                                 .append("\n");
-                        
+
                         if ("Thành công".equals(result)) {
                             successCount++;
                         }
                     }
-                    
+
                     JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
                             message.toString(),
                             "Kết quả đăng ký",
-                            successCount == results.size() ? 
-                                    JOptionPane.INFORMATION_MESSAGE : 
-                                    JOptionPane.WARNING_MESSAGE);
-                    
+                            successCount == results.size() ? JOptionPane.INFORMATION_MESSAGE
+                                    : JOptionPane.WARNING_MESSAGE);
+
                     // Clear selected courses and reload only if all succeeded
                     if (successCount == results.size() && successCount > 0) {
                         selectedCourses.clear();
@@ -514,7 +517,7 @@ public class CourseRegistrationPanel extends JPanel {
                     }
                     // Reload registered courses to update the filter
                     loadRegisteredCourses();
-                    
+
                 } catch (Exception e) {
                     e.printStackTrace();
                     JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
@@ -552,46 +555,46 @@ public class CourseRegistrationPanel extends JPanel {
         if (c1.getScheduleDay() == null || c2.getScheduleDay() == null) {
             return false;
         }
-        
+
         // Different days = no conflict
         if (!c1.getScheduleDay().equals(c2.getScheduleDay())) {
             return false;
         }
-        
+
         // Check NULL for scheduleTime
         if (c1.getScheduleTime() == null || c2.getScheduleTime() == null) {
             return false;
         }
-        
+
         // Parse time slots (e.g., "7:00-9:00" or "Tiết 1-3 (07:00-09:30)")
         String scheduleTime1 = c1.getScheduleTime().trim();
         String scheduleTime2 = c2.getScheduleTime().trim();
-        
+
         // Extract time range if format is "Tiết X-Y (HH:MM-HH:MM)"
         if (scheduleTime1.contains("(") && scheduleTime1.contains(")")) {
             int start = scheduleTime1.indexOf("(");
             int end = scheduleTime1.indexOf(")");
             scheduleTime1 = scheduleTime1.substring(start + 1, end).trim();
         }
-        
+
         if (scheduleTime2.contains("(") && scheduleTime2.contains(")")) {
             int start = scheduleTime2.indexOf("(");
             int end = scheduleTime2.indexOf(")");
             scheduleTime2 = scheduleTime2.substring(start + 1, end).trim();
         }
-        
+
         // Split by "-" to get start and end time
         String[] time1 = scheduleTime1.split("-");
         String[] time2 = scheduleTime2.split("-");
-        
+
         if (time1.length != 2 || time2.length != 2) {
             return false;
         }
-        
+
         try {
             // Simple overlap check: if end1 <= start2 OR end2 <= start1, no conflict
-            return !(time1[1].trim().compareTo(time2[0].trim()) <= 0 || 
-                     time2[1].trim().compareTo(time1[0].trim()) <= 0);
+            return !(time1[1].trim().compareTo(time2[0].trim()) <= 0 ||
+                    time2[1].trim().compareTo(time1[0].trim()) <= 0);
         } catch (Exception e) {
             return false;
         }
@@ -600,13 +603,13 @@ public class CourseRegistrationPanel extends JPanel {
     private void updateCreditsAndConflicts() {
         int totalCredits = getTotalCredits();
         totalCreditsLabel.setText("Tổng tín chỉ đã chọn: " + totalCredits);
-        
+
         if (hasAnyConflict()) {
             conflictLabel.setText("⚠ CÓ XUNG ĐỘT LỊCH HỌC!");
         } else {
             conflictLabel.setText("");
         }
-        
+
         registerButton.setEnabled(!selectedCourses.isEmpty());
     }
 
@@ -627,8 +630,8 @@ public class CourseRegistrationPanel extends JPanel {
         return false;
     }
 
-    private boolean isCourseRegistered(int courseId) {
-        return registeredCourseIds.contains(courseId);
+    private boolean isCourseRegistered(String courseCode) {
+        return registeredCourseCodes.contains(courseCode);
     }
 
     private void applySearchFilter() {
@@ -640,4 +643,3 @@ public class CourseRegistrationPanel extends JPanel {
         loadAvailableCourses();
     }
 }
-

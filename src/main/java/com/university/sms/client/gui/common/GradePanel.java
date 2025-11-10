@@ -233,7 +233,8 @@ public class GradePanel extends JPanel {
 
                                 // Get grade details from grades table
                                 Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
-                                gradeRequest.addData(Constants.KEY_ENROLLMENT, enrollment.getEnrollmentId());
+                                gradeRequest.addData(Constants.KEY_STUDENT_CODE, enrollment.getStudentCode());
+                                gradeRequest.addData(Constants.KEY_COURSE_CODE, enrollment.getCourseCode());
                                 Message gradeResponse = serverConnection.sendRequest(gradeRequest);
 
                                 BigDecimal assignmentGrade = null;
@@ -309,7 +310,7 @@ public class GradePanel extends JPanel {
                         Course selectedCourse = courses.get(selectedIndex - 1);
 
                         Message request = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
-                        request.addData("courseId", selectedCourse.getCourseId());
+                        request.addData("courseCode", selectedCourse.getCourseCode());
                         Message response = serverConnection.sendRequest(request);
 
                         if (response != null && response.isSuccess()) {
@@ -326,7 +327,8 @@ public class GradePanel extends JPanel {
 
                                     // Get grade details from grades table
                                     Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
-                                    gradeRequest.addData(Constants.KEY_ENROLLMENT, enrollment.getEnrollmentId());
+                                    gradeRequest.addData(Constants.KEY_STUDENT_CODE, enrollment.getStudentCode());
+                                    gradeRequest.addData(Constants.KEY_COURSE_CODE, enrollment.getCourseCode());
                                     Message gradeResponse = serverConnection.sendRequest(gradeRequest);
 
                                     BigDecimal assignmentGrade = null;
@@ -452,7 +454,7 @@ public class GradePanel extends JPanel {
                 // Teacher: chỉ load các khóa học mà giáo viên dạy
                 if (currentUser.getRole() == User.UserRole.TEACHER) {
                     Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
-                    request.addData("teacherId", currentUser.getUserId());
+                    request.addData("teacherUsername", currentUser.getUsername());
                     Message response = serverConnection.sendRequest(request);
                     if (response != null && response.isSuccess()) {
                         @SuppressWarnings("unchecked")
@@ -662,7 +664,7 @@ public class GradePanel extends JPanel {
             @Override
             protected List<Enrollment> doInBackground() throws Exception {
                 Message request = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
-                request.addData("courseId", course.getCourseId());
+                request.addData("courseCode", course.getCourseCode());
                 Message response = serverConnection.sendRequest(request);
 
                 if (response != null && response.isSuccess()) {
@@ -732,7 +734,8 @@ public class GradePanel extends JPanel {
 
             try {
                 Message gradeRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
-                gradeRequest.addData(Constants.KEY_ENROLLMENT, enrollment.getEnrollmentId());
+                gradeRequest.addData(Constants.KEY_STUDENT_CODE, enrollment.getStudentCode());
+                gradeRequest.addData(Constants.KEY_COURSE_CODE, enrollment.getCourseCode());
                 Message gradeResponse = serverConnection.sendRequest(gradeRequest);
 
                 if (gradeResponse != null && gradeResponse.isSuccess()) {
@@ -848,21 +851,21 @@ public class GradePanel extends JPanel {
                 int changesCount = 0;
 
                 // Assignment grade - save or delete
-                boolean result1 = saveOrDeleteGrade(enrollment.getEnrollmentId(),
+                boolean result1 = saveOrDeleteGrade(enrollment.getStudentCode(), enrollment.getCourseCode(),
                         Grade.GradeType.ASSIGNMENT, assignmentStr);
                 System.out.println("  Result Assignment: " + result1);
                 if (result1)
                     changesCount++;
 
                 // Midterm grade - save or delete
-                boolean result2 = saveOrDeleteGrade(enrollment.getEnrollmentId(),
+                boolean result2 = saveOrDeleteGrade(enrollment.getStudentCode(), enrollment.getCourseCode(),
                         Grade.GradeType.MIDTERM, midtermStr);
                 System.out.println("  Result Midterm: " + result2);
                 if (result2)
                     changesCount++;
 
                 // Final grade - save or delete
-                boolean result3 = saveOrDeleteGrade(enrollment.getEnrollmentId(),
+                boolean result3 = saveOrDeleteGrade(enrollment.getStudentCode(), enrollment.getCourseCode(),
                         Grade.GradeType.FINAL, finalStr);
                 System.out.println("  Result Final: " + result3);
                 if (result3)
@@ -910,23 +913,25 @@ public class GradePanel extends JPanel {
     /**
      * Lưu hoặc xóa điểm
      */
-    private boolean saveOrDeleteGrade(int enrollmentId, Grade.GradeType gradeType, String scoreStr) {
+    private boolean saveOrDeleteGrade(String studentCode, String courseCode, Grade.GradeType gradeType,
+            String scoreStr) {
         // If empty, send null score to delete the grade
         if (scoreStr == null || scoreStr.trim().isEmpty()) {
-            return deleteGradeBySettingNull(enrollmentId, gradeType);
+            return deleteGradeBySettingNull(studentCode, courseCode, gradeType);
         }
         // Otherwise, save/update the grade
-        return saveGradeByType(enrollmentId, gradeType, scoreStr.trim());
+        return saveGradeByType(studentCode, courseCode, gradeType, scoreStr.trim());
     }
 
     /**
      * Xóa điểm bằng cách gọi DELETE_GRADE
      */
-    private boolean deleteGradeBySettingNull(int enrollmentId, Grade.GradeType gradeType) {
+    private boolean deleteGradeBySettingNull(String studentCode, String courseCode, Grade.GradeType gradeType) {
         try {
             // Find existing grade
             Message getRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
-            getRequest.addData(Constants.KEY_ENROLLMENT, enrollmentId);
+            getRequest.addData(Constants.KEY_STUDENT_CODE, studentCode);
+            getRequest.addData(Constants.KEY_COURSE_CODE, courseCode);
             Message getResponse = serverConnection.sendRequest(getRequest);
 
             if (getResponse != null && getResponse.isSuccess()) {
@@ -955,14 +960,15 @@ public class GradePanel extends JPanel {
     /**
      * Lưu điểm theo loại - kiểm tra xem đã có chưa để ADD hoặc UPDATE
      */
-    private boolean saveGradeByType(int enrollmentId, Grade.GradeType gradeType, String scoreStr) {
+    private boolean saveGradeByType(String studentCode, String courseCode, Grade.GradeType gradeType, String scoreStr) {
         try {
             BigDecimal score = new BigDecimal(scoreStr);
             System.out.println("DEBUG saveGradeByType: score parsed = " + score);
 
             // Kiểm tra xem điểm đã tồn tại chưa
             Message getRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
-            getRequest.addData(Constants.KEY_ENROLLMENT, enrollmentId);
+            getRequest.addData(Constants.KEY_STUDENT_CODE, studentCode);
+            getRequest.addData(Constants.KEY_COURSE_CODE, courseCode);
             Message getResponse = serverConnection.sendRequest(getRequest);
 
             Grade existingGrade = null;
@@ -985,7 +991,8 @@ public class GradePanel extends JPanel {
 
             // Create/Update grade object
             Grade grade = existingGrade != null ? existingGrade : new Grade();
-            grade.setEnrollmentId(enrollmentId);
+            grade.setStudentCode(studentCode);
+            grade.setCourseCode(courseCode);
             grade.setGradeType(gradeType);
             grade.setScore(score);
             grade.setMaxScore(new BigDecimal("10.0"));

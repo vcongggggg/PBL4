@@ -91,10 +91,12 @@ public class Constants {
     public static final String ACTION_UPDATE_SYSTEM_CONFIG = "UPDATE_SYSTEM_CONFIG";
     public static final String ACTION_BACKUP_DATABASE = "BACKUP_DATABASE";
     public static final String ACTION_GET_LOGIN_HISTORY = "GET_LOGIN_HISTORY";
+    public static final String ACTION_GET_SERVER_STATISTICS = "GET_SERVER_STATISTICS";
 
     // Sync Actions
     public static final String ACTION_SYNC_CHECK = "SYNC_CHECK";
     public static final String ACTION_SYNC_DATA = "SYNC_DATA";
+    public static final String ACTION_DOWNLOAD_DATA = "DOWNLOAD_DATA";
     public static final String ACTION_UPLOAD_USERS = "UPLOAD_USERS";
     public static final String ACTION_UPLOAD_FACULTIES = "UPLOAD_FACULTIES";
     public static final String ACTION_UPLOAD_CLASSES = "UPLOAD_CLASSES";

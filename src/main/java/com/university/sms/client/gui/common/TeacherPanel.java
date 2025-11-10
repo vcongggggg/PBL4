@@ -277,7 +277,7 @@ public class TeacherPanel extends JPanel {
       @Override
       protected Message doInBackground() throws Exception {
         Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
-        request.addData("teacherId", selectedTeacher.getUserId());
+        request.addData("teacherUsername", selectedTeacher.getUsername());
         return serverConnection.sendRequest(request);
       }
 

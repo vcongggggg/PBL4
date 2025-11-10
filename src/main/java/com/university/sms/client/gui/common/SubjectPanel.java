@@ -298,7 +298,7 @@ public class SubjectPanel extends JPanel {
         @Override
         protected Message doInBackground() throws Exception {
           Message request = Message.createRequest(Constants.ACTION_DELETE_SUBJECT);
-          request.addData("subjectId", selectedSubject.getSubjectId());
+          request.addData("subjectCode", selectedSubject.getSubjectCode());
           return serverConnection.sendRequest(request);
         }
 

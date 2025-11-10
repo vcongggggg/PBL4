@@ -182,7 +182,7 @@ public class MyClassRequestsPanel extends JPanel {
             protected List<ClassOpeningRequest> doInBackground() throws Exception {
                 // Get teacher's requests in background thread
                 Message request = Message.createRequest(Constants.ACTION_GET_MY_CLASS_REQUESTS);
-                request.addData(Constants.KEY_TEACHER_ID, currentUser.getUserId());
+                request.addData("teacherUsername", currentUser.getUsername());
 
                 Message response = serverConnection.sendRequest(request);
 
@@ -286,7 +286,7 @@ public class MyClassRequestsPanel extends JPanel {
 
             ClassOpeningRequestDialog dialog = new ClassOpeningRequestDialog(
                     (Frame) SwingUtilities.getWindowAncestor(this),
-                    currentUser.getUserId(),
+                    currentUser.getUsername(),
                     subjects);
             dialog.setVisible(true);
 
@@ -407,7 +407,7 @@ public class MyClassRequestsPanel extends JPanel {
             try {
                 Message msg = Message.createRequest(Constants.ACTION_CANCEL_CLASS_REQUEST);
                 msg.addData(Constants.KEY_REQUEST_ID, requestId);
-                msg.addData(Constants.KEY_TEACHER_ID, currentUser.getUserId());
+                msg.addData("teacherUsername", currentUser.getUsername());
 
                 Message response = serverConnection.sendRequest(msg);
 

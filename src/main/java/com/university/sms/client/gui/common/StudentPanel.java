@@ -438,15 +438,17 @@ public class StudentPanel extends JPanel {
         JTextField name = new JTextField();
         JTextField email = new JTextField();
         JTextField phone = new JTextField();
-        JTextField facultyId = new JTextField();
-        JTextField classId = new JTextField();
+        JTextField facultyCode = new JTextField();
+        JTextField classCode = new JTextField();
+        JTextField username = new JTextField();
         Object[] fields = {
                 "Mã SV:", code,
+                "Username:", username,
                 "Họ tên:", name,
                 "Email:", email,
                 "SĐT:", phone,
-                "Khoa (ID):", facultyId,
-                "Lớp (ID, có thể để trống):", classId
+                "Khoa (Code):", facultyCode,
+                "Lớp (Code, có thể để trống):", classCode
         };
         int res = JOptionPane.showConfirmDialog(this, fields, "Thêm sinh viên", JOptionPane.OK_CANCEL_OPTION);
         if (res != JOptionPane.OK_OPTION)
@@ -454,19 +456,17 @@ public class StudentPanel extends JPanel {
 
         com.university.sms.model.Student s = new com.university.sms.model.Student();
         s.setStudentCode(code.getText().trim());
+        String usernameText = username.getText().trim();
+        if (usernameText.isEmpty()) {
+            usernameText = code.getText().trim(); // Use studentCode as username if not provided
+        }
+        s.setUsername(usernameText);
         s.setFullName(name.getText().trim());
         s.setEmail(email.getText().trim());
         s.setPhone(phone.getText().trim());
-        try {
-            s.setFacultyId(Integer.parseInt(facultyId.getText().trim()));
-        } catch (Exception ignored) {
-            s.setFacultyId(1);
-        }
-        try {
-            s.setClassId(classId.getText().trim().isEmpty() ? null : Integer.parseInt(classId.getText().trim()));
-        } catch (Exception ignored) {
-            s.setClassId(null);
-        }
+        s.setFacultyCode(facultyCode.getText().trim());
+        String classCodeText = classCode.getText().trim();
+        s.setClassCode(classCodeText.isEmpty() ? null : classCodeText);
         s.setAdmissionYear(java.time.LocalDate.now().getYear());
         s.setStudentStatus(com.university.sms.model.Student.StudentStatus.ACTIVE);
 
@@ -512,28 +512,13 @@ public class StudentPanel extends JPanel {
                 "Xác nhận xóa", JOptionPane.YES_NO_OPTION);
 
         if (result == JOptionPane.YES_OPTION) {
-            // Resolve studentId from currentStudents list by code
-            Integer studentId = null;
-            if (currentStudents != null) {
-                for (Student s : currentStudents) {
-                    if (studentCode.equals(s.getStudentCode())) {
-                        studentId = s.getStudentId();
-                        break;
-                    }
-                }
-            }
-            if (studentId == null || studentId <= 0) {
-                showErrorMessage("Không xác định được ID sinh viên để xóa.");
-                return;
-            }
-
             addLog("Đang xóa sinh viên: " + studentCode);
             deleteButton.setEnabled(false);
-            final int sid = studentId;
+            final String code = studentCode;
             SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
                 @Override
                 protected Message doInBackground() throws Exception {
-                    return serverConnection.deleteStudent(sid);
+                    return serverConnection.deleteStudent(code);
                 }
 
                 @Override
@@ -695,8 +680,15 @@ public class StudentPanel extends JPanel {
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
+                // Get userId from username
+                com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+                com.university.sms.model.User user = userDAO.findByUsername(student.getUsername());
+                if (user == null) {
+                    throw new Exception("Không tìm thấy user với username: " + student.getUsername());
+                }
+
                 Message request = Message.createRequest(Constants.ACTION_ACTIVATE_USER);
-                request.addData("userId", student.getUserId());
+                request.addData("userId", user.getUserId());
                 return serverConnection.sendRequest(request);
             }
 

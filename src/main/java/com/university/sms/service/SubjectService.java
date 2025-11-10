@@ -84,13 +84,13 @@ public class SubjectService {
         return subjectDAO.update(subject);
     }
 
-    public boolean deleteSubject(int subjectId) {
-        Subject existing = subjectDAO.findById(subjectId);
+    public boolean deleteSubject(String subjectCode) {
+        Subject existing = subjectDAO.findByCode(subjectCode);
         if (existing == null) {
-            LOGGER.warning("Subject not found: " + subjectId);
+            LOGGER.warning("Subject not found: " + subjectCode);
             return false;
         }
 
-        return subjectDAO.delete(subjectId);
+        return subjectDAO.delete(existing.getSubjectId()); // Use primary key for deletion
     }
 }

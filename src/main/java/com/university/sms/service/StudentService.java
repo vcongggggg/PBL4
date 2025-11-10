@@ -77,20 +77,20 @@ public class StudentService {
 
     /**
      */
-    public Student getStudentByUserId(int userId) {
-        if (userId <= 0) {
+    public Student findByUsername(String username) {
+        if (username == null || username.trim().isEmpty()) {
             return null;
         }
 
         try {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
-            com.university.sms.model.User user = userDAO.findById(userId);
+            com.university.sms.model.User user = userDAO.findByUsername(username);
             if (user == null) {
                 return null;
             }
             return studentDAO.findByUsername(user.getUsername());
         } catch (Exception e) {
-            LOGGER.severe("Error getting student by user ID: " + e.getMessage());
+            LOGGER.severe("Error getting student by username: " + e.getMessage());
             return null;
         }
     }

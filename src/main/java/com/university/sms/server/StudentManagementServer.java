@@ -20,6 +20,9 @@ public class StudentManagementServer {
     private static final int DEFAULT_PORT = 8888;
     private static final int MAX_THREADS = 100;
 
+    // Static reference to current server instance
+    private static StudentManagementServer currentInstance;
+
     private ServerSocket serverSocket;
     private ExecutorService threadPool;
     private boolean isRunning;
@@ -37,6 +40,14 @@ public class StudentManagementServer {
         this.threadPool = Executors.newFixedThreadPool(MAX_THREADS);
         this.connectedClients = new ConcurrentHashMap<>();
         this.isRunning = false;
+        currentInstance = this;
+    }
+
+    /**
+     * Get current server instance (for use by ClientHandler)
+     */
+    public static StudentManagementServer getInstance() {
+        return currentInstance;
     }
 
     /**

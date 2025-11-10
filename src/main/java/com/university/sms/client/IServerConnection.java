@@ -39,7 +39,7 @@ public interface IServerConnection {
 
   Message searchStudents(String keyword);
 
-  Message deleteStudent(int studentId);
+  Message deleteStudent(String studentCode);
 
   Message addStudent(com.university.sms.model.Student student);
 
@@ -57,4 +57,7 @@ public interface IServerConnection {
 
   // Generic request sender for custom actions
   Message sendRequest(Message request);
+
+  // Server statistics (admin only)
+  Message getServerStatistics();
 }

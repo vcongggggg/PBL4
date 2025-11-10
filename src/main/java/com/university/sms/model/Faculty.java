@@ -18,10 +18,6 @@ public class Faculty implements java.io.Serializable {
     private String description;
     private String headTeacherUsername; // FK to users.username (teacher)
 
-    // ⚠️ DEPRECATED: Giữ lại để backward compatibility
-    @Deprecated
-    private Integer headTeacherId; // Legacy field, use headTeacherUsername instead
-
     private Timestamp createdAt;
     private Timestamp updatedAt;
 
@@ -77,17 +73,6 @@ public class Faculty implements java.io.Serializable {
 
     public void setHeadTeacherUsername(String headTeacherUsername) {
         this.headTeacherUsername = headTeacherUsername;
-    }
-
-    // Deprecated getters/setters (keep for backward compat)
-    @Deprecated
-    public Integer getHeadTeacherId() {
-        return headTeacherId;
-    }
-
-    @Deprecated
-    public void setHeadTeacherId(Integer headTeacherId) {
-        this.headTeacherId = headTeacherId;
     }
 
     public Timestamp getCreatedAt() {
