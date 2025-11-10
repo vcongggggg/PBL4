@@ -646,6 +646,12 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Không tìm thấy sinh viên");
             }
 
+            // Cập nhật timestamp của source gốc trước khi deactivate
+            String existingSource = getDataOrigin("student", student.getStudentId());
+            if (existingSource != null) {
+                updateDataOriginTimestamp("student", student.getStudentId());
+            }
+
             // Chỉ vô hiệu hóa user/student thay vì xóa dữ liệu
             UserDAO userDAO = new UserDAO();
             boolean userDeactivated = userDAO.deactivateUser(student.getUsername());
@@ -654,8 +660,6 @@ public class ClientHandler implements Runnable {
             studentDAO.updateStudentStatus(student.getStudentId(), Student.StudentStatus.SUSPENDED);
 
             if (userDeactivated) {
-                // Cập nhật timestamp cho nguồn dữ liệu
-                saveDataOrigin("student", student.getStudentId(), clientSource);
 
                 LOGGER.info("Student deactivated: " + student.getStudentCode() + " by " + currentUser.getUsername());
 
@@ -3074,6 +3078,10 @@ public class ClientHandler implements Runnable {
             boolean success = classRequestService.submitRequest(classRequest);
 
             if (success) {
+                // Lưu data origin sau khi submit thành công
+                if (classRequest != null && classRequest.getRequestId() > 0) {
+                    saveDataOrigin("class_opening_request", classRequest.getRequestId(), clientSource);
+                }
                 return Message.createSuccessResponse(request.getAction(), "Request submitted successfully");
             } else {
                 return Message.createErrorResponse(request.getAction(), "Failed to submit request");
@@ -3090,6 +3098,10 @@ public class ClientHandler implements Runnable {
             boolean success = classRequestService.updateRequest(classRequest);
 
             if (success) {
+                // Cập nhật data origin sau khi update thành công
+                if (classRequest != null && classRequest.getRequestId() > 0) {
+                    saveDataOrigin("class_opening_request", classRequest.getRequestId(), clientSource);
+                }
                 return Message.createSuccessResponse(request.getAction(), "Request updated successfully");
             } else {
                 return Message.createErrorResponse(request.getAction(), "Failed to update request");
@@ -3107,6 +3119,15 @@ public class ClientHandler implements Runnable {
             if (teacherUsername == null || teacherUsername.isEmpty()) {
                 return Message.createErrorResponse(request.getAction(), "Teacher username is required");
             }
+            // Cập nhật timestamp của source gốc trước khi cancel
+            ClassOpeningRequest classRequest = classRequestService.getRequestById(requestId);
+            if (classRequest != null && classRequest.getRequestId() > 0) {
+                String existingSource = getDataOrigin("class_opening_request", classRequest.getRequestId());
+                if (existingSource != null) {
+                    updateDataOriginTimestamp("class_opening_request", classRequest.getRequestId());
+                }
+            }
+
             boolean success = classRequestService.cancelRequest(requestId, teacherUsername);
 
             if (success) {
@@ -3313,6 +3334,17 @@ public class ClientHandler implements Runnable {
             boolean success = registrationService.registerCourse(studentCode, courseCode, notes);
 
             if (success) {
+                // Lấy registration đã được tạo để lưu data origin
+                CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
+                // Tìm registration mới nhất của student và course này
+                List<CourseRegistration> registrations = registrationDAO.findByStudent(studentCode);
+                CourseRegistration registration = registrations.stream()
+                        .filter(r -> courseCode.equals(r.getCourseCode()))
+                        .findFirst()
+                        .orElse(null);
+                if (registration != null && registration.getRegistrationId() > 0) {
+                    saveDataOrigin("course_registration", registration.getRegistrationId(), clientSource);
+                }
                 return Message.createSuccessResponse(request.getAction(), "Registration submitted successfully");
             } else {
                 return Message.createErrorResponse(request.getAction(), "Failed to submit registration");
@@ -3332,11 +3364,21 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Student code is required");
             }
 
+            // Cập nhật timestamp của source gốc trước khi cancel
+            CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
+            CourseRegistration registrationBeforeCancel = registrationDAO.findById(registrationId);
+            if (registrationBeforeCancel != null && registrationBeforeCancel.getRegistrationId() > 0) {
+                String existingSource = getDataOrigin("course_registration",
+                        registrationBeforeCancel.getRegistrationId());
+                if (existingSource != null) {
+                    updateDataOriginTimestamp("course_registration", registrationBeforeCancel.getRegistrationId());
+                }
+            }
+
             boolean success = registrationService.cancelRegistration(registrationId, studentCode);
 
             if (success) {
                 // Lấy lại registration data sau khi cancel để gửi về client
-                CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
                 CourseRegistration registration = registrationDAO.findById(registrationId);
 
                 Message response = Message.createSuccessResponse(request.getAction(),
@@ -3507,6 +3549,10 @@ public class ClientHandler implements Runnable {
             boolean success = userDAO.addUser(newTeacher);
 
             if (success) {
+                // Lưu data origin sau khi thêm thành công
+                if (newTeacher.getUserId() > 0) {
+                    saveDataOrigin("user", newTeacher.getUserId(), clientSource);
+                }
                 LOGGER.info("Teacher added: " + username + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Thêm giảng viên thành công");
             } else {
@@ -3559,6 +3605,10 @@ public class ClientHandler implements Runnable {
             }
 
             if (success) {
+                // Cập nhật data origin sau khi update thành công
+                if (teacher.getUserId() > 0) {
+                    saveDataOrigin("user", teacher.getUserId(), clientSource);
+                }
                 LOGGER.info("Teacher updated: " + teacher.getUsername() + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Cập nhật giảng viên thành công");
             } else {
@@ -3614,6 +3664,14 @@ public class ClientHandler implements Runnable {
                 }
                 errorMsg.append("Vui lòng xóa các lớp học phần và yêu cầu mở lớp trước.");
                 return Message.createErrorResponse(request.getAction(), errorMsg.toString());
+            }
+
+            // Cập nhật timestamp của source gốc trước khi deactivate
+            if (teacher.getUserId() > 0) {
+                String existingSource = getDataOrigin("user", teacher.getUserId());
+                if (existingSource != null) {
+                    updateDataOriginTimestamp("user", teacher.getUserId());
+                }
             }
 
             // Không có dữ liệu liên quan, cho phép xóa
@@ -3876,6 +3934,10 @@ public class ClientHandler implements Runnable {
 
             boolean success = subjectService.addSubject(subject);
             if (success) {
+                // Lưu data origin sau khi thêm thành công
+                if (subject.getSubjectId() > 0) {
+                    saveDataOrigin("subject", subject.getSubjectId(), clientSource);
+                }
                 LOGGER.info("Subject added: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Thêm môn học thành công");
             } else {
@@ -3902,6 +3964,10 @@ public class ClientHandler implements Runnable {
 
             boolean success = subjectService.updateSubject(subject);
             if (success) {
+                // Cập nhật data origin sau khi update thành công
+                if (subject.getSubjectId() > 0) {
+                    saveDataOrigin("subject", subject.getSubjectId(), clientSource);
+                }
                 LOGGER.info("Subject updated: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Cập nhật môn học thành công");
             } else {
@@ -3937,6 +4003,17 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(),
                         "Không thể xóa môn học. Môn học này đang có " + subjectCourses.size() +
                                 " lớp học phần: " + courseCodes + ". Vui lòng xóa các lớp học phần trước.");
+            }
+
+            // Lấy subjectId trước khi xóa để cập nhật timestamp
+            com.university.sms.dao.SubjectDAO subjectDAO = new com.university.sms.dao.SubjectDAO();
+            com.university.sms.model.Subject subject = subjectDAO.findByCode(subjectCode);
+            if (subject != null && subject.getSubjectId() > 0) {
+                // Cập nhật timestamp của source gốc trước khi xóa
+                String existingSource = getDataOrigin("subject", subject.getSubjectId());
+                if (existingSource != null) {
+                    updateDataOriginTimestamp("subject", subject.getSubjectId());
+                }
             }
 
             // Không có courses liên quan, cho phép xóa
@@ -4082,10 +4159,10 @@ public class ClientHandler implements Runnable {
 
             // Lấy grade trước khi xóa để trả về cho client
             Grade deletedGrade = gradeService.getGradeById(gradeId);
-            // Cập nhật version CSV nếu grade có source CSV (trước khi xóa)
+            // Cập nhật timestamp của source gốc trước khi xóa
             if (deletedGrade != null && deletedGrade.getGradeId() > 0) {
                 String existingSource = getDataOrigin("grade", deletedGrade.getGradeId());
-                if ("CSV".equals(existingSource)) {
+                if (existingSource != null) {
                     updateDataOriginTimestamp("grade", deletedGrade.getGradeId());
                 }
             }
