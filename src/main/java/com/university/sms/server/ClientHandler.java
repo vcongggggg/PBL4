@@ -455,8 +455,8 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_STUDENTS, students);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting all students: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi lấy danh sách tất cả sinh viên: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi server: " + e.getMessage());
         }
     }
@@ -477,8 +477,8 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_STUDENTS, students);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting all students (include inactive): " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi lấy danh sách tất cả sinh viên (bao gồm không hoạt động): " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi server: " + e.getMessage());
         }
     }
@@ -646,62 +646,28 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Không tìm thấy sinh viên");
             }
 
-            // ✅ REFACTORED: Step 1: Remove student from all enrollments and update
-            // current_students
-            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-            List<Enrollment> enrollments = enrollmentDAO.findByStudentCode(student.getStudentCode());
-
-            CourseDAO courseDAO = new CourseDAO();
-            for (Enrollment enrollment : enrollments) {
-                // Delete enrollment
-                enrollmentDAO.deleteEnrollment(enrollment.getEnrollmentId());
-
-                // Decrease current_students count
-                Course course = courseDAO.findByCourseCode(enrollment.getCourseCode());
-                if (course != null && course.getCurrentStudents() > 0) {
-                    courseDAO.updateCurrentStudents(course.getCourseId(), course.getCurrentStudents() - 1);
-                }
-            }
-
-            // ✅ REFACTORED: Step 2: Remove student from all course registrations and update
-            // current_students
-            CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
-            List<CourseRegistration> registrations = registrationDAO.findByStudent(student.getStudentCode());
-
-            for (CourseRegistration registration : registrations) {
-                // Only count APPROVED registrations
-                if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
-                    Course course = courseDAO.findByCourseCode(registration.getCourseCode());
-                    if (course != null && course.getCurrentStudents() > 0) {
-                        courseDAO.updateCurrentStudents(course.getCourseId(), course.getCurrentStudents() - 1);
-                    }
-                }
-                // Delete registration
-                registrationDAO.delete(registration.getRegistrationId());
-            }
-
-            // Step 3: Set is_active = false cho user và student
+            // Chỉ vô hiệu hóa user/student thay vì xóa dữ liệu
             UserDAO userDAO = new UserDAO();
             boolean userDeactivated = userDAO.deactivateUser(student.getUsername());
 
-            // Set student status to inactive (nếu có field is_active trong student)
-            // Hoặc update student status
+            // Cập nhật trạng thái student = SUSPENDED
             studentDAO.updateStudentStatus(student.getStudentId(), Student.StudentStatus.SUSPENDED);
 
             if (userDeactivated) {
-                // Cập nhật updated_at trong data_origin để version tăng khi regular client xóa
-                // student từ CSV source (nếu student có source CSV)
-                String existingSource = getDataOrigin("student", student.getStudentId());
-                if (existingSource != null) {
-                    // Cập nhật timestamp cho source hiện tại (CSV, POSTGRES, etc.)
-                    updateDataOriginTimestamp("student", student.getStudentId());
-                }
+                // Cập nhật timestamp cho nguồn dữ liệu
+                saveDataOrigin("student", student.getStudentId(), clientSource);
 
-                LOGGER.info("Student deactivated and removed from all courses: " + student.getStudentCode() + " by "
-                        + currentUser.getUsername() + " - Removed " + enrollments.size() + " enrollments and "
-                        + registrations.size() + " registrations");
-                return Message.createSuccessResponse(request.getAction(),
-                        "Vô hiệu hóa sinh viên và xóa khỏi tất cả lớp học phần thành công");
+                LOGGER.info("Student deactivated: " + student.getStudentCode() + " by " + currentUser.getUsername());
+
+                // Lấy lại student sau khi cập nhật trạng thái
+                Student updatedStudent = studentDAO.findByStudentCode(studentCode);
+
+                Message response = Message.createSuccessResponse(request.getAction(),
+                        "Đã vô hiệu hóa sinh viên thành công");
+                if (updatedStudent != null) {
+                    response.addData(Constants.KEY_STUDENT, updatedStudent);
+                }
+                return response;
             } else {
                 return Message.createErrorResponse(request.getAction(), "Không thể vô hiệu hóa sinh viên");
             }
@@ -725,8 +691,8 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_COURSES, courses);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting all courses: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi lấy danh sách tất cả khóa học: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi server: " + e.getMessage());
         }
     }
@@ -855,7 +821,8 @@ public class ClientHandler implements Runnable {
             resp.addData(Constants.KEY_ENROLLMENTS, list);
             return resp;
         } catch (Exception e) {
-            LOGGER.severe("Error getting enrollments: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách đăng ký học phần: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(Constants.ACTION_GET_ENROLLMENTS, Constants.MSG_SERVER_ERROR);
         }
     }
@@ -898,7 +865,8 @@ public class ClientHandler implements Runnable {
             resp.addData(Constants.KEY_GRADES, grades);
             return resp;
         } catch (Exception e) {
-            LOGGER.severe("Error getting student grades: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy điểm sinh viên: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(Constants.ACTION_GET_STUDENT_GRADES, Constants.MSG_SERVER_ERROR);
         }
     }
@@ -945,7 +913,8 @@ public class ClientHandler implements Runnable {
             }
             return Message.createErrorResponse(Constants.ACTION_ENROLL_COURSE, Constants.MSG_DATABASE_ERROR);
         } catch (Exception e) {
-            LOGGER.severe("Error enrolling course: " + e.getMessage());
+            LOGGER.severe("Lỗi khi đăng ký khóa học: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(Constants.ACTION_ENROLL_COURSE, Constants.MSG_SERVER_ERROR);
         }
     }
@@ -986,7 +955,8 @@ public class ClientHandler implements Runnable {
             }
             return Message.createErrorResponse(Constants.ACTION_DROP_COURSE, Constants.MSG_DATABASE_ERROR);
         } catch (Exception e) {
-            LOGGER.severe("Error dropping course: " + e.getMessage());
+            LOGGER.severe("Lỗi khi hủy đăng ký khóa học: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(Constants.ACTION_DROP_COURSE, Constants.MSG_SERVER_ERROR);
         }
     }
@@ -1010,7 +980,8 @@ public class ClientHandler implements Runnable {
             }
             return Message.createErrorResponse(Constants.ACTION_UPDATE_GRADE, Constants.MSG_DATABASE_ERROR);
         } catch (Exception e) {
-            LOGGER.severe("Error updating final grade: " + e.getMessage());
+            LOGGER.severe("Lỗi khi cập nhật điểm cuối kỳ: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(Constants.ACTION_UPDATE_GRADE, Constants.MSG_SERVER_ERROR);
         }
     }
@@ -1054,8 +1025,27 @@ public class ClientHandler implements Runnable {
             if (clientDbType != null && !clientDbType.trim().isEmpty()) {
                 this.clientSource = clientDbType.trim().toUpperCase();
             }
-            int clientVersion = ((Number) clientMetadata.get("db_version")).intValue();
-            int clientTotalRecords = ((Number) clientMetadata.get("total_records")).intValue();
+
+            // Lấy version client (có thể là 0 nếu chưa sync lần nào)
+            Object clientVersionObj = clientMetadata.get("db_version");
+            int clientVersion = 0;
+            if (clientVersionObj != null) {
+                if (clientVersionObj instanceof Number) {
+                    clientVersion = ((Number) clientVersionObj).intValue();
+                } else if (clientVersionObj instanceof String) {
+                    try {
+                        clientVersion = Integer.parseInt((String) clientVersionObj);
+                    } catch (NumberFormatException e) {
+                        clientVersion = 0;
+                    }
+                }
+            }
+
+            int clientTotalRecords = 0;
+            Object clientTotalRecordsObj = clientMetadata.get("total_records");
+            if (clientTotalRecordsObj instanceof Number) {
+                clientTotalRecords = ((Number) clientTotalRecordsObj).intValue();
+            }
 
             // Lấy metadata server
             Map<String, Object> serverMetadata = getServerMetadata();
@@ -1065,13 +1055,19 @@ public class ClientHandler implements Runnable {
             String clientSourceKey = this.clientSource.toLowerCase() + "_version";
             int clientSourceVersion = 0;
             if (serverMetadata.containsKey(clientSourceKey)) {
-                clientSourceVersion = ((Number) serverMetadata.get(clientSourceKey)).intValue();
+                Object versionObj = serverMetadata.get(clientSourceKey);
+                if (versionObj instanceof Number) {
+                    clientSourceVersion = ((Number) versionObj).intValue();
+                }
             }
 
             String clientSourceTotalKey = this.clientSource.toLowerCase() + "_total_records";
             int clientSourceTotalRecords = 0;
             if (serverMetadata.containsKey(clientSourceTotalKey)) {
-                clientSourceTotalRecords = ((Number) serverMetadata.get(clientSourceTotalKey)).intValue();
+                Object totalObj = serverMetadata.get(clientSourceTotalKey);
+                if (totalObj instanceof Number) {
+                    clientSourceTotalRecords = ((Number) totalObj).intValue();
+                }
             }
 
             LOGGER.info("Sync check - Client: " + (clientDbType != null ? clientDbType : "UNKNOWN") +
@@ -1087,11 +1083,15 @@ public class ClientHandler implements Runnable {
                     && !"UNKNOWN".equals(this.clientSource)) {
                 // External client (CSV, POSTGRES, etc.): so sánh với version của source đó trên
                 // server
-                if (clientSourceVersion > clientVersion) {
-                    // Server có data mới hơn → Download
+                // Version = 0 hoặc rỗng -> mặc định upload (lần đầu kết nối)
+                if (clientVersion == 0) {
+                    // Version rỗng -> mặc định upload
+                    syncAction = "UPLOAD_TO_SERVER";
+                } else if (clientSourceVersion > clientVersion) {
+                    // Server có version mới hơn (timestamp lớn hơn) → Download
                     syncAction = "DOWNLOAD_FROM_SERVER";
                 } else if (clientVersion > clientSourceVersion) {
-                    // Client có data mới hơn → Upload
+                    // Client có version mới hơn (timestamp lớn hơn) → Upload
                     syncAction = "UPLOAD_TO_SERVER";
                 } else {
                     // Bằng nhau → Không cần sync
@@ -1112,8 +1112,9 @@ public class ClientHandler implements Runnable {
             return response;
 
         } catch (Exception e) {
-            LOGGER.severe("Error handling sync check: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_SYNC_CHECK, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý kiểm tra đồng bộ: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_SYNC_CHECK, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -1165,7 +1166,8 @@ public class ClientHandler implements Runnable {
             metadata.put("total_records", studentCount + courseCount);
 
         } catch (Exception e) {
-            LOGGER.warning("Error getting server metadata: " + e.getMessage());
+            LOGGER.warning("Lỗi khi lấy metadata server: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
             metadata.put("db_version", 1);
             metadata.put("student_count", 0);
             metadata.put("course_count", 0);
@@ -1189,31 +1191,24 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.warning("Error getting available sources: " + e.getMessage());
+            LOGGER.warning("Lỗi khi lấy danh sách nguồn dữ liệu: " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
         }
         return sources;
     }
 
     /**
      * Tính số lượng records có source cụ thể cho entity type
+     * Đếm tất cả records, không phân biệt active/inactive
      */
     private int getDataCountBySource(String entityType, String source) {
         String tableName = getTableName(entityType);
         String entityIdColumn = getEntityIdColumn(entityType);
 
-        // Đối với student, chỉ đếm records có is_active = TRUE (để version giảm khi
-        // regular client deactivate)
-        String sql;
-        if ("student".equals(entityType)) {
-            sql = "SELECT COUNT(*) as count FROM " + tableName + " e " +
-                    "JOIN data_origin dor ON dor.entity_type = ? AND dor.entity_id = e." + entityIdColumn + " " +
-                    "JOIN users u ON e.username = u.username " +
-                    "WHERE dor.source = ? AND u.is_active = TRUE";
-        } else {
-            sql = "SELECT COUNT(*) as count FROM " + tableName + " e " +
-                    "JOIN data_origin dor ON dor.entity_type = ? AND dor.entity_id = e." + entityIdColumn + " " +
-                    "WHERE dor.source = ?";
-        }
+        // Đếm tất cả records, không phân biệt active/inactive
+        String sql = "SELECT COUNT(*) as count FROM " + tableName + " e " +
+                "JOIN data_origin dor ON dor.entity_type = ? AND dor.entity_id = e." + entityIdColumn + " " +
+                "WHERE dor.source = ?";
 
         try (java.sql.Connection conn = DatabaseConnection.getConnection();
                 java.sql.PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -1225,8 +1220,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.warning(
-                    "Error getting data count for " + entityType + " with source " + source + ": " + e.getMessage());
+            LOGGER.warning("Lỗi khi đếm số lượng " + entityType + " với nguồn " + source + ": " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
         }
         return 0;
     }
@@ -1256,7 +1251,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.warning("Error getting last update timestamp for source " + source + ": " + e.getMessage());
+            LOGGER.warning("Lỗi khi lấy timestamp cập nhật cuối cho nguồn " + source + ": " + e.getMessage());
+            LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
         }
 
         // Fallback: dùng tổng số records nếu không có timestamp
@@ -1367,25 +1363,23 @@ public class ClientHandler implements Runnable {
             return response;
 
         } catch (Exception e) {
-            LOGGER.severe("Error handling download data: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_DOWNLOAD_DATA, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải dữ liệu: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_DOWNLOAD_DATA, "Lỗi: " + e.getMessage());
         }
     }
 
-    /**
-     * Helper: Lấy students có source = 'CSV'
-     * CHỈ download student có is_active = TRUE để tránh download student đã bị
-     * deactivate bởi regular client
-     */
     private List<com.university.sms.model.Student> getStudentsBySource(String source) {
+        // Query lấy TẤT CẢ student có source = CSV, không phân biệt active/inactive
         String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, " +
                 "f.faculty_name, c.class_name " +
                 "FROM students s " +
-                "JOIN users u ON s.username = u.username " +
-                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN users u ON s.username = u.username " +
+                "LEFT JOIN faculties f ON s.faculty_code = f.faculty_code " +
                 "LEFT JOIN classes c ON s.class_code = c.class_code " +
                 "JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
-                "WHERE dor.source = ? AND u.is_active = TRUE";
+                "WHERE dor.source = ? " +
+                "ORDER BY s.student_id";
 
         List<com.university.sms.model.Student> students = new java.util.ArrayList<>();
 
@@ -1395,7 +1389,8 @@ public class ClientHandler implements Runnable {
             try (java.sql.ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
                     com.university.sms.model.Student student = new com.university.sms.model.Student();
-                    student.setStudentId(rs.getInt("student_id"));
+                    int studentId = rs.getInt("student_id");
+                    student.setStudentId(studentId);
                     student.setUsername(rs.getString("username"));
                     student.setStudentCode(rs.getString("student_code"));
                     String classCode = rs.getString("class_code");
@@ -1419,12 +1414,17 @@ public class ClientHandler implements Runnable {
                     student.setCitizenId(rs.getString("citizen_id"));
                     student.setEmergencyContact(rs.getString("emergency_contact"));
                     student.setEmergencyPhone(rs.getString("emergency_phone"));
+                    // Handle NULL values from LEFT JOIN
                     student.setFullName(rs.getString("full_name"));
                     student.setEmail(rs.getString("email"));
                     student.setPhone(rs.getString("phone"));
                     student.setAddress(rs.getString("address"));
                     try {
-                        student.setActive(rs.getBoolean("is_active"));
+                        if (rs.getObject("is_active") != null) {
+                            student.setActive(rs.getBoolean("is_active"));
+                        } else {
+                            student.setActive(true);
+                        }
                     } catch (java.sql.SQLException e) {
                         student.setActive(true);
                     }
@@ -1434,9 +1434,9 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting students by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách sinh viên theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
-
         return students;
     }
 
@@ -1491,7 +1491,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting courses by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách khóa học theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return courses;
@@ -1529,7 +1530,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting enrollments by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách đăng ký học phần theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return enrollments;
@@ -1560,7 +1562,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting faculties by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách khoa theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return faculties;
@@ -1594,7 +1597,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting classes by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách lớp theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return classes;
@@ -1630,7 +1634,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting subjects by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách môn học theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return subjects;
@@ -1668,7 +1673,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting users by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách người dùng theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return users;
@@ -1707,7 +1713,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting grades by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách điểm theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return grades;
@@ -1754,7 +1761,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting notifications by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách thông báo theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return notifications;
@@ -1790,7 +1798,7 @@ public class ClientHandler implements Runnable {
                         request.setMaxStudents(maxStudents);
                     }
                     request.setReason(rs.getString("reason"));
-                    String status = rs.getString("status");
+                    String status = rs.getString("request_status");
                     if (status != null) {
                         request.setRequestStatus(com.university.sms.model.ClassOpeningRequest.RequestStatus
                                 .valueOf(status.toUpperCase()));
@@ -1810,7 +1818,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting class opening requests by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách yêu cầu mở lớp theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return requests;
@@ -1853,7 +1862,8 @@ public class ClientHandler implements Runnable {
                 }
             }
         } catch (Exception e) {
-            LOGGER.severe("Error getting course registrations by source: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy danh sách đăng ký khóa học theo nguồn '" + source + "': " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
         }
 
         return registrations;
@@ -1983,8 +1993,8 @@ public class ClientHandler implements Runnable {
                     }
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading student: " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải lên sinh viên: " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -1994,8 +2004,9 @@ public class ClientHandler implements Runnable {
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_STUDENTS, message);
 
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload students: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên sinh viên: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -2096,8 +2107,8 @@ public class ClientHandler implements Runnable {
                     }
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading course " + course.getCourseCode() + ": " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải lên khóa học " + course.getCourseCode() + ": " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2107,8 +2118,9 @@ public class ClientHandler implements Runnable {
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSES, message);
 
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload courses: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSES, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên khóa học: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSES, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -2117,6 +2129,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadEnrollments(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_ENROLLMENTS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Enrollment> enrollments = (List<com.university.sms.model.Enrollment>) request
                     .getData("enrollments");
@@ -2175,8 +2193,8 @@ public class ClientHandler implements Runnable {
                     // Nếu đã tồn tại, không đếm vào successCount hoặc failCount, chỉ log
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error saving enrollment: " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi lưu đăng ký học phần: " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2185,7 +2203,8 @@ public class ClientHandler implements Runnable {
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_ENROLLMENTS, message);
 
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload enrollments: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên đăng ký học phần: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(Constants.ACTION_UPLOAD_ENROLLMENTS,
                     "Error: " + e.getMessage());
         }
@@ -2240,8 +2259,9 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_USERS, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload users: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPLOAD_USERS, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên người dùng: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_USERS, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -2312,8 +2332,8 @@ public class ClientHandler implements Runnable {
                     }
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading faculty " + f.getFacultyCode() + ": " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải lên khoa " + f.getFacultyCode() + ": " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2321,8 +2341,9 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_FACULTIES, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload faculties: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPLOAD_FACULTIES, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên khoa: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_FACULTIES, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -2403,8 +2424,8 @@ public class ClientHandler implements Runnable {
                     }
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading class " + c.getClassCode() + ": " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải lên lớp " + c.getClassCode() + ": " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2412,8 +2433,9 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASSES, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload classes: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASSES, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên lớp: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASSES, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -2485,8 +2507,8 @@ public class ClientHandler implements Runnable {
                     }
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading subject " + s.getSubjectCode() + ": " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải lên môn học " + s.getSubjectCode() + ": " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2494,8 +2516,9 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_SUBJECTS, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload subjects: " + e.getMessage());
-            return Message.createErrorResponse(Constants.ACTION_UPLOAD_SUBJECTS, "Error: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên môn học: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_UPLOAD_SUBJECTS, "Lỗi: " + e.getMessage());
         }
     }
 
@@ -2504,6 +2527,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadGrades(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_GRADES,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Grade> grades = (List<com.university.sms.model.Grade>) request
                     .getData("grades");
@@ -2568,7 +2597,8 @@ public class ClientHandler implements Runnable {
                     // Nếu đã tồn tại, không đếm vào successCount hoặc failCount, chỉ log
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading grade: " + ex.getMessage());
+                    LOGGER.severe("Lỗi khi tải lên điểm: " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2576,7 +2606,7 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_GRADES, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload grades: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên grades: " + e.getMessage());
             return Message.createErrorResponse(Constants.ACTION_UPLOAD_GRADES, "Error: " + e.getMessage());
         }
     }
@@ -2586,6 +2616,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadClassOpeningRequests(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.ClassOpeningRequest> requests = (List<com.university.sms.model.ClassOpeningRequest>) request
                     .getData("requests");
@@ -2644,7 +2680,7 @@ public class ClientHandler implements Runnable {
                     // Nếu đã tồn tại, không đếm vào successCount hoặc failCount, chỉ log
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading class opening request: " + ex.getMessage());
+                    LOGGER.severe("Lỗi khi tải lên class opening request: " + ex.getMessage());
                 }
             }
 
@@ -2652,7 +2688,7 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload class opening requests: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên class opening requests: " + e.getMessage());
             return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
                     "Error: " + e.getMessage());
         }
@@ -2663,6 +2699,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadCourseRegistrations(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.CourseRegistration> registrations = (List<com.university.sms.model.CourseRegistration>) request
                     .getData("registrations");
@@ -2718,7 +2760,7 @@ public class ClientHandler implements Runnable {
                     // Nếu đã tồn tại, không đếm vào successCount hoặc failCount, chỉ log
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading course registration: " + ex.getMessage());
+                    LOGGER.severe("Lỗi khi tải lên course registration: " + ex.getMessage());
                 }
             }
 
@@ -2726,7 +2768,7 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload course registrations: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên course registrations: " + e.getMessage());
             return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
                     "Error: " + e.getMessage());
         }
@@ -2737,6 +2779,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadNotifications(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Notification> notifications = (List<com.university.sms.model.Notification>) request
                     .getData("notifications");
@@ -2829,8 +2877,8 @@ public class ClientHandler implements Runnable {
                     // Nếu đã tồn tại, không đếm vào successCount hoặc failCount, chỉ log
                 } catch (Exception ex) {
                     failCount++;
-                    LOGGER.severe("Error uploading notification: " + ex.getMessage());
-                    ex.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải lên thông báo: " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
@@ -2838,7 +2886,7 @@ public class ClientHandler implements Runnable {
                     successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS, message);
         } catch (Exception e) {
-            LOGGER.severe("Error handling upload notifications: " + e.getMessage());
+            LOGGER.severe("Lỗi khi xử lý tải lên notifications: " + e.getMessage());
             return Message.createErrorResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS,
                     "Error: " + e.getMessage());
         }
@@ -2969,7 +3017,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_CLASS_REQUESTS, requests);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting all class requests: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy all class requests: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -2987,7 +3035,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_CLASS_REQUEST, classRequest);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting class request by ID: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy class request by ID: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3003,7 +3051,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_CLASS_REQUESTS, requests);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting teacher's class requests: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy teacher's class requests: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3015,7 +3063,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_CLASS_REQUESTS, requests);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting pending class requests: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy pending class requests: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3031,7 +3079,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Failed to submit request");
             }
         } catch (Exception e) {
-            LOGGER.severe("Error submitting class request: " + e.getMessage());
+            LOGGER.severe("Lỗi khi gửi class request: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3047,7 +3095,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Failed to update request");
             }
         } catch (Exception e) {
-            LOGGER.severe("Error updating class request: " + e.getMessage());
+            LOGGER.severe("Lỗi khi cập nhật class request: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3067,7 +3115,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Failed to cancel request");
             }
         } catch (Exception e) {
-            LOGGER.severe("Error cancelling class request: " + e.getMessage());
+            LOGGER.severe("Lỗi khi hủy class request: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3109,8 +3157,8 @@ public class ClientHandler implements Runnable {
             LOGGER.warning("Cannot approve request: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), e.getMessage());
         } catch (Exception e) {
-            LOGGER.severe("Error approving class request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi duyệt yêu cầu mở lớp: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
@@ -3156,8 +3204,8 @@ public class ClientHandler implements Runnable {
             LOGGER.warning("Cannot reject request: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), e.getMessage());
         } catch (Exception e) {
-            LOGGER.severe("Error rejecting class request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi từ chối yêu cầu mở lớp: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
@@ -3169,7 +3217,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_STATISTICS, stats);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting class request stats: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy class request stats: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3183,7 +3231,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting all registrations: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy all registrations: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3201,7 +3249,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_REGISTRATION, registration);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting registration by ID: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy registration by ID: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3218,7 +3266,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting student's registrations: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy student's registrations: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3234,7 +3282,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting course registrations: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy course registrations: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3246,7 +3294,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_REGISTRATIONS, registrations);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting pending registrations: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy pending registrations: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3270,7 +3318,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Failed to submit registration");
             }
         } catch (Exception e) {
-            LOGGER.severe("Error registering course: " + e.getMessage());
+            LOGGER.severe("Lỗi khi đăng ký course: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3305,7 +3353,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Failed to cancel registration");
             }
         } catch (Exception e) {
-            LOGGER.severe("Error cancelling registration: " + e.getMessage());
+            LOGGER.severe("Lỗi khi hủy registration: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3320,6 +3368,12 @@ public class ClientHandler implements Runnable {
                 CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
                 CourseRegistration registration = registrationDAO.findById(registrationId);
 
+                // Cập nhật data_origin để tăng version cho nguồn tương ứng (CSV nếu bản ghi gốc
+                // từ CSV)
+                if (registration != null) {
+                    saveDataOrigin("course_registration", registration.getRegistrationId(), clientSource);
+                }
+
                 Message response = Message.createSuccessResponse(request.getAction(),
                         "Registration approved successfully");
                 if (registration != null) {
@@ -3330,7 +3384,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Failed to approve registration");
             }
         } catch (Exception e) {
-            LOGGER.severe("Error approving registration: " + e.getMessage());
+            LOGGER.severe("Lỗi khi duyệt registration: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3343,6 +3397,14 @@ public class ClientHandler implements Runnable {
             boolean success = registrationService.rejectRegistration(registrationId, reason);
 
             if (success) {
+                // Cập nhật data_origin để tăng version cho nguồn tương ứng (CSV nếu bản ghi gốc
+                // từ CSV)
+                CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
+                CourseRegistration registration = registrationDAO.findById(registrationId);
+                if (registration != null) {
+                    saveDataOrigin("course_registration", registration.getRegistrationId(), clientSource);
+                }
+
                 return Message.createSuccessResponse(request.getAction(), "Registration rejected successfully");
             } else {
                 return Message.createErrorResponse(request.getAction(), "Failed to reject registration");
@@ -3393,7 +3455,7 @@ public class ClientHandler implements Runnable {
             response.addData("credits", credits);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting student credits: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy student credits: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3405,7 +3467,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_STATISTICS, stats);
             return response;
         } catch (Exception e) {
-            LOGGER.severe("Error getting registration stats: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy registration stats: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
         }
     }
@@ -3594,6 +3656,9 @@ public class ClientHandler implements Runnable {
             if (success) {
                 // Lấy lại user data sau khi activate (để có is_active = true)
                 User activatedUser = userDAO.findById(userId);
+                if (activatedUser != null) {
+                    saveDataOrigin("user", activatedUser.getUserId(), clientSource);
+                }
 
                 String userType = user.getRole() == User.UserRole.TEACHER ? "giảng viên"
                         : user.getRole() == User.UserRole.STUDENT ? "sinh viên" : "người dùng";
@@ -3612,16 +3677,12 @@ public class ClientHandler implements Runnable {
                     if (student != null) {
                         // Set student status = ACTIVE khi activate user
                         studentDAO.updateStudentStatus(student.getStudentId(), Student.StudentStatus.ACTIVE);
-                        // Cập nhật version CSV nếu student có source CSV
-                        String existingSource = getDataOrigin("student", student.getStudentId());
-                        if (existingSource != null) {
-                            // Cập nhật timestamp cho source hiện tại (CSV, POSTGRES, etc.)
-                            updateDataOriginTimestamp("student", student.getStudentId());
-                        }
+                        saveDataOrigin("student", student.getStudentId(), clientSource);
                         // Lấy lại student data sau khi update status
                         student = studentDAO.findByUsername(user.getUsername());
                         if (student != null) {
                             LOGGER.info("Student status updated to ACTIVE: " + student.getStudentCode());
+                            student.setStudentStatus(Student.StudentStatus.ACTIVE);
                             response.addData(Constants.KEY_STUDENT, student);
                         } else {
                             LOGGER.warning("Student not found after status update for username: " + user.getUsername());
