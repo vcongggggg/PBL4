@@ -14,6 +14,66 @@ public class AuthenticationService {
         this.userDAO = new UserDAO();
     }
 
+    /**
+     * Inner class - Kết quả xác thực đăng nhập với thông tin chi tiết
+     */
+    public static class AuthenticationResult {
+        private boolean success;
+        private User user;
+        private String errorCode;
+        private String message;
+
+        // Error codes
+        public static final String ERROR_INVALID_CREDENTIALS = "INVALID_CREDENTIALS";
+        public static final String ERROR_ACCOUNT_DISABLED = "ACCOUNT_DISABLED";
+        public static final String ERROR_USER_NOT_FOUND = "USER_NOT_FOUND";
+
+        public AuthenticationResult(boolean success, User user, String errorCode, String message) {
+            this.success = success;
+            this.user = user;
+            this.errorCode = errorCode;
+            this.message = message;
+        }
+
+        // Factory methods
+        public static AuthenticationResult success(User user) {
+            return new AuthenticationResult(true, user, null, "Đăng nhập thành công");
+        }
+
+        public static AuthenticationResult userNotFound() {
+            return new AuthenticationResult(false, null, ERROR_USER_NOT_FOUND, "Tên đăng nhập không tồn tại");
+        }
+
+        public static AuthenticationResult accountDisabled() {
+            return new AuthenticationResult(false, null, ERROR_ACCOUNT_DISABLED, "Tài khoản đã bị vô hiệu hóa");
+        }
+
+        public static AuthenticationResult invalidPassword() {
+            return new AuthenticationResult(false, null, ERROR_INVALID_CREDENTIALS, "Mật khẩu không đúng");
+        }
+
+        // Getters
+        public boolean isSuccess() {
+            return success;
+        }
+
+        public User getUser() {
+            return user;
+        }
+
+        public String getErrorCode() {
+            return errorCode;
+        }
+
+        public String getMessage() {
+            return message;
+        }
+    }
+
+    /**
+     * Xác thực đăng nhập (phiên bản cũ - deprecated)
+     */
+    @Deprecated
     public User authenticate(String username, String password) {
         if (username == null || password == null || username.trim().isEmpty() || password.trim().isEmpty()) {
             LOGGER.warning("Authentication failed: Empty username or password");
@@ -32,6 +92,23 @@ public class AuthenticationService {
         } catch (Exception e) {
             LOGGER.severe("Error during authentication: " + e.getMessage());
             return null;
+        }
+    }
+
+    /**
+     * Xác thực đăng nhập với thông tin chi tiết lỗi
+     */
+    public AuthenticationResult authenticateDetailed(String username, String password) {
+        if (username == null || password == null || username.trim().isEmpty() || password.trim().isEmpty()) {
+            LOGGER.warning("Authentication failed: Empty username or password");
+            return new AuthenticationResult(false, null, "INVALID_INPUT", "Vui lòng nhập đầy đủ thông tin");
+        }
+
+        try {
+            return userDAO.authenticateDetailed(username, password);
+        } catch (Exception e) {
+            LOGGER.severe("Error during authentication: " + e.getMessage());
+            return new AuthenticationResult(false, null, "ERROR", "Lỗi khi xác thực: " + e.getMessage());
         }
     }
 

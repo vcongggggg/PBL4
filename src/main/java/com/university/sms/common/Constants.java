@@ -196,6 +196,7 @@ public class Constants {
     public static final String MSG_LOGIN_FAILED = "Đăng nhập thất bại";
     public static final String MSG_LOGOUT_SUCCESS = "Đăng xuất thành công";
     public static final String MSG_INVALID_CREDENTIALS = "Tên đăng nhập hoặc mật khẩu không đúng";
+    public static final String MSG_ACCOUNT_DISABLED = "Tài khoản đã bị vô hiệu hóa";
     public static final String MSG_USER_NOT_FOUND = "Không tìm thấy người dùng";
     public static final String MSG_STUDENT_NOT_FOUND = "Không tìm thấy sinh viên";
     public static final String MSG_COURSE_NOT_FOUND = "Không tìm thấy khóa học";
