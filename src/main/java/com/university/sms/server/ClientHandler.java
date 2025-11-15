@@ -7,6 +7,7 @@ import com.university.sms.model.Student;
 import com.university.sms.model.Course;
 import com.university.sms.model.Enrollment;
 import com.university.sms.service.AuthenticationService;
+import com.university.sms.service.AuthenticationService.AuthenticationResult;
 import com.university.sms.service.StudentService;
 import com.university.sms.service.CourseService;
 import com.university.sms.service.SubjectService;
@@ -363,8 +364,11 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_LOGIN, Constants.MSG_INVALID_DATA);
         }
 
-        User user = authService.authenticate(username, password);
-        if (user != null) {
+        // Sử dụng authenticateDetailed để có thông tin chi tiết lỗi
+        AuthenticationResult result = authService.authenticateDetailed(username, password);
+        
+        if (result.isSuccess()) {
+            User user = result.getUser();
             this.currentUser = user;
 
             String clientIP = clientSocket.getRemoteSocketAddress().toString();
@@ -379,7 +383,24 @@ public class ClientHandler implements Runnable {
             // Log failed login attempt
             authService.logFailedLogin(username, clientSocket.getRemoteSocketAddress().toString());
 
-            return Message.createErrorResponse(Constants.ACTION_LOGIN, Constants.MSG_INVALID_CREDENTIALS);
+            // Trả về message chi tiết dựa trên errorCode
+            String errorMessage = result.getMessage();
+            if (result.getErrorCode() != null) {
+                switch (result.getErrorCode()) {
+                    case AuthenticationResult.ERROR_ACCOUNT_DISABLED:
+                        errorMessage = Constants.MSG_ACCOUNT_DISABLED;
+                        break;
+                    case AuthenticationResult.ERROR_USER_NOT_FOUND:
+                    case AuthenticationResult.ERROR_INVALID_CREDENTIALS:
+                        errorMessage = Constants.MSG_INVALID_CREDENTIALS;
+                        break;
+                    default:
+                        errorMessage = result.getMessage();
+                }
+            }
+
+            LOGGER.warning("Login failed for user " + username + ": " + errorMessage);
+            return Message.createErrorResponse(Constants.ACTION_LOGIN, errorMessage);
         }
     }
 
