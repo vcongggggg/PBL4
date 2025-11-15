@@ -17,12 +17,14 @@ import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
 import java.util.*;
+import java.util.logging.Logger;
 
 /**
  * Service để quản lý dữ liệu CSV
  * Version = timestamp (seconds since epoch) để so sánh với server
  */
 public class CSVDataService {
+  private static final Logger LOGGER = Logger.getLogger(CSVDataService.class.getName());
 
   private static final String DATA_DIR = "data/csv";
 
@@ -219,56 +221,6 @@ public class CSVDataService {
     return students;
   }
 
-  public boolean saveStudent(Student student) {
-    List<Student> students = getAllStudents();
-    boolean found = false;
-    String studentCode = student.getStudentCode();
-    if (studentCode != null && !studentCode.isEmpty()) {
-      for (int i = 0; i < students.size(); i++) {
-        if (studentCode.equals(students.get(i).getStudentCode())) {
-          int localId = students.get(i).getStudentId();
-          students.set(i, student);
-          students.get(i).setStudentId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (student.getStudentId() == 0) {
-        int maxId = students.stream().mapToInt(Student::getStudentId).max().orElse(0);
-        student.setStudentId(maxId + 1);
-      }
-      students.add(student);
-    }
-    boolean result = writeStudentsToCSV(students);
-    if (result) {
-      incrementVersion();
-    }
-    return result;
-  }
-
-  public boolean deleteStudent(String studentCode) {
-    List<Student> students = getAllStudents();
-    boolean found = false;
-    for (int i = 0; i < students.size(); i++) {
-      if (studentCode != null && studentCode.equals(students.get(i).getStudentCode())) {
-        students.get(i).setStudentStatus(Student.StudentStatus.SUSPENDED);
-        students.get(i).setActive(false);
-        found = true;
-        break;
-      }
-    }
-    if (!found) {
-      return false;
-    }
-    boolean result = writeStudentsToCSV(students);
-    if (result) {
-      incrementVersion();
-    }
-    return result;
-  }
-
   /**
    * Lưu tất cả students cùng lúc (dùng khi download từ server)
    * Không tăng version nếu skipVersionIncrement = true
@@ -367,30 +319,12 @@ public class CSVDataService {
     return users;
   }
 
-  public boolean saveUser(User user) {
-    List<User> users = getAllUsers();
-    boolean found = false;
-    String username = user.getUsername();
-    if (username != null && !username.isEmpty()) {
-      for (int i = 0; i < users.size(); i++) {
-        if (username.equals(users.get(i).getUsername())) {
-          int localId = users.get(i).getUserId();
-          users.set(i, user);
-          users.get(i).setUserId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (user.getUserId() == 0) {
-        int maxId = users.stream().mapToInt(User::getUserId).max().orElse(0);
-        user.setUserId(maxId + 1);
-      }
-      users.add(user);
+  public boolean saveAllUsers(List<User> users) {
+    if (users == null || users.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeUsersToCSV(users);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -460,30 +394,12 @@ public class CSVDataService {
     return courses;
   }
 
-  public boolean saveCourse(Course course) {
-    List<Course> courses = getAllCourses();
-    boolean found = false;
-    String courseCode = course.getCourseCode();
-    if (courseCode != null && !courseCode.isEmpty()) {
-      for (int i = 0; i < courses.size(); i++) {
-        if (courseCode.equals(courses.get(i).getCourseCode())) {
-          int localId = courses.get(i).getCourseId();
-          courses.set(i, course);
-          courses.get(i).setCourseId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (course.getCourseId() == 0) {
-        int maxId = courses.stream().mapToInt(Course::getCourseId).max().orElse(0);
-        course.setCourseId(maxId + 1);
-      }
-      courses.add(course);
+  public boolean saveAllCourses(List<Course> courses) {
+    if (courses == null || courses.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeCoursesToCSV(courses);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -566,32 +482,12 @@ public class CSVDataService {
     return enrollments;
   }
 
-  public boolean saveEnrollment(Enrollment enrollment) {
-    List<Enrollment> enrollments = getAllEnrollments();
-    boolean found = false;
-    String studentCode = enrollment.getStudentCode();
-    String courseCode = enrollment.getCourseCode();
-    if (studentCode != null && courseCode != null) {
-      for (int i = 0; i < enrollments.size(); i++) {
-        Enrollment existing = enrollments.get(i);
-        if (studentCode.equals(existing.getStudentCode()) && courseCode.equals(existing.getCourseCode())) {
-          int localId = existing.getEnrollmentId();
-          enrollments.set(i, enrollment);
-          enrollments.get(i).setEnrollmentId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (enrollment.getEnrollmentId() == 0) {
-        int maxId = enrollments.stream().mapToInt(Enrollment::getEnrollmentId).max().orElse(0);
-        enrollment.setEnrollmentId(maxId + 1);
-      }
-      enrollments.add(enrollment);
+  public boolean saveAllEnrollments(List<Enrollment> enrollments) {
+    if (enrollments == null || enrollments.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeEnrollmentsToCSV(enrollments);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -600,6 +496,10 @@ public class CSVDataService {
   private Enrollment parseEnrollmentFromCSV(String line) {
     try {
       String[] fields = line.split(",");
+      // File CSV có 9 cột (theo database schema):
+      // enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints,createdAt
+      // Lưu ý: File CSV cũ có thể có attendanceRate thay vì gradePoints, nhưng code
+      // sẽ đọc field[7] như gradePoints
       if (fields.length < 8)
         return null;
       Enrollment enrollment = new Enrollment();
@@ -607,13 +507,32 @@ public class CSVDataService {
       enrollment.setStudentCode(fields[1].trim());
       enrollment.setCourseCode(fields[2].trim());
       enrollment.setEnrollmentDate(fields[3].trim().isEmpty() ? null : java.sql.Timestamp.valueOf(fields[3].trim()));
-      enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.valueOf(fields[4].trim().toUpperCase()));
+
+      // Xử lý enrollmentStatus - có thể null hoặc lowercase
+      String statusStr = fields[4].trim();
+      if (!statusStr.isEmpty()) {
+        try {
+          enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.valueOf(statusStr.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+          enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.ENROLLED); // Mặc định
+        }
+      } else {
+        enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.ENROLLED); // Mặc định
+      }
+
       enrollment.setFinalGrade(fields[5].trim().isEmpty() ? null : new java.math.BigDecimal(fields[5].trim()));
       enrollment.setLetterGrade(fields[6].trim().isEmpty() ? null : fields[6].trim());
-      enrollment.setGradePoints(
-          fields[7].trim().isEmpty() ? java.math.BigDecimal.ZERO : new java.math.BigDecimal(fields[7].trim()));
+
+      // Xử lý gradePoints (field 7) - theo database schema (grade_points)
+      if (fields.length > 7 && !fields[7].trim().isEmpty()) {
+        enrollment.setGradePoints(new java.math.BigDecimal(fields[7].trim()));
+      } else {
+        enrollment.setGradePoints(java.math.BigDecimal.ZERO);
+      }
+
       return enrollment;
     } catch (Exception e) {
+      LOGGER.warning("Lỗi khi parse enrollment từ CSV: " + e.getMessage() + " - Line: " + line);
       return null;
     }
   }
@@ -621,21 +540,57 @@ public class CSVDataService {
   private boolean writeEnrollmentsToCSV(List<Enrollment> enrollments) {
     Path file = dataDir.resolve(ENROLLMENTS_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
+      // Header khớp với database schema: enrollment_id, student_code, course_code,
+      // enrollment_date,
+      // enrollment_status, final_grade, letter_grade, grade_points, created_at
       writer.println(
-          "enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints");
+          "enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints,createdAt");
       for (Enrollment enrollment : enrollments) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s",
+        // Xử lý enrollmentDate - có thể null
+        String enrollmentDateStr = "";
+        if (enrollment.getEnrollmentDate() != null) {
+          enrollmentDateStr = enrollment.getEnrollmentDate().toString();
+        }
+
+        // Xử lý enrollmentStatus - có thể null
+        String statusStr = "";
+        if (enrollment.getEnrollmentStatus() != null) {
+          statusStr = enrollment.getEnrollmentStatus().name().toLowerCase(); // lowercase để khớp với file hiện tại
+        } else {
+          statusStr = "enrolled"; // Mặc định
+        }
+
+        // Xử lý gradePoints - có thể null (theo database schema)
+        String gradePointsStr = "";
+        if (enrollment.getGradePoints() != null) {
+          gradePointsStr = enrollment.getGradePoints().toString();
+        } else {
+          gradePointsStr = "0.00";
+        }
+
+        // Xử lý createdAt - Enrollment model không có createdAt, dùng enrollmentDate
+        String createdAtStr = enrollmentDateStr; // Dùng enrollmentDate làm createdAt
+
+        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s",
             enrollment.getEnrollmentId(),
-            enrollment.getStudentCode(),
-            enrollment.getCourseCode(),
-            enrollment.getEnrollmentDate(),
-            enrollment.getEnrollmentStatus(),
+            enrollment.getStudentCode() != null ? enrollment.getStudentCode() : "",
+            enrollment.getCourseCode() != null ? enrollment.getCourseCode() : "",
+            enrollmentDateStr,
+            statusStr,
             enrollment.getFinalGrade() != null ? enrollment.getFinalGrade() : "",
             enrollment.getLetterGrade() != null ? enrollment.getLetterGrade() : "",
-            enrollment.getGradePoints() != null ? enrollment.getGradePoints() : ""));
+            gradePointsStr,
+            createdAtStr));
       }
+      LOGGER.info("Đã ghi " + enrollments.size() + " enrollments vào file CSV");
       return true;
     } catch (IOException e) {
+      LOGGER.severe("Lỗi khi ghi enrollments vào CSV: " + e.getMessage());
+      LOGGER.log(java.util.logging.Level.SEVERE, "Chi tiết lỗi", e);
+      return false;
+    } catch (Exception e) {
+      LOGGER.severe("Lỗi không mong đợi khi ghi enrollments vào CSV: " + e.getMessage());
+      LOGGER.log(java.util.logging.Level.SEVERE, "Chi tiết lỗi", e);
       return false;
     }
   }
@@ -659,30 +614,12 @@ public class CSVDataService {
     return faculties;
   }
 
-  public boolean saveFaculty(Faculty faculty) {
-    List<Faculty> faculties = getAllFaculties();
-    boolean found = false;
-    String facultyCode = faculty.getFacultyCode();
-    if (facultyCode != null && !facultyCode.isEmpty()) {
-      for (int i = 0; i < faculties.size(); i++) {
-        if (facultyCode.equals(faculties.get(i).getFacultyCode())) {
-          int localId = faculties.get(i).getFacultyId();
-          faculties.set(i, faculty);
-          faculties.get(i).setFacultyId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (faculty.getFacultyId() == 0) {
-        int maxId = faculties.stream().mapToInt(Faculty::getFacultyId).max().orElse(0);
-        faculty.setFacultyId(maxId + 1);
-      }
-      faculties.add(faculty);
+  public boolean saveAllFaculties(List<Faculty> faculties) {
+    if (faculties == null || faculties.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeFacultiesToCSV(faculties);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -747,30 +684,12 @@ public class CSVDataService {
     return classes;
   }
 
-  public boolean saveClass(Class clazz) {
-    List<Class> classes = getAllClasses();
-    boolean found = false;
-    String classCode = clazz.getClassCode();
-    if (classCode != null && !classCode.isEmpty()) {
-      for (int i = 0; i < classes.size(); i++) {
-        if (classCode.equals(classes.get(i).getClassCode())) {
-          int localId = classes.get(i).getClassId();
-          classes.set(i, clazz);
-          classes.get(i).setClassId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (clazz.getClassId() == 0) {
-        int maxId = classes.stream().mapToInt(Class::getClassId).max().orElse(0);
-        clazz.setClassId(maxId + 1);
-      }
-      classes.add(clazz);
+  public boolean saveAllClasses(List<Class> classes) {
+    if (classes == null || classes.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeClassesToCSV(classes);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -839,30 +758,12 @@ public class CSVDataService {
     return subjects;
   }
 
-  public boolean saveSubject(Subject subject) {
-    List<Subject> subjects = getAllSubjects();
-    boolean found = false;
-    String subjectCode = subject.getSubjectCode();
-    if (subjectCode != null && !subjectCode.isEmpty()) {
-      for (int i = 0; i < subjects.size(); i++) {
-        if (subjectCode.equals(subjects.get(i).getSubjectCode())) {
-          int localId = subjects.get(i).getSubjectId();
-          subjects.set(i, subject);
-          subjects.get(i).setSubjectId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (subject.getSubjectId() == 0) {
-        int maxId = subjects.stream().mapToInt(Subject::getSubjectId).max().orElse(0);
-        subject.setSubjectId(maxId + 1);
-      }
-      subjects.add(subject);
+  public boolean saveAllSubjects(List<Subject> subjects) {
+    if (subjects == null || subjects.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeSubjectsToCSV(subjects);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -931,37 +832,12 @@ public class CSVDataService {
     return grades;
   }
 
-  public boolean saveGrade(Grade grade) {
-    List<Grade> grades = getAllGrades();
-    boolean found = false;
-    String studentCode = grade.getStudentCode();
-    String courseCode = grade.getCourseCode();
-    String gradeType = grade.getGradeType() != null ? grade.getGradeType().name() : null;
-    String gradeName = grade.getGradeName();
-    if (studentCode != null && courseCode != null && gradeType != null && gradeName != null) {
-      for (int i = 0; i < grades.size(); i++) {
-        Grade existing = grades.get(i);
-        if (studentCode.equals(existing.getStudentCode()) &&
-            courseCode.equals(existing.getCourseCode()) &&
-            gradeType.equals(existing.getGradeType() != null ? existing.getGradeType().name() : null) &&
-            gradeName.equals(existing.getGradeName())) {
-          int localId = existing.getGradeId();
-          grades.set(i, grade);
-          grades.get(i).setGradeId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (grade.getGradeId() == 0) {
-        int maxId = grades.stream().mapToInt(Grade::getGradeId).max().orElse(0);
-        grade.setGradeId(maxId + 1);
-      }
-      grades.add(grade);
+  public boolean saveAllGrades(List<Grade> grades) {
+    if (grades == null || grades.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeGradesToCSV(grades);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -1037,42 +913,12 @@ public class CSVDataService {
     return requests;
   }
 
-  public boolean saveClassOpeningRequest(ClassOpeningRequest request) {
-    List<ClassOpeningRequest> requests = getAllClassOpeningRequests();
-    boolean found = false;
-    String teacherUsername = request.getTeacherUsername();
-    String subjectCode = request.getSubjectCode();
-    String academicYear = request.getAcademicYear();
-    Integer semester = request.getSemester();
-    String scheduleDay = request.getScheduleDay();
-    String scheduleTime = request.getScheduleTime();
-    if (teacherUsername != null && subjectCode != null && academicYear != null &&
-        semester != null && scheduleDay != null && scheduleTime != null) {
-      for (int i = 0; i < requests.size(); i++) {
-        ClassOpeningRequest existing = requests.get(i);
-        if (teacherUsername.equals(existing.getTeacherUsername()) &&
-            subjectCode.equals(existing.getSubjectCode()) &&
-            academicYear.equals(existing.getAcademicYear()) &&
-            semester.equals(existing.getSemester()) &&
-            scheduleDay.equals(existing.getScheduleDay()) &&
-            scheduleTime.equals(existing.getScheduleTime())) {
-          int localId = existing.getRequestId();
-          requests.set(i, request);
-          requests.get(i).setRequestId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (request.getRequestId() == 0) {
-        int maxId = requests.stream().mapToInt(ClassOpeningRequest::getRequestId).max().orElse(0);
-        request.setRequestId(maxId + 1);
-      }
-      requests.add(request);
+  public boolean saveAllClassOpeningRequests(List<ClassOpeningRequest> requests) {
+    if (requests == null || requests.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeClassOpeningRequestsToCSV(requests);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -1163,31 +1009,12 @@ public class CSVDataService {
     return registrations;
   }
 
-  public boolean saveCourseRegistration(CourseRegistration registration) {
-    List<CourseRegistration> registrations = getAllCourseRegistrations();
-    boolean found = false;
-    if (registration.getStudentCode() != null && registration.getCourseCode() != null) {
-      for (int i = 0; i < registrations.size(); i++) {
-        CourseRegistration existing = registrations.get(i);
-        if (registration.getStudentCode().equals(existing.getStudentCode()) &&
-            registration.getCourseCode().equals(existing.getCourseCode())) {
-          int localId = existing.getRegistrationId();
-          registrations.set(i, registration);
-          registrations.get(i).setRegistrationId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (registration.getRegistrationId() == 0) {
-        int maxId = registrations.stream().mapToInt(CourseRegistration::getRegistrationId).max().orElse(0);
-        registration.setRegistrationId(maxId + 1);
-      }
-      registrations.add(registration);
+  public boolean saveAllCourseRegistrations(List<CourseRegistration> registrations) {
+    if (registrations == null || registrations.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeCourseRegistrationsToCSV(registrations);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;
@@ -1256,37 +1083,12 @@ public class CSVDataService {
     return notifications;
   }
 
-  public boolean saveNotification(Notification notification) {
-    List<Notification> notifications = getAllNotifications();
-    boolean found = false;
-    String title = notification.getTitle();
-    String senderUsername = notification.getSenderUsername();
-    String targetType = notification.getTargetType() != null ? notification.getTargetType().name() : null;
-    String targetCode = notification.getTargetCode();
-    if (title != null && senderUsername != null && targetType != null && targetCode != null) {
-      for (int i = 0; i < notifications.size(); i++) {
-        Notification existing = notifications.get(i);
-        if (title.equals(existing.getTitle()) &&
-            senderUsername.equals(existing.getSenderUsername()) &&
-            targetType.equals(existing.getTargetType() != null ? existing.getTargetType().name() : null) &&
-            targetCode.equals(existing.getTargetCode())) {
-          int localId = existing.getNotificationId();
-          notifications.set(i, notification);
-          notifications.get(i).setNotificationId(localId);
-          found = true;
-          break;
-        }
-      }
-    }
-    if (!found) {
-      if (notification.getNotificationId() == 0) {
-        int maxId = notifications.stream().mapToInt(Notification::getNotificationId).max().orElse(0);
-        notification.setNotificationId(maxId + 1);
-      }
-      notifications.add(notification);
+  public boolean saveAllNotifications(List<Notification> notifications) {
+    if (notifications == null || notifications.isEmpty()) {
+      return true; // Không có gì để lưu
     }
     boolean result = writeNotificationsToCSV(notifications);
-    if (result) {
+    if (result && !skipVersionIncrement) {
       incrementVersion();
     }
     return result;

@@ -1,6 +1,7 @@
 package com.university.sms.dao;
 
 import com.university.sms.model.Enrollment;
+import com.university.sms.model.Grade;
 import com.university.sms.util.DatabaseConnection;
 
 import java.math.BigDecimal;
@@ -331,6 +332,45 @@ public class EnrollmentDAO {
         }
 
         return false;
+    }
+
+    /**
+     * Tự động cập nhật trạng thái enrollment dựa trên số lượng điểm
+     * - Nếu đủ 3 cột điểm (ASSIGNMENT, MIDTERM, FINAL) → COMPLETED (Kết thúc học
+     * phần)
+     * - Nếu chưa đủ → giữ nguyên status hiện tại
+     */
+    public boolean updateEnrollmentStatusBasedOnGrades(int enrollmentId, String studentCode, String courseCode) {
+        try {
+            GradeDAO gradeDAO = new GradeDAO();
+            List<Grade> grades = gradeDAO.getGradesByStudentAndCourse(studentCode, courseCode);
+
+            boolean hasAssignment = false;
+            boolean hasMidterm = false;
+            boolean hasFinal = false;
+
+            for (Grade grade : grades) {
+                if (grade.getGradeType() == Grade.GradeType.ASSIGNMENT) {
+                    hasAssignment = true;
+                } else if (grade.getGradeType() == Grade.GradeType.MIDTERM) {
+                    hasMidterm = true;
+                } else if (grade.getGradeType() == Grade.GradeType.FINAL) {
+                    hasFinal = true;
+                }
+            }
+
+            // Nếu đủ 3 cột điểm → cập nhật status = COMPLETED
+            if (hasAssignment && hasMidterm && hasFinal) {
+                return updateEnrollmentStatus(enrollmentId, Enrollment.EnrollmentStatus.COMPLETED);
+            }
+
+            // Nếu chưa đủ, không cập nhật (giữ nguyên status hiện tại)
+            return true;
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Lỗi khi kiểm tra và cập nhật enrollment status dựa trên grades: " + enrollmentId,
+                    e);
+            return false;
+        }
     }
 
     /**

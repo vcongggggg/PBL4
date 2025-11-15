@@ -16,6 +16,7 @@ import java.awt.geom.RoundRectangle2D;
 import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.io.InputStream;
+import java.util.Map;
 
 /**
  * Modern Dark Theme Login Frame - giữ structure cũ
@@ -113,10 +114,10 @@ public class LoginFrame extends JFrame {
         // Buttons
         loginButton = createGreenButton("ĐĂNG NHẬP");
         loginButton.setPreferredSize(new Dimension(160, 45));
-        
+
         connectButton = createGreenButton("Kết nối");
         connectButton.setPreferredSize(new Dimension(120, 38));
-        
+
         togglePasswordButton = createIconButton("");
         togglePasswordButton.setPreferredSize(new Dimension(44, 36));
         togglePasswordButton.setToolTipText("Hiện/Ẩn mật khẩu");
@@ -156,30 +157,27 @@ public class LoginFrame extends JFrame {
         field.setForeground(TEXT_PRIMARY);
         field.setCaretColor(TEXT_PRIMARY);
         field.setBorder(BorderFactory.createCompoundBorder(
-            new RoundedBorder(INPUT_BORDER, 8),
-            BorderFactory.createEmptyBorder(8, 12, 8, 12)
-        ));
+                new RoundedBorder(INPUT_BORDER, 8),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
         field.setPreferredSize(new Dimension(field.getPreferredSize().width, 40));
-        
+
         // Focus effect
         field.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
                 field.setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(ACCENT_BLUE, 8, 2),
-                    BorderFactory.createEmptyBorder(7, 11, 7, 11)
-                ));
+                        new RoundedBorder(ACCENT_BLUE, 8, 2),
+                        BorderFactory.createEmptyBorder(7, 11, 7, 11)));
             }
-            
+
             @Override
             public void focusLost(FocusEvent e) {
                 field.setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(INPUT_BORDER, 8),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)
-                ));
+                        new RoundedBorder(INPUT_BORDER, 8),
+                        BorderFactory.createEmptyBorder(8, 12, 8, 12)));
             }
         });
-        
+
         return field;
     }
 
@@ -190,31 +188,28 @@ public class LoginFrame extends JFrame {
         field.setForeground(TEXT_PRIMARY);
         field.setCaretColor(TEXT_PRIMARY);
         field.setBorder(BorderFactory.createCompoundBorder(
-            new RoundedBorder(INPUT_BORDER, 8),
-            BorderFactory.createEmptyBorder(8, 12, 8, 12)
-        ));
+                new RoundedBorder(INPUT_BORDER, 8),
+                BorderFactory.createEmptyBorder(8, 12, 8, 12)));
         field.setPreferredSize(new Dimension(field.getPreferredSize().width, 40));
         field.setEchoChar('•');
-        
+
         // Focus effect
         field.addFocusListener(new FocusAdapter() {
             @Override
             public void focusGained(FocusEvent e) {
                 field.setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(ACCENT_BLUE, 8, 2),
-                    BorderFactory.createEmptyBorder(7, 11, 7, 11)
-                ));
+                        new RoundedBorder(ACCENT_BLUE, 8, 2),
+                        BorderFactory.createEmptyBorder(7, 11, 7, 11)));
             }
-            
+
             @Override
             public void focusLost(FocusEvent e) {
                 field.setBorder(BorderFactory.createCompoundBorder(
-                    new RoundedBorder(INPUT_BORDER, 8),
-                    BorderFactory.createEmptyBorder(8, 12, 8, 12)
-                ));
+                        new RoundedBorder(INPUT_BORDER, 8),
+                        BorderFactory.createEmptyBorder(8, 12, 8, 12)));
             }
         });
-        
+
         return field;
     }
 
@@ -224,7 +219,7 @@ public class LoginFrame extends JFrame {
             protected void paintComponent(Graphics g) {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
-                
+
                 if (!isEnabled()) {
                     g2.setColor(INPUT_BG);
                 } else if (getModel().isPressed()) {
@@ -234,20 +229,20 @@ public class LoginFrame extends JFrame {
                 } else {
                     g2.setColor(ACCENT_GREEN);
                 }
-                
+
                 g2.fill(new RoundRectangle2D.Float(0, 0, getWidth(), getHeight(), 20, 20));
                 g2.dispose();
                 super.paintComponent(g);
             }
         };
-        
+
         button.setFont(new Font("Segoe UI", Font.BOLD, 14));
         button.setForeground(Color.WHITE);
         button.setContentAreaFilled(false);
         button.setBorderPainted(false);
         button.setFocusPainted(false);
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
-        
+
         return button;
     }
 
@@ -260,7 +255,7 @@ public class LoginFrame extends JFrame {
         button.setCursor(new Cursor(Cursor.HAND_CURSOR));
         button.setContentAreaFilled(false);
         button.setOpaque(false);
-        
+
         return button;
     }
 
@@ -304,14 +299,14 @@ public class LoginFrame extends JFrame {
         JPanel cards = new JPanel();
         cards.setOpaque(false);
         cards.setLayout(new BoxLayout(cards, BoxLayout.Y_AXIS));
-        
+
         JPanel serverCard = createRoundedCard(createServerConnectionContent(), 560);
         cards.add(serverCard);
         cards.add(Box.createVerticalStrut(12));
-        
+
         JPanel loginCard = createRoundedCard(createLoginContent(), 560);
         cards.add(loginCard);
-        
+
         root.add(cards, gbc);
 
         // Status
@@ -320,7 +315,7 @@ public class LoginFrame extends JFrame {
         JPanel statusPanel = new JPanel(new BorderLayout(10, 10));
         statusPanel.setOpaque(false);
         statusPanel.add(statusLabel, BorderLayout.NORTH);
-        
+
         JPanel pbWrap = new JPanel();
         pbWrap.setOpaque(false);
         pbWrap.add(progressBar);
@@ -350,18 +345,17 @@ public class LoginFrame extends JFrame {
                 Graphics2D g2 = (Graphics2D) g.create();
                 g2.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
                 int w = getWidth(), h = getHeight();
-                
+
                 // Gradient
                 GradientPaint gp = new GradientPaint(
-                    0, 0, new Color(82, 88, 102),
-                    0, h, new Color(66, 71, 85)
-                );
+                        0, 0, new Color(82, 88, 102),
+                        0, h, new Color(66, 71, 85));
                 g2.setPaint(gp);
                 g2.fillRoundRect(0, 0, w, h, 16, 16);
                 g2.dispose();
             }
         };
-        
+
         header.setOpaque(false);
         header.setLayout(new BoxLayout(header, BoxLayout.Y_AXIS));
         header.setBorder(BorderFactory.createEmptyBorder(12, 16, 12, 16));
@@ -421,8 +415,8 @@ public class LoginFrame extends JFrame {
                 // Shadow
                 for (int i = 0; i < 5; i++) {
                     g2.setColor(new Color(0, 0, 0, 15 - i * 3));
-                    g2.fillRoundRect(4 + i, 4 + i, getWidth() - 8 - i * 2, 
-                        getHeight() - 8 - i * 2, 12, 12);
+                    g2.fillRoundRect(4 + i, 4 + i, getWidth() - 8 - i * 2,
+                            getHeight() - 8 - i * 2, 12, 12);
                 }
 
                 // Card background
@@ -431,12 +425,12 @@ public class LoginFrame extends JFrame {
                 g2.dispose();
             }
         };
-        
+
         card.setOpaque(false);
         card.setBorder(BorderFactory.createEmptyBorder(20, 24, 24, 24));
         card.add(content, BorderLayout.CENTER);
         card.setMaximumSize(new Dimension(width, Integer.MAX_VALUE));
-        
+
         return card;
     }
 
@@ -623,7 +617,7 @@ public class LoginFrame extends JFrame {
     private void setupEventListeners() {
         connectButton.addActionListener(e -> connectToServer());
         loginButton.addActionListener(e -> performLogin());
-        
+
         togglePasswordButton.addActionListener(e -> {
             isPasswordVisible = !isPasswordVisible;
             if (isPasswordVisible) {
@@ -715,7 +709,8 @@ public class LoginFrame extends JFrame {
 
         serverConnection.setResponseHandler(new IServerConnection.ResponseHandler() {
             @Override
-            public void onResponse(Message response) {}
+            public void onResponse(Message response) {
+            }
 
             @Override
             public void onError(String error) {
@@ -805,14 +800,17 @@ public class LoginFrame extends JFrame {
                         if (serverConnection instanceof CSVServerConnection) {
                             uploadCSVDataForAdmin((CSVServerConnection) serverConnection, user);
                         } else {
-                            new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection).setVisible(true);
+                            new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection)
+                                    .setVisible(true);
                         }
                         break;
                     case TEACHER:
-                        new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection).setVisible(true);
+                        new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection)
+                                .setVisible(true);
                         break;
                     case STUDENT:
-                        new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection).setVisible(true);
+                        new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection)
+                                .setVisible(true);
                         break;
                 }
                 dispose();
@@ -845,12 +843,140 @@ public class LoginFrame extends JFrame {
     }
 
     private void uploadCSVDataForAdmin(CSVServerConnection csvConnection, User admin) {
-        JOptionPane.showMessageDialog(this, 
-            "CSV upload functionality",
-            "CSV Mode",
-            JOptionPane.INFORMATION_MESSAGE);
-        
-        new com.university.sms.client.gui.admin.AdminMainFrame(admin, csvConnection).setVisible(true);
+        // Hiển thị dialog progress
+        JDialog progressDialog = new JDialog(this, "Đang upload dữ liệu CSV", true);
+        JPanel panel = new JPanel(new BorderLayout(10, 10));
+        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        JLabel messageLabel = new JLabel("Đang upload dữ liệu từ CSV lên server...");
+        JProgressBar pb = new JProgressBar();
+        pb.setIndeterminate(true);
+
+        panel.add(messageLabel, BorderLayout.NORTH);
+        panel.add(pb, BorderLayout.CENTER);
+        progressDialog.add(panel);
+        progressDialog.setSize(420, 120);
+        progressDialog.setLocationRelativeTo(this);
+        progressDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
+
+        SwingWorker<String, String> uploadWorker = new SwingWorker<String, String>() {
+            @Override
+            protected String doInBackground() throws Exception {
+                // Đợi một chút để đảm bảo session đã được thiết lập trên server sau khi đăng
+                // nhập
+                Thread.sleep(500);
+
+                StringBuilder result = new StringBuilder();
+
+                publish("Đang upload Users...");
+                Message usersResponse = csvConnection.uploadAllUsersFromCSV();
+                result.append("Users: ").append(usersResponse.getMessage()).append("\n");
+
+                publish("Đang upload Faculties...");
+                Message facultiesResponse = csvConnection.uploadAllFacultiesFromCSV();
+                result.append("Faculties: ").append(facultiesResponse.getMessage()).append("\n");
+
+                publish("Đang upload Subjects...");
+                Message subjectsResponse = csvConnection.uploadAllSubjectsFromCSV();
+                result.append("Subjects: ").append(subjectsResponse.getMessage()).append("\n");
+
+                publish("Đang upload Classes...");
+                Message classesResponse = csvConnection.uploadAllClassesFromCSV();
+                result.append("Classes: ").append(classesResponse.getMessage()).append("\n");
+
+                publish("Đang upload Students...");
+                Message studentsResponse = csvConnection.uploadAllStudentsFromCSV();
+                result.append("Students: ").append(studentsResponse.getMessage()).append("\n");
+
+                publish("Đang upload Courses...");
+                Message coursesResponse = csvConnection.uploadAllCoursesFromCSV();
+                result.append("Courses: ").append(coursesResponse.getMessage()).append("\n");
+
+                publish("Đang upload Enrollments...");
+                Message enrollmentsResponse = csvConnection.uploadAllEnrollmentsFromCSV();
+                result.append("Enrollments: ").append(enrollmentsResponse.getMessage()).append("\n");
+
+                publish("Đang upload Grades...");
+                Message gradesResponse = csvConnection.uploadAllGradesFromCSV();
+                result.append("Grades: ").append(gradesResponse.getMessage()).append("\n");
+
+                publish("Đang upload Notifications...");
+                Message notificationsResponse = csvConnection.uploadAllNotificationsFromCSV();
+                result.append("Notifications: ").append(notificationsResponse.getMessage()).append("\n");
+
+                publish("Đang upload Class Opening Requests...");
+                Message requestsResponse = csvConnection.uploadAllClassOpeningRequestsFromCSV();
+                result.append("Class Requests: ").append(requestsResponse.getMessage()).append("\n");
+
+                publish("Đang upload Course Registrations...");
+                Message registrationsResponse = csvConnection.uploadAllCourseRegistrationsFromCSV();
+                result.append("Course Registrations: ").append(registrationsResponse.getMessage()).append("\n");
+
+                // Cập nhật version client = version server sau khi upload thành công
+                // Đợi một chút để server cập nhật version xong
+                Thread.sleep(300);
+                publish("Đang cập nhật version...");
+                try {
+                    Message metadataResponse = csvConnection.sendMetadata();
+                    if (metadataResponse.isSuccess()) {
+                        @SuppressWarnings("unchecked")
+                        Map<String, Object> serverMetadata = (Map<String, Object>) metadataResponse
+                                .getData("server_metadata");
+                        if (serverMetadata != null) {
+                            Object csvVersionObj = serverMetadata.get("csv_version");
+                            if (csvVersionObj instanceof Integer) {
+                                csvConnection.getCsvDataService().setVersion((Integer) csvVersionObj);
+                                result.append("\nVersion đã được cập nhật: ").append(csvVersionObj).append("\n");
+                            } else if (csvVersionObj instanceof Long) {
+                                csvConnection.getCsvDataService().setVersion(((Long) csvVersionObj).intValue());
+                                result.append("\nVersion đã được cập nhật: ").append(csvVersionObj).append("\n");
+                            }
+                        }
+                    }
+                } catch (Exception e) {
+                    result.append("\nLỗi khi cập nhật version: ").append(e.getMessage()).append("\n");
+                }
+
+                return result.toString();
+            }
+
+            @Override
+            protected void process(java.util.List<String> chunks) {
+                if (!chunks.isEmpty()) {
+                    messageLabel.setText(chunks.get(chunks.size() - 1));
+                }
+            }
+
+            @Override
+            protected void done() {
+                progressDialog.dispose();
+                try {
+                    String result = get();
+
+                    JTextArea resultArea = new JTextArea(result);
+                    resultArea.setEditable(false);
+                    resultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
+                    JScrollPane scrollPane = new JScrollPane(resultArea);
+                    scrollPane.setPreferredSize(new Dimension(520, 320));
+
+                    JOptionPane.showMessageDialog(LoginFrame.this,
+                            scrollPane,
+                            "Kết quả Upload CSV",
+                            JOptionPane.INFORMATION_MESSAGE);
+
+                    new com.university.sms.client.gui.admin.AdminMainFrame(admin, csvConnection).setVisible(true);
+                } catch (Exception e) {
+                    JOptionPane.showMessageDialog(LoginFrame.this,
+                            "Lỗi khi upload CSV: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                    e.printStackTrace();
+                }
+            }
+        };
+
+        uploadWorker.execute();
+        progressDialog.setVisible(true);
     }
 
     // Custom rounded border

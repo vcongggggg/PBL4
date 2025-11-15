@@ -52,7 +52,7 @@ public class CSVServerConnection extends BaseServerConnection {
       Message response = sendCSVRequestAndWait(request, 60);
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error during login: " + e.getMessage());
+      LOGGER.severe("Lỗi khi đăng nhập: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_LOGIN, "Login error: " + e.getMessage());
     }
   }
@@ -77,7 +77,7 @@ public class CSVServerConnection extends BaseServerConnection {
       }
       return sendCSVRequestAndWait(request, 60);
     } catch (Exception e) {
-      LOGGER.severe("Error getting student info: " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy thông tin sinh viên: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_GET_STUDENT_INFO, "Error: " + e.getMessage());
     }
   }
@@ -91,7 +91,7 @@ public class CSVServerConnection extends BaseServerConnection {
       Message request = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
       return sendCSVRequestAndWait(request, 120);
     } catch (Exception e) {
-      LOGGER.severe("Error getting all students: " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách tất cả sinh viên: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_GET_ALL_STUDENTS, "Error: " + e.getMessage());
     }
   }
@@ -106,13 +106,15 @@ public class CSVServerConnection extends BaseServerConnection {
       request.addData(Constants.KEY_SEARCH_KEYWORD, keyword);
       return sendCSVRequestAndWait(request, 60);
     } catch (Exception e) {
-      LOGGER.severe("Error searching students: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tìm kiếm sinh viên: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_SEARCH_STUDENTS, "Error: " + e.getMessage());
     }
   }
 
   /**
    * Thêm sinh viên
+   * Chỉ gọi server, không cập nhật CSV local
+   * CSV local sẽ được cập nhật qua sync check và download
    */
   @Override
   public Message addStudent(Student student) {
@@ -120,19 +122,19 @@ public class CSVServerConnection extends BaseServerConnection {
       Message request = Message.createRequest(Constants.ACTION_ADD_STUDENT);
       request.addData(Constants.KEY_STUDENT, student);
       Message response = sendCSVRequestAndWait(request, 60);
-      if (response.isSuccess()) {
-        // Lưu vào CSV local sau khi server trả về thành công
-        csvDataService.saveStudent(student);
-      }
+      // Không cập nhật CSV local ở đây
+      // CSV local sẽ được cập nhật qua sync check và download từ server
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error adding student: " + e.getMessage());
+      LOGGER.severe("Lỗi khi thêm sinh viên: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Error: " + e.getMessage());
     }
   }
 
   /**
    * Cập nhật sinh viên
+   * Chỉ gọi server, không cập nhật CSV local
+   * CSV local sẽ được cập nhật qua sync check và download
    */
   @Override
   public Message updateStudent(Student student) {
@@ -140,13 +142,11 @@ public class CSVServerConnection extends BaseServerConnection {
       Message request = Message.createRequest(Constants.ACTION_UPDATE_STUDENT);
       request.addData(Constants.KEY_STUDENT, student);
       Message response = sendCSVRequestAndWait(request, 60);
-      if (response.isSuccess()) {
-        // Lưu vào CSV local sau khi server trả về thành công
-        csvDataService.saveStudent(student);
-      }
+      // Không cập nhật CSV local ở đây
+      // CSV local sẽ được cập nhật qua sync check và download từ server
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error updating student: " + e.getMessage());
+      LOGGER.severe("Lỗi khi cập nhật sinh viên: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Error: " + e.getMessage());
     }
   }
@@ -160,12 +160,9 @@ public class CSVServerConnection extends BaseServerConnection {
       Message request = Message.createRequest(Constants.ACTION_DELETE_STUDENT);
       request.addData("studentCode", studentCode);
       Message response = sendCSVRequestAndWait(request, 60);
-      if (response.isSuccess()) {
-        csvDataService.deleteStudent(studentCode);
-      }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error deleting student: " + e.getMessage());
+      LOGGER.severe("Lỗi khi xóa sinh viên: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_DELETE_STUDENT, "Error: " + e.getMessage());
     }
   }
@@ -179,7 +176,7 @@ public class CSVServerConnection extends BaseServerConnection {
       Message request = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
       return sendCSVRequestAndWait(request, 120);
     } catch (Exception e) {
-      LOGGER.severe("Error getting all courses: " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách tất cả khóa học: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_GET_ALL_COURSES, "Error: " + e.getMessage());
     }
   }
@@ -202,7 +199,7 @@ public class CSVServerConnection extends BaseServerConnection {
       request.addData(Constants.KEY_COURSE_ID, courseId);
       return sendCSVRequestAndWait(request, 60);
     } catch (Exception e) {
-      LOGGER.severe("Error getting course info: " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy thông tin khóa học: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_GET_COURSE_INFO, "Error: " + e.getMessage());
     }
   }
@@ -232,7 +229,7 @@ public class CSVServerConnection extends BaseServerConnection {
       Message request = Message.createRequest(Constants.ACTION_GET_SERVER_STATISTICS);
       return sendCSVRequestAndWait(request, 30);
     } catch (Exception e) {
-      LOGGER.severe("Error getting server statistics: " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy thống kê server: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_GET_SERVER_STATISTICS, "Error: " + e.getMessage());
     }
   }
@@ -256,7 +253,7 @@ public class CSVServerConnection extends BaseServerConnection {
       Message response = sendCSVRequestAndWait(request, 120);
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error sending metadata: " + e.getMessage());
+      LOGGER.severe("Lỗi khi gửi metadata: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_SYNC_CHECK, "Error: " + e.getMessage());
     }
   }
@@ -277,7 +274,7 @@ public class CSVServerConnection extends BaseServerConnection {
           return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Unknown sync action");
       }
     } catch (Exception e) {
-      LOGGER.severe("Error syncing data: " + e.getMessage());
+      LOGGER.severe("Lỗi khi đồng bộ dữ liệu: " + e.getMessage());
       return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Error: " + e.getMessage());
     }
   }
@@ -287,7 +284,7 @@ public class CSVServerConnection extends BaseServerConnection {
    */
   private Message downloadFromServer() {
     try {
-      LOGGER.info("Downloading data from server to CSV...");
+      LOGGER.info("Đang tải dữ liệu từ server về CSV...");
 
       // 1) Gửi request tải dữ liệu
       Message request = Message.createRequest(Constants.ACTION_DOWNLOAD_DATA);
@@ -344,98 +341,168 @@ public class CSVServerConnection extends BaseServerConnection {
 
       try {
         if (users != null) {
-          for (User u : users) {
-            if (csvDataService.saveUser(u)) {
-              usersSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + users.size() + " người dùng vào CSV...");
+          try {
+            if (csvDataService.saveAllUsers(users)) {
+              usersSaved = users.size();
+              saved += users.size();
+              LOGGER.info("Đã lưu thành công " + users.size() + " người dùng vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu người dùng vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu người dùng: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (faculties != null) {
-          for (Faculty f : faculties) {
-            if (csvDataService.saveFaculty(f)) {
-              facultiesSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + faculties.size() + " khoa vào CSV...");
+          try {
+            if (csvDataService.saveAllFaculties(faculties)) {
+              facultiesSaved = faculties.size();
+              saved += faculties.size();
+              LOGGER.info("Đã lưu thành công " + faculties.size() + " khoa vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu khoa vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu khoa: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (subjects != null) {
-          for (Subject s : subjects) {
-            if (csvDataService.saveSubject(s)) {
-              subjectsSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + subjects.size() + " môn học vào CSV...");
+          try {
+            if (csvDataService.saveAllSubjects(subjects)) {
+              subjectsSaved = subjects.size();
+              saved += subjects.size();
+              LOGGER.info("Đã lưu thành công " + subjects.size() + " môn học vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu môn học vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu môn học: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (classes != null) {
-          for (com.university.sms.model.Class c : classes) {
-            if (csvDataService.saveClass(c)) {
-              classesSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + classes.size() + " lớp vào CSV...");
+          try {
+            if (csvDataService.saveAllClasses(classes)) {
+              classesSaved = classes.size();
+              saved += classes.size();
+              LOGGER.info("Đã lưu thành công " + classes.size() + " lớp vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu lớp vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu lớp: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (courses != null) {
-          for (Course c : courses) {
-            if (csvDataService.saveCourse(c)) {
-              coursesSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + courses.size() + " khóa học vào CSV...");
+          try {
+            if (csvDataService.saveAllCourses(courses)) {
+              coursesSaved = courses.size();
+              saved += courses.size();
+              LOGGER.info("Đã lưu thành công " + courses.size() + " khóa học vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu khóa học vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu khóa học: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (students != null) {
-          LOGGER.info("Saving " + students.size() + " students to CSV...");
+          LOGGER.info("Đang lưu " + students.size() + " sinh viên vào CSV...");
           try {
             if (csvDataService.saveAllStudents(students)) {
               studentsSaved = students.size();
               saved += students.size();
-              LOGGER.info("Successfully saved all " + students.size() + " students to CSV");
+              LOGGER.info("Đã lưu thành công " + students.size() + " sinh viên vào CSV");
             } else {
-              LOGGER.warning("Failed to save students to CSV");
+              LOGGER.warning("Không thể lưu sinh viên vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Error saving students: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lưu sinh viên: " + e.getMessage());
             e.printStackTrace();
           }
         }
         if (enrollments != null) {
-          for (Enrollment e : enrollments) {
-            if (csvDataService.saveEnrollment(e)) {
-              enrollmentsSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + enrollments.size() + " đăng ký học phần vào CSV...");
+          try {
+            if (csvDataService.saveAllEnrollments(enrollments)) {
+              enrollmentsSaved = enrollments.size();
+              saved += enrollments.size();
+              LOGGER.info("Đã lưu thành công " + enrollments.size() + " đăng ký học phần vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu đăng ký học phần vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu đăng ký học phần: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (grades != null) {
-          for (Grade g : grades) {
-            if (csvDataService.saveGrade(g)) {
-              gradesSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + grades.size() + " điểm vào CSV...");
+          try {
+            if (csvDataService.saveAllGrades(grades)) {
+              gradesSaved = grades.size();
+              saved += grades.size();
+              LOGGER.info("Đã lưu thành công " + grades.size() + " điểm vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu điểm vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu điểm: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (notifications != null) {
-          for (Notification n : notifications) {
-            if (csvDataService.saveNotification(n)) {
-              notificationsSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + notifications.size() + " thông báo vào CSV...");
+          try {
+            if (csvDataService.saveAllNotifications(notifications)) {
+              notificationsSaved = notifications.size();
+              saved += notifications.size();
+              LOGGER.info("Đã lưu thành công " + notifications.size() + " thông báo vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu thông báo vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu thông báo: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (classOpeningRequests != null) {
-          for (ClassOpeningRequest r : classOpeningRequests) {
-            if (csvDataService.saveClassOpeningRequest(r)) {
-              classOpeningRequestsSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + classOpeningRequests.size() + " yêu cầu mở lớp vào CSV...");
+          try {
+            if (csvDataService.saveAllClassOpeningRequests(classOpeningRequests)) {
+              classOpeningRequestsSaved = classOpeningRequests.size();
+              saved += classOpeningRequests.size();
+              LOGGER.info("Đã lưu thành công " + classOpeningRequests.size() + " yêu cầu mở lớp vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu yêu cầu mở lớp vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu yêu cầu mở lớp: " + e.getMessage());
+            e.printStackTrace();
           }
         }
         if (courseRegistrations != null) {
-          for (CourseRegistration r : courseRegistrations) {
-            if (csvDataService.saveCourseRegistration(r)) {
-              courseRegistrationsSaved++;
-              saved++;
+          LOGGER.info("Đang lưu " + courseRegistrations.size() + " đăng ký khóa học vào CSV...");
+          try {
+            if (csvDataService.saveAllCourseRegistrations(courseRegistrations)) {
+              courseRegistrationsSaved = courseRegistrations.size();
+              saved += courseRegistrations.size();
+              LOGGER.info("Đã lưu thành công " + courseRegistrations.size() + " đăng ký khóa học vào CSV");
+            } else {
+              LOGGER.warning("Không thể lưu đăng ký khóa học vào CSV");
             }
+          } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lưu đăng ký khóa học: " + e.getMessage());
+            e.printStackTrace();
           }
         }
       } finally {
@@ -455,11 +522,11 @@ public class CSVServerConnection extends BaseServerConnection {
           enrollmentsSaved, gradesSaved, notificationsSaved, classOpeningRequestsSaved,
           courseRegistrationsSaved, saved);
 
-      LOGGER.info("Downloaded and saved " + saved + " CSV records - " + detailMessage);
+      LOGGER.info("Đã tải và lưu " + saved + " bản ghi CSV - " + detailMessage);
       return Message.createSuccessResponse(Constants.ACTION_DOWNLOAD_DATA,
           "Downloaded and saved " + saved + " records. " + detailMessage);
     } catch (Exception e) {
-      LOGGER.severe("Error downloading data: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải dữ liệu: " + e.getMessage());
       // Đảm bảo reset flag ngay cả khi có lỗi
       csvDataService.setSkipVersionIncrement(false);
       return Message.createErrorResponse(Constants.ACTION_DOWNLOAD_DATA, "Error: " + e.getMessage());
@@ -471,65 +538,71 @@ public class CSVServerConnection extends BaseServerConnection {
    */
   public Message uploadAllCSVData() {
     try {
-      LOGGER.info("Starting full CSV data upload to server");
+      LOGGER.info("Bắt đầu tải lên toàn bộ dữ liệu CSV lên server");
 
       // Upload theo thứ tự để đảm bảo foreign key constraints
       Message usersResponse = uploadAllUsersFromCSV();
       if (!usersResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload users: " + usersResponse.getMessage());
+        LOGGER.warning("Không thể tải lên người dùng: " + usersResponse.getMessage());
       }
 
       Message facultiesResponse = uploadAllFacultiesFromCSV();
       if (!facultiesResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload faculties: " + facultiesResponse.getMessage());
+        LOGGER.warning("Không thể tải lên khoa: " + facultiesResponse.getMessage());
       }
 
       Message subjectsResponse = uploadAllSubjectsFromCSV();
       if (!subjectsResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload subjects: " + subjectsResponse.getMessage());
+        LOGGER.warning("Không thể tải lên môn học: " + subjectsResponse.getMessage());
       }
 
       Message classesResponse = uploadAllClassesFromCSV();
       if (!classesResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload classes: " + classesResponse.getMessage());
+        LOGGER.warning("Không thể tải lên lớp: " + classesResponse.getMessage());
       }
 
       Message studentsResponse = uploadAllStudentsFromCSV();
       if (!studentsResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload students: " + studentsResponse.getMessage());
+        LOGGER.warning("Không thể tải lên sinh viên: " + studentsResponse.getMessage());
       }
 
       Message coursesResponse = uploadAllCoursesFromCSV();
       if (!coursesResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload courses: " + coursesResponse.getMessage());
+        LOGGER.warning("Không thể tải lên khóa học: " + coursesResponse.getMessage());
       }
 
       Message enrollmentsResponse = uploadAllEnrollmentsFromCSV();
       if (!enrollmentsResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload enrollments: " + enrollmentsResponse.getMessage());
+        LOGGER.warning("Không thể tải lên đăng ký học phần: " + enrollmentsResponse.getMessage());
       }
 
       Message gradesResponse = uploadAllGradesFromCSV();
       if (!gradesResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload grades: " + gradesResponse.getMessage());
+        LOGGER.warning("Không thể tải lên điểm: " + gradesResponse.getMessage());
       }
 
       Message notificationsResponse = uploadAllNotificationsFromCSV();
       if (!notificationsResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload notifications: " + notificationsResponse.getMessage());
+        LOGGER.warning("Không thể tải lên thông báo: " + notificationsResponse.getMessage());
       }
 
       Message classOpeningRequestsResponse = uploadAllClassOpeningRequestsFromCSV();
       if (!classOpeningRequestsResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload class opening requests: " + classOpeningRequestsResponse.getMessage());
+        LOGGER.warning("Không thể tải lên yêu cầu mở lớp: " + classOpeningRequestsResponse.getMessage());
       }
 
       Message courseRegistrationsResponse = uploadAllCourseRegistrationsFromCSV();
       if (!courseRegistrationsResponse.isSuccess()) {
-        LOGGER.warning("Failed to upload course registrations: " + courseRegistrationsResponse.getMessage());
+        LOGGER.warning("Không thể tải lên đăng ký khóa học: " + courseRegistrationsResponse.getMessage());
       }
 
       // Sau khi upload thành công, cập nhật version client = version server
+      // Đợi một chút để server cập nhật version xong
+      try {
+        Thread.sleep(300);
+      } catch (InterruptedException e) {
+        Thread.currentThread().interrupt();
+      }
       Message metadataResponse = sendMetadata();
       if (metadataResponse.isSuccess()) {
         @SuppressWarnings("unchecked")
@@ -544,10 +617,10 @@ public class CSVServerConnection extends BaseServerConnection {
         }
       }
 
-      LOGGER.info("CSV data upload completed");
+      LOGGER.info("Hoàn tất tải lên dữ liệu CSV");
       return Message.createSuccessResponse("UPLOAD_ALL_CSV", "CSV data upload completed");
     } catch (Exception e) {
-      LOGGER.severe("Error uploading CSV data: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên dữ liệu CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_ALL_CSV", "Error: " + e.getMessage());
     }
   }
@@ -561,19 +634,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (users.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_USERS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + users.size() + " users from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + users.size() + " người dùng từ CSV lên server");
       Message request = Message.createRequest(Constants.ACTION_UPLOAD_USERS);
       request.addData("users", users);
       request.addData("total", users.size());
       Message response = sendCSVRequestAndWait(request, 180);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + users.size() + " users from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + users.size() + " người dùng từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload users from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên người dùng từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading users from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên người dùng từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_USERS", "Error: " + e.getMessage());
     }
   }
@@ -587,19 +660,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (students.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_STUDENTS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + students.size() + " students from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + students.size() + " sinh viên từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_STUDENTS");
       request.addData("students", students);
       request.addData("total", students.size());
       Message response = sendCSVRequestAndWait(request, 180);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + students.size() + " students from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + students.size() + " sinh viên từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload students from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên sinh viên từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading students from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên sinh viên từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_STUDENTS", "Error: " + e.getMessage());
     }
   }
@@ -613,19 +686,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (courses.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_COURSES", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + courses.size() + " courses from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + courses.size() + " khóa học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_COURSES");
       request.addData("courses", courses);
       request.addData("total", courses.size());
       Message response = sendCSVRequestAndWait(request, 180);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + courses.size() + " courses from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + courses.size() + " khóa học từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload courses from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên khóa học từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading courses from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên khóa học từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_COURSES", "Error: " + e.getMessage());
     }
   }
@@ -639,19 +712,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (enrollments.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_ENROLLMENTS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + enrollments.size() + " enrollments from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + enrollments.size() + " đăng ký học phần từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_ENROLLMENTS");
       request.addData("enrollments", enrollments);
       request.addData("total", enrollments.size());
       Message response = sendCSVRequestAndWait(request, 180);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + enrollments.size() + " enrollments from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + enrollments.size() + " đăng ký học phần từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload enrollments from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên đăng ký học phần từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading enrollments from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên đăng ký học phần từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_ENROLLMENTS", "Error: " + e.getMessage());
     }
   }
@@ -665,19 +738,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (faculties.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_FACULTIES", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + faculties.size() + " faculties from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + faculties.size() + " khoa từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_FACULTIES");
       request.addData("faculties", faculties);
       request.addData("total", faculties.size());
       Message response = sendCSVRequestAndWait(request, 60);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + faculties.size() + " faculties from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + faculties.size() + " khoa từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload faculties from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên khoa từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading faculties from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên khoa từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_FACULTIES", "Error: " + e.getMessage());
     }
   }
@@ -691,19 +764,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (classes.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_CLASSES", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + classes.size() + " classes from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + classes.size() + " lớp từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_CLASSES");
       request.addData("classes", classes);
       request.addData("total", classes.size());
       Message response = sendCSVRequestAndWait(request, 60);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + classes.size() + " classes from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + classes.size() + " lớp từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload classes from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên lớp từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading classes from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên lớp từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_CLASSES", "Error: " + e.getMessage());
     }
   }
@@ -717,19 +790,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (subjects.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_SUBJECTS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + subjects.size() + " subjects from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + subjects.size() + " môn học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_SUBJECTS");
       request.addData("subjects", subjects);
       request.addData("total", subjects.size());
       Message response = sendCSVRequestAndWait(request, 60);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + subjects.size() + " subjects from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + subjects.size() + " môn học từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload subjects from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên môn học từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading subjects from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên môn học từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_SUBJECTS", "Error: " + e.getMessage());
     }
   }
@@ -743,19 +816,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (grades.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_GRADES", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + grades.size() + " grades from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + grades.size() + " điểm từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_GRADES");
       request.addData("grades", grades);
       request.addData("total", grades.size());
       Message response = sendCSVRequestAndWait(request, 120);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + grades.size() + " grades from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + grades.size() + " điểm từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload grades from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên điểm từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading grades from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên điểm từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_GRADES", "Error: " + e.getMessage());
     }
   }
@@ -769,19 +842,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (notifications.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_NOTIFICATIONS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + notifications.size() + " notifications from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + notifications.size() + " thông báo từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_NOTIFICATIONS");
       request.addData("notifications", notifications);
       request.addData("total", notifications.size());
       Message response = sendCSVRequestAndWait(request, 60);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + notifications.size() + " notifications from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + notifications.size() + " thông báo từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload notifications from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên thông báo từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading notifications from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên thông báo từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_NOTIFICATIONS", "Error: " + e.getMessage());
     }
   }
@@ -795,19 +868,19 @@ public class CSVServerConnection extends BaseServerConnection {
       if (requests.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_CLASS_OPENING_REQUESTS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + requests.size() + " class opening requests from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + requests.size() + " yêu cầu mở lớp từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_CLASS_OPENING_REQUESTS");
       request.addData("requests", requests);
       request.addData("total", requests.size());
       Message response = sendCSVRequestAndWait(request, 60);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + requests.size() + " class opening requests from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + requests.size() + " yêu cầu mở lớp từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload class opening requests from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên yêu cầu mở lớp từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading class opening requests from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên yêu cầu mở lớp từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_CLASS_OPENING_REQUESTS", "Error: " + e.getMessage());
     }
   }
@@ -821,25 +894,27 @@ public class CSVServerConnection extends BaseServerConnection {
       if (registrations.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_COURSE_REGISTRATIONS", "CSV file is empty, nothing to upload");
       }
-      LOGGER.info("Starting upload of " + registrations.size() + " course registrations from CSV to server");
+      LOGGER.info("Bắt đầu tải lên " + registrations.size() + " đăng ký khóa học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_COURSE_REGISTRATIONS");
       request.addData("registrations", registrations);
       request.addData("total", registrations.size());
       Message response = sendCSVRequestAndWait(request, 120);
       if (response.isSuccess()) {
-        LOGGER.info("Successfully uploaded " + registrations.size() + " course registrations from CSV to server");
+        LOGGER.info("Đã tải lên thành công " + registrations.size() + " đăng ký khóa học từ CSV lên server");
       } else {
-        LOGGER.warning("Failed to upload course registrations from CSV: " + response.getMessage());
+        LOGGER.warning("Không thể tải lên đăng ký khóa học từ CSV: " + response.getMessage());
       }
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Error uploading course registrations from CSV: " + e.getMessage());
+      LOGGER.severe("Lỗi khi tải lên đăng ký khóa học từ CSV: " + e.getMessage());
       return Message.createErrorResponse("UPLOAD_COURSE_REGISTRATIONS", "Error: " + e.getMessage());
     }
   }
 
   /**
    * Sync tự động khi kết nối
+   * Chỉ tự động download (không cần quyền), không tự động upload (cần quyền
+   * admin)
    */
   @Override
   protected void onConnect() {
@@ -849,17 +924,18 @@ public class CSVServerConnection extends BaseServerConnection {
         Message metadataResponse = sendMetadata();
         if (metadataResponse.isSuccess()) {
           String syncAction = (String) metadataResponse.getData("sync_action");
-          LOGGER.info("Auto sync action: " + syncAction);
+          LOGGER.info("Hành động đồng bộ tự động: " + syncAction);
           if ("DOWNLOAD_FROM_SERVER".equals(syncAction)) {
-            // Tự động download nếu server có version mới hơn
+            // Tự động download nếu server có version mới hơn (không cần quyền)
             syncData("DOWNLOAD_FROM_SERVER");
           } else if ("UPLOAD_TO_SERVER".equals(syncAction)) {
-            // Tự động upload nếu client có version mới hơn hoặc version rỗng
-            syncData("UPLOAD_TO_SERVER");
+            // Không tự động upload - cần đăng nhập admin trước
+            // Upload sẽ được thực hiện thủ công từ GUI sau khi admin đăng nhập
+            LOGGER.info("Cần đăng nhập với quyền admin để upload dữ liệu CSV");
           }
         }
       } catch (Exception e) {
-        LOGGER.warning("Error during auto sync: " + e.getMessage());
+        LOGGER.warning("Lỗi khi đồng bộ tự động: " + e.getMessage());
       }
     });
   }

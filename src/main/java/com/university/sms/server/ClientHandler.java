@@ -646,10 +646,105 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Không tìm thấy sinh viên");
             }
 
-            // Cập nhật timestamp của source gốc trước khi deactivate
+            // Lưu source gốc để dùng sau
             String existingSource = getDataOrigin("student", student.getStudentId());
-            if (existingSource != null) {
-                updateDataOriginTimestamp("student", student.getStudentId());
+
+            // Cập nhật trạng thái tất cả enrollments của student
+            // Giữ nguyên grades và course_registrations, chỉ cập nhật enrollment status
+            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+            List<Enrollment> enrollments = enrollmentDAO.findByStudentCode(studentCode);
+            int enrollmentsUpdated = 0;
+            for (Enrollment enrollment : enrollments) {
+                try {
+                    // Đảm bảo enrollment có source trong data_origin để có thể sync
+                    // Nếu chưa có, tạo mới với source = CSV (mặc định cho enrollments)
+                    String enrollmentSource = getDataOrigin("enrollment", enrollment.getEnrollmentId());
+                    if (enrollmentSource == null) {
+                        // Enrollment chưa có source, tạo mới với source = CSV để có thể sync
+                        saveDataOrigin("enrollment", enrollment.getEnrollmentId(), "CSV");
+                        enrollmentSource = "CSV";
+                        LOGGER.info("Đã tạo data_origin cho enrollment ID: " + enrollment.getEnrollmentId()
+                                + " với source = CSV");
+                    }
+
+                    // Kiểm tra trạng thái hiện tại của enrollment
+                    // Nếu status khác COMPLETED (Kết thúc học phần) → chuyển về DROPPED (Thôi học)
+                    if (enrollment.getEnrollmentStatus() != Enrollment.EnrollmentStatus.COMPLETED) {
+                        if (enrollmentDAO.updateEnrollmentStatus(enrollment.getEnrollmentId(),
+                                Enrollment.EnrollmentStatus.DROPPED)) {
+                            enrollmentsUpdated++;
+
+                            // Cập nhật timestamp SAU KHI update enrollment status thành công
+                            // Đảm bảo version tăng để CSV client có thể download
+                            if (enrollmentSource != null) {
+                                int updated = updateDataOriginTimestampWithResult("enrollment",
+                                        enrollment.getEnrollmentId());
+                                if (updated > 0) {
+                                    LOGGER.info(
+                                            "Đã cập nhật timestamp cho enrollment ID: " + enrollment.getEnrollmentId()
+                                                    + " (source: " + enrollmentSource + ")");
+                                } else {
+                                    LOGGER.warning("Không thể cập nhật timestamp cho enrollment ID: "
+                                            + enrollment.getEnrollmentId() + " - có thể chưa có trong data_origin");
+                                }
+                            }
+
+                            LOGGER.info("Đã cập nhật enrollment ID: " + enrollment.getEnrollmentId()
+                                    + " của sinh viên " + studentCode
+                                    + " từ status: " + enrollment.getEnrollmentStatus().name()
+                                    + " → DROPPED (Thôi học), source: " + enrollmentSource);
+                        } else {
+                            LOGGER.warning("Không thể cập nhật enrollment ID: " + enrollment.getEnrollmentId()
+                                    + " của sinh viên " + studentCode);
+                        }
+                    } else {
+                        LOGGER.info("Enrollment ID: " + enrollment.getEnrollmentId()
+                                + " của sinh viên " + studentCode
+                                + " đã có status COMPLETED (Kết thúc học phần), giữ nguyên");
+                    }
+                } catch (Exception e) {
+                    LOGGER.warning(
+                            "Lỗi khi cập nhật enrollment ID: " + enrollment.getEnrollmentId() + ": " + e.getMessage());
+                    LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
+                }
+            }
+            if (enrollmentsUpdated > 0) {
+                LOGGER.info("Đã cập nhật " + enrollmentsUpdated + " enrollments của sinh viên " + studentCode);
+            }
+
+            // Chuyển tất cả course_registrations đang PENDING thành CANCELLED khi student
+            // bị SUSPENDED
+            CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
+            List<CourseRegistration> registrations = registrationDAO.findByStudent(studentCode);
+            int registrationsCancelled = 0;
+            for (CourseRegistration registration : registrations) {
+                try {
+                    // Chỉ chuyển những registration đang PENDING
+                    if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.PENDING) {
+                        // Cập nhật timestamp data_origin nếu registration có source CSV
+                        String registrationSource = getDataOrigin("course_registration",
+                                registration.getRegistrationId());
+                        if (registrationSource != null) {
+                            updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
+                        }
+
+                        // Chuyển từ PENDING sang CANCELLED (reject)
+                        if (registrationDAO.cancel(registration.getRegistrationId())) {
+                            registrationsCancelled++;
+                            LOGGER.info("Đã hủy (reject) course registration ID: " + registration.getRegistrationId()
+                                    + " của sinh viên " + studentCode
+                                    + " (từ PENDING → CANCELLED do student bị SUSPENDED)");
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.warning("Lỗi khi hủy course registration ID: " + registration.getRegistrationId() + ": "
+                            + e.getMessage());
+                    LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
+                }
+            }
+            if (registrationsCancelled > 0) {
+                LOGGER.info("Đã hủy (reject) " + registrationsCancelled + " course registrations PENDING của sinh viên "
+                        + studentCode);
             }
 
             // Chỉ vô hiệu hóa user/student thay vì xóa dữ liệu
@@ -657,13 +752,36 @@ public class ClientHandler implements Runnable {
             boolean userDeactivated = userDAO.deactivateUser(student.getUsername());
 
             // Cập nhật trạng thái student = SUSPENDED
-            studentDAO.updateStudentStatus(student.getStudentId(), Student.StudentStatus.SUSPENDED);
+            boolean statusUpdated = studentDAO.updateStudentStatus(student.getStudentId(),
+                    Student.StudentStatus.SUSPENDED);
 
-            if (userDeactivated) {
+            if (userDeactivated && statusUpdated) {
+                if (existingSource != null) {
+                    updateDataOriginTimestamp("student", student.getStudentId());
+                    LOGGER.info("Đã cập nhật timestamp cho student ID: " + student.getStudentId()
+                            + " (source: " + existingSource + ")");
+                } else {
+                    saveDataOrigin("student", student.getStudentId(), "CSV");
+                    LOGGER.warning("Student ID: " + student.getStudentId()
+                            + " chưa có trong data_origin, đã tạo mới với source = CSV");
+                }
+
+                User user = userDAO.findByUsername(student.getUsername());
+                if (user != null) {
+                    String userSource = getDataOrigin("user", user.getUserId());
+                    if (userSource != null) {
+                        updateDataOriginTimestamp("user", user.getUserId());
+                        LOGGER.info("Đã cập nhật timestamp cho user ID: " + user.getUserId()
+                                + " (source: " + userSource + ")");
+                    } else {
+                        saveDataOrigin("user", user.getUserId(), "CSV");
+                        LOGGER.warning("User ID: " + user.getUserId()
+                                + " chưa có trong data_origin, đã tạo mới với source = CSV");
+                    }
+                }
 
                 LOGGER.info("Student deactivated: " + student.getStudentCode() + " by " + currentUser.getUsername());
 
-                // Lấy lại student sau khi cập nhật trạng thái
                 Student updatedStudent = studentDAO.findByStudentCode(studentCode);
 
                 Message response = Message.createSuccessResponse(request.getAction(),
@@ -1522,11 +1640,25 @@ public class ClientHandler implements Runnable {
                     enrollment.setStudentCode(rs.getString("student_code"));
                     enrollment.setCourseCode(rs.getString("course_code"));
                     enrollment.setEnrollmentDate(rs.getTimestamp("enrollment_date"));
+
+                    // Xử lý enrollment_status - đảm bảo luôn có giá trị
                     String status = rs.getString("enrollment_status");
-                    if (status != null) {
-                        enrollment.setEnrollmentStatus(
-                                com.university.sms.model.Enrollment.EnrollmentStatus.valueOf(status.toUpperCase()));
+                    if (status != null && !status.trim().isEmpty()) {
+                        try {
+                            enrollment.setEnrollmentStatus(
+                                    com.university.sms.model.Enrollment.EnrollmentStatus.valueOf(status.toUpperCase()));
+                        } catch (IllegalArgumentException e) {
+                            // Nếu status không hợp lệ, dùng ENROLLED làm mặc định
+                            LOGGER.warning("Enrollment status không hợp lệ: " + status + " cho enrollment ID: "
+                                    + enrollment.getEnrollmentId() + ", dùng ENROLLED làm mặc định");
+                            enrollment
+                                    .setEnrollmentStatus(com.university.sms.model.Enrollment.EnrollmentStatus.ENROLLED);
+                        }
+                    } else {
+                        // Nếu status là null hoặc rỗng, dùng ENROLLED làm mặc định
+                        enrollment.setEnrollmentStatus(com.university.sms.model.Enrollment.EnrollmentStatus.ENROLLED);
                     }
+
                     enrollment.setFinalGrade(rs.getBigDecimal("final_grade"));
                     enrollment.setLetterGrade(rs.getString("letter_grade"));
                     enrollment.setGradePoints(rs.getBigDecimal("grade_points"));
@@ -1906,6 +2038,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadStudents(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Student> students = (List<com.university.sms.model.Student>) request
                     .getData("students");
@@ -2019,6 +2157,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadCourses(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSES,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Course> courses = (List<com.university.sms.model.Course>) request
                     .getData("courses");
@@ -2220,6 +2364,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadUsers(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_USERS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.User> users = (List<com.university.sms.model.User>) request
                     .getData("users");
@@ -2274,6 +2424,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadFaculties(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_FACULTIES,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Faculty> faculties = (List<com.university.sms.model.Faculty>) request
                     .getData("faculties");
@@ -2356,6 +2512,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadClasses(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASSES,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Class> classes = (List<com.university.sms.model.Class>) request
                     .getData("classes");
@@ -2448,6 +2610,12 @@ public class ClientHandler implements Runnable {
      */
     private Message handleUploadSubjects(Message request) {
         try {
+            // Chỉ admin mới được upload
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(Constants.ACTION_UPLOAD_SUBJECTS,
+                        "Không có quyền truy cập");
+            }
+
             @SuppressWarnings("unchecked")
             List<com.university.sms.model.Subject> subjects = (List<com.university.sms.model.Subject>) request
                     .getData("subjects");
@@ -2944,8 +3112,15 @@ public class ClientHandler implements Runnable {
      * client
      */
     private void updateDataOriginTimestamp(String entityType, int entityId) {
+        updateDataOriginTimestampWithResult(entityType, entityId);
+    }
+
+    /**
+     * Cập nhật timestamp của data_origin và trả về số dòng được cập nhật
+     */
+    private int updateDataOriginTimestampWithResult(String entityType, int entityId) {
         if (entityId <= 0)
-            return;
+            return 0;
         String sql = "UPDATE data_origin SET updated_at = NOW() WHERE entity_type = ? AND entity_id = ?";
         try (java.sql.Connection conn = DatabaseConnection.getConnection();
                 java.sql.PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -2953,10 +3128,15 @@ public class ClientHandler implements Runnable {
             stmt.setInt(2, entityId);
             int updated = stmt.executeUpdate();
             if (updated == 0) {
-                LOGGER.fine("No data_origin record found to update timestamp for " + entityType + "#" + entityId);
+                LOGGER.warning(
+                        "Không tìm thấy data_origin record để cập nhật timestamp cho " + entityType + "#" + entityId);
+            } else {
+                LOGGER.fine("Đã cập nhật timestamp cho " + entityType + "#" + entityId);
             }
+            return updated;
         } catch (Exception e) {
-            LOGGER.log(Level.WARNING, "Error updating data origin timestamp: " + entityType + "#" + entityId, e);
+            LOGGER.log(Level.WARNING, "Lỗi khi cập nhật data origin timestamp: " + entityType + "#" + entityId, e);
+            return 0;
         }
     }
 
