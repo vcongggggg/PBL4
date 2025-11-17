@@ -151,9 +151,9 @@ public class NotificationDAO {
      * ✅ REFACTORED: Đánh dấu tất cả thông báo của user đã đọc (dùng username)
      */
     public boolean markAllAsReadForUser(String username) throws SQLException {
-        // Get student_code from username
+        // Hỗ trợ cả student và teacher
         String sql = "UPDATE notifications SET is_read = TRUE " +
-                "WHERE (target_type = 'student' AND target_code = (SELECT student_code FROM students WHERE username = ?)) "
+                "WHERE (target_type = 'student' AND (target_code = (SELECT student_code FROM students WHERE username = ?) OR target_code = ?)) "
                 +
                 "OR target_type = 'all'";
 
@@ -161,6 +161,7 @@ public class NotificationDAO {
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, username);
+            stmt.setString(2, username); // Hỗ trợ gửi cho teacher bằng username
             int affectedRows = stmt.executeUpdate();
             LOGGER.info("Marked all notifications as read for username: " + username);
             return affectedRows > 0;
@@ -200,8 +201,9 @@ public class NotificationDAO {
     }
 
     /**
-     * ✅ REFACTORED: Lấy tất cả thông báo của một user (student) - dùng username
-     * Bao gồm: thông báo cho cá nhân, cho lớp, cho khoa, và cho tất cả
+     * ✅ REFACTORED: Lấy tất cả thông báo của một user (student hoặc teacher) - dùng
+     * username
+     * Bao gồm: thông báo cho cá nhân, cho lớp, cho khoa, cho teacher, và cho tất cả
      */
     public List<Notification> getNotificationsByUser(String username) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
@@ -214,6 +216,7 @@ public class NotificationDAO {
                 +
                 "   OR (n.target_type = 'faculty' AND n.target_code = (SELECT faculty_code FROM students WHERE username = ?)) "
                 +
+                "   OR (n.target_type = 'student' AND n.target_code = ?) " + // Hỗ trợ gửi cho teacher bằng username
                 "ORDER BY n.priority DESC, n.created_at DESC";
 
         List<Notification> notifications = new ArrayList<>();
@@ -224,6 +227,7 @@ public class NotificationDAO {
             stmt.setString(1, username);
             stmt.setString(2, username);
             stmt.setString(3, username);
+            stmt.setString(4, username); // Hỗ trợ gửi cho teacher bằng username
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {
@@ -240,7 +244,7 @@ public class NotificationDAO {
     }
 
     /**
-     * ✅ REFACTORED: Lấy thông báo chưa đọc của user
+     * ✅ REFACTORED: Lấy thông báo chưa đọc của user (student hoặc teacher)
      */
     public List<Notification> getUnreadNotificationsByUser(String username) throws SQLException {
         String sql = "SELECT n.*, u.full_name as sender_name, u.role as sender_role " +
@@ -254,6 +258,7 @@ public class NotificationDAO {
                 +
                 "   OR (n.target_type = 'faculty' AND n.target_code = (SELECT faculty_code FROM students WHERE username = ?)) "
                 +
+                "   OR (n.target_type = 'student' AND n.target_code = ?) " + // Hỗ trợ gửi cho teacher bằng username
                 ") " +
                 "ORDER BY n.priority DESC, n.created_at DESC";
 
@@ -265,6 +270,7 @@ public class NotificationDAO {
             stmt.setString(1, username);
             stmt.setString(2, username);
             stmt.setString(3, username);
+            stmt.setString(4, username); // Hỗ trợ gửi cho teacher bằng username
 
             try (ResultSet rs = stmt.executeQuery()) {
                 while (rs.next()) {

@@ -1,8 +1,9 @@
 package com.university.sms.service;
 
 import com.university.sms.dao.CourseDAO;
-import com.university.sms.dao.EnrollmentDAO;
 import com.university.sms.dao.CourseRegistrationDAO;
+import com.university.sms.dao.EnrollmentDAO;
+import com.university.sms.dao.GradeDAO;
 import com.university.sms.model.Course;
 
 import java.util.List;
@@ -201,57 +202,116 @@ public class CourseService {
     }
 
     /**
-     * ✅ REFACTORED: Xóa khóa học (dùng courseCode)
+     * ✅ REFACTORED: Hủy/Xóa lớp học phần với logic hybrid
+     * - Xóa hoàn toàn nếu: PLANNING + chưa có dữ liệu liên quan
+     * - Hủy và giữ lại nếu: đã có dữ liệu liên quan hoặc ONGOING
      */
     public boolean deleteCourse(String courseCode) {
         if (courseCode == null || courseCode.trim().isEmpty()) {
-            LOGGER.warning("Cannot delete course: Invalid course code");
+            LOGGER.warning("Cannot delete/cancel course: Invalid course code");
             return false;
         }
 
         try {
             Course course = courseDAO.findByCourseCode(courseCode);
             if (course == null) {
-                LOGGER.warning("Cannot delete course: Course not found - " + courseCode);
+                LOGGER.warning("Cannot delete/cancel course: Course not found - " + courseCode);
+                return false;
+            }
+
+            // Business Rule 1: Không cho xóa/hủy lớp đã hoàn thành (completed) - cần lưu
+            // lịch sử
+            if (course.getCourseStatus() == Course.CourseStatus.COMPLETED) {
+                LOGGER.warning("Cannot delete/cancel course: Course is completed - " + courseCode);
+                return false;
+            }
+
+            // Business Rule 2: Không cho xóa/hủy lớp đã bị hủy (cancelled)
+            if (course.getCourseStatus() == Course.CourseStatus.CANCELLED) {
+                LOGGER.warning("Cannot delete/cancel course: Course is already cancelled - " + courseCode);
                 return false;
             }
 
             LOGGER.info(
-                    "Starting to delete course: " + courseCode + " (Current students: " + course.getCurrentStudents()
-                            + ")");
+                    "Starting to process course deletion/cancellation: " + courseCode + " (Status: "
+                            + course.getCourseStatus()
+                            + ", Current students: " + course.getCurrentStudents() + ")");
 
+            // Kiểm tra dữ liệu liên quan
             EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
             List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO
                     .findByCourseCode(course.getCourseCode());
-            int enrollmentsDeleted = 0;
-            for (com.university.sms.model.Enrollment enrollment : enrollments) {
-                if (enrollmentDAO.deleteEnrollment(enrollment.getEnrollmentId())) {
-                    enrollmentsDeleted++;
-                }
-            }
-            LOGGER.info("Deleted " + enrollmentsDeleted + " enrollments for course " + course.getCourseCode());
 
             CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
             List<com.university.sms.model.CourseRegistration> registrations = registrationDAO
                     .findByCourse(course.getCourseCode());
-            int registrationsDeleted = 0;
-            for (com.university.sms.model.CourseRegistration registration : registrations) {
-                if (registrationDAO.delete(registration.getRegistrationId())) {
-                    registrationsDeleted++;
-                }
-            }
-            LOGGER.info(
-                    "Deleted " + registrationsDeleted + " course registrations for course " + course.getCourseCode());
 
-            boolean success = courseDAO.deleteCourse(course.getCourseId());
-            if (success) {
-                LOGGER.info("Course deleted successfully: " + courseCode +
-                        " (Removed " + enrollmentsDeleted + " enrollments, " +
-                        registrationsDeleted + " registrations)");
+            GradeDAO gradeDAO = new GradeDAO();
+            List<com.university.sms.model.Grade> grades = gradeDAO.getGradesByCourse(courseCode);
+
+            boolean hasRelatedData = !enrollments.isEmpty() || !registrations.isEmpty() || !grades.isEmpty();
+
+            // Quyết định: Xóa hoàn toàn hay Hủy và giữ lại
+            if (!hasRelatedData && course.getCourseStatus() == Course.CourseStatus.PLANNING) {
+                // Trường hợp 1: Xóa hoàn toàn (PLANNING + chưa có dữ liệu)
+                LOGGER.info("Course has no related data, proceeding with full deletion: " + courseCode);
+
+                // Xóa course registrations (nếu có)
+                int registrationsDeleted = 0;
+                for (com.university.sms.model.CourseRegistration registration : registrations) {
+                    if (registrationDAO.delete(registration.getRegistrationId())) {
+                        registrationsDeleted++;
+                    }
+                }
+                if (registrationsDeleted > 0) {
+                    LOGGER.info("Deleted " + registrationsDeleted + " course registrations for course "
+                            + course.getCourseCode());
+                }
+
+                // Xóa course hoàn toàn
+                boolean success = courseDAO.deleteCourse(course.getCourseId());
+                if (success) {
+                    LOGGER.info("Course deleted completely: " + courseCode);
+                } else {
+                    LOGGER.warning("Failed to delete course: " + courseCode);
+                }
+                return success;
+            } else {
+                // Trường hợp 2: Hủy và giữ lại dữ liệu (đã có dữ liệu hoặc ONGOING)
+                LOGGER.info("Course has related data or is ongoing, proceeding with cancellation: " + courseCode);
+
+                // Tự động hủy các course registrations đang PENDING
+                int registrationsCancelled = 0;
+                for (com.university.sms.model.CourseRegistration registration : registrations) {
+                    // Chỉ hủy các registration đang PENDING
+                    if (registration
+                            .getRegistrationStatus() == com.university.sms.model.CourseRegistration.RegistrationStatus.PENDING) {
+                        if (registrationDAO.cancel(registration.getRegistrationId())) {
+                            registrationsCancelled++;
+                            LOGGER.info("Auto-cancelled course registration " + registration.getRegistrationId()
+                                    + " for course " + courseCode);
+                        }
+                    }
+                }
+                if (registrationsCancelled > 0) {
+                    LOGGER.info("Cancelled " + registrationsCancelled + " pending course registrations for course "
+                            + course.getCourseCode());
+                }
+
+                // Chuyển course status thành CANCELLED (không xóa dữ liệu)
+                boolean success = courseDAO.updateCourseStatus(course.getCourseId(), Course.CourseStatus.CANCELLED);
+                if (success) {
+                    LOGGER.info("Course cancelled successfully: " + courseCode +
+                            " (Cancelled " + registrationsCancelled + " pending registrations, " +
+                            "kept " + enrollments.size() + " enrollments, " +
+                            grades.size() + " grades)");
+                } else {
+                    LOGGER.warning("Failed to cancel course: " + courseCode);
+                }
+                return success;
             }
-            return success;
         } catch (Exception e) {
-            LOGGER.severe("Error deleting course: " + e.getMessage());
+            LOGGER.severe("Error deleting/cancelling course: " + e.getMessage());
             e.printStackTrace();
             return false;
         }

@@ -2,6 +2,9 @@ package com.university.sms.service;
 
 import com.university.sms.dao.NotificationDAO;
 import com.university.sms.dao.StudentDAO;
+import com.university.sms.dao.UserDAO;
+import com.university.sms.dao.ClassDAO;
+import com.university.sms.dao.FacultyDAO;
 import com.university.sms.model.Notification;
 import com.university.sms.model.Notification.TargetType;
 
@@ -184,13 +187,50 @@ public class NotificationService {
             throw new IllegalArgumentException("Sender username không hợp lệ");
         }
 
+        // Validate senderUsername exists
+        UserDAO userDAO = new UserDAO();
+        if (userDAO.findByUsername(notification.getSenderUsername()) == null) {
+            throw new IllegalArgumentException("Người gửi không tồn tại: " + notification.getSenderUsername());
+        }
+
         if (notification.getTargetType() == null) {
             throw new IllegalArgumentException("Target type không được để trống");
         }
 
         // Validate targetCode based on targetType
-        if (notification.getTargetType() != TargetType.ALL && notification.getTargetCode() == null) {
-            throw new IllegalArgumentException("Target code không được để trống khi target type không phải ALL");
+        if (notification.getTargetType() != TargetType.ALL) {
+            if (notification.getTargetCode() == null || notification.getTargetCode().trim().isEmpty()) {
+                throw new IllegalArgumentException("Target code không được để trống khi target type không phải ALL");
+            }
+
+            // Validate targetCode exists based on targetType
+            switch (notification.getTargetType()) {
+                case STUDENT:
+                    // Kiểm tra studentCode hoặc username (có thể là teacher username)
+                    StudentDAO studentDAO = new StudentDAO();
+                    if (studentDAO.findByStudentCode(notification.getTargetCode()) == null) {
+                        // Có thể là teacher username, kiểm tra user exists
+                        if (userDAO.findByUsername(notification.getTargetCode()) == null) {
+                            throw new IllegalArgumentException(
+                                    "Mã sinh viên hoặc username không tồn tại: " + notification.getTargetCode());
+                        }
+                    }
+                    break;
+                case CLASS:
+                    ClassDAO classDAO = new ClassDAO();
+                    if (classDAO.findByCode(notification.getTargetCode()) == null) {
+                        throw new IllegalArgumentException("Mã lớp không tồn tại: " + notification.getTargetCode());
+                    }
+                    break;
+                case FACULTY:
+                    FacultyDAO facultyDAO = new FacultyDAO();
+                    if (facultyDAO.findByCode(notification.getTargetCode()) == null) {
+                        throw new IllegalArgumentException("Mã khoa không tồn tại: " + notification.getTargetCode());
+                    }
+                    break;
+                default:
+                    break;
+            }
         }
 
         if (notification.getPriority() == null) {

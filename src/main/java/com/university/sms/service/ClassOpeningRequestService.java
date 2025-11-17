@@ -5,7 +5,11 @@ import com.university.sms.dao.CourseDAO;
 import com.university.sms.model.ClassOpeningRequest;
 import com.university.sms.model.ClassOpeningRequest.RequestStatus;
 import com.university.sms.model.Course;
+import com.university.sms.model.Notification;
+import com.university.sms.model.Notification.Priority;
 
+import java.sql.Timestamp;
+import java.util.Calendar;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -14,10 +18,12 @@ public class ClassOpeningRequestService {
 
     private final ClassOpeningRequestDAO requestDAO;
     private final CourseDAO courseDAO;
+    private final NotificationService notificationService;
 
     public ClassOpeningRequestService() {
         this.requestDAO = new ClassOpeningRequestDAO();
         this.courseDAO = new CourseDAO();
+        this.notificationService = new NotificationService();
     }
 
     public List<ClassOpeningRequest> getAllRequests() {
@@ -128,6 +134,7 @@ public class ClassOpeningRequestService {
     }
 
     public boolean approveRequest(int requestId, String adminUsername, String note) {
+        Course createdCourse = null;
         try {
             // Get request details
             ClassOpeningRequest request = requestDAO.findById(requestId);
@@ -139,24 +146,95 @@ public class ClassOpeningRequestService {
                 throw new IllegalStateException("Can only approve PENDING requests");
             }
 
+            // Validate teacher exists and is active
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.model.User teacher = userDAO.findByUsername(request.getTeacherUsername());
+            if (teacher == null) {
+                throw new IllegalArgumentException("Teacher không tồn tại: " + request.getTeacherUsername());
+            }
+            if (!teacher.isActive()) {
+                throw new IllegalStateException("Không thể duyệt yêu cầu: Giảng viên đã bị vô hiệu hóa");
+            }
+
+            // Validate subject exists
+            com.university.sms.dao.SubjectDAO subjectDAO = new com.university.sms.dao.SubjectDAO();
+            com.university.sms.model.Subject subject = subjectDAO.findByCode(request.getSubjectCode());
+            if (subject == null) {
+                throw new IllegalArgumentException("Môn học không tồn tại: " + request.getSubjectCode());
+            }
+
             // Create corresponding course
             Course course = createCourseFromRequest(request);
-            boolean courseCreated = courseDAO.addCourse(course);
 
+            // Check for duplicate course code before creating (race condition protection)
+            Course existingCourse = courseDAO.findByCourseCode(course.getCourseCode());
+            if (existingCourse != null) {
+                throw new IllegalStateException("Course code đã tồn tại: " + course.getCourseCode() +
+                        ". Có thể yêu cầu đã được duyệt bởi admin khác.");
+            }
+
+            boolean courseCreated = courseDAO.addCourse(course);
             if (!courseCreated) {
                 throw new RuntimeException("Failed to create course for approved request");
             }
+            createdCourse = course; // Track created course for rollback
 
+            // Approve the request
             boolean success = requestDAO.approve(requestId, adminUsername, note, course.getCourseCode());
 
-            if (success) {
-                LOGGER.info(
-                        "Request approved by admin: " + adminUsername + ", Course Code: " + course.getCourseCode());
+            if (!success) {
+                // Rollback: Delete the course if approve request failed
+                if (createdCourse != null && createdCourse.getCourseId() > 0) {
+                    try {
+                        courseDAO.deleteCourse(createdCourse.getCourseId());
+                        LOGGER.warning(
+                                "Rolled back course creation due to failed approval: " + createdCourse.getCourseCode());
+                    } catch (Exception rollbackEx) {
+                        LOGGER.severe("Failed to rollback course creation: " + rollbackEx.getMessage());
+                    }
+                }
+                throw new RuntimeException("Failed to approve request after creating course");
             }
 
-            return success;
+            LOGGER.info(
+                    "Request approved by admin: " + adminUsername + ", Course Code: " + course.getCourseCode());
+
+            // Gửi notification cho teacher
+            try {
+                Notification notification = new Notification();
+                notification.setTitle("Yêu cầu mở lớp đã được duyệt");
+                notification.setContent("Yêu cầu mở lớp của bạn đã được duyệt. Mã lớp học phần: "
+                        + course.getCourseCode()
+                        + (note != null && !note.trim().isEmpty() ? ". Ghi chú: " + note : ""));
+                notification.setSenderUsername(adminUsername);
+                notification.setTargetType(Notification.TargetType.STUDENT); // Gửi cho teacher (dùng username)
+                notification.setTargetCode(request.getTeacherUsername());
+                notification.setPriority(Priority.HIGH);
+
+                // Set expires at 30 days from now
+                Calendar cal = Calendar.getInstance();
+                cal.add(Calendar.DAY_OF_MONTH, 30);
+                notification.setExpiresAt(new Timestamp(cal.getTimeInMillis()));
+
+                notificationService.createNotification(notification);
+                LOGGER.info("Notification sent to teacher: " + request.getTeacherUsername());
+            } catch (Exception e) {
+                // Log error but don't fail the approval
+                LOGGER.warning("Failed to send notification to teacher: " + e.getMessage());
+            }
+
+            return true;
 
         } catch (Exception e) {
+            // Rollback: Delete the course if any error occurred
+            if (createdCourse != null && createdCourse.getCourseId() > 0) {
+                try {
+                    courseDAO.deleteCourse(createdCourse.getCourseId());
+                    LOGGER.warning("Rolled back course creation due to error: " + createdCourse.getCourseCode());
+                } catch (Exception rollbackEx) {
+                    LOGGER.severe("Failed to rollback course creation: " + rollbackEx.getMessage());
+                }
+            }
             LOGGER.severe("Error approving request: " + e.getMessage());
             throw new RuntimeException("Failed to approve request: " + e.getMessage(), e);
         }
@@ -183,6 +261,28 @@ public class ClassOpeningRequestService {
 
             if (success) {
                 LOGGER.info("Request rejected by admin: " + adminUsername);
+
+                // Gửi notification cho teacher
+                try {
+                    Notification notification = new Notification();
+                    notification.setTitle("Yêu cầu mở lớp đã bị từ chối");
+                    notification.setContent("Yêu cầu mở lớp của bạn đã bị từ chối. Lý do: " + reason);
+                    notification.setSenderUsername(adminUsername);
+                    notification.setTargetType(Notification.TargetType.STUDENT); // Gửi cho teacher
+                    notification.setTargetCode(request.getTeacherUsername());
+                    notification.setPriority(Priority.MEDIUM);
+
+                    // Set expires at 30 days from now
+                    Calendar cal = Calendar.getInstance();
+                    cal.add(Calendar.DAY_OF_MONTH, 30);
+                    notification.setExpiresAt(new Timestamp(cal.getTimeInMillis()));
+
+                    notificationService.createNotification(notification);
+                    LOGGER.info("Notification sent to teacher: " + request.getTeacherUsername());
+                } catch (Exception e) {
+                    // Log error but don't fail the rejection
+                    LOGGER.warning("Failed to send notification to teacher: " + e.getMessage());
+                }
             }
 
             return success;
@@ -295,27 +395,47 @@ public class ClassOpeningRequestService {
     }
 
     private String generateCourseCode(ClassOpeningRequest request) {
+        // Validate subject code
+        String subjectCode = request.getSubjectCode();
+        if (subjectCode == null || subjectCode.trim().isEmpty()) {
+            throw new IllegalArgumentException("Subject code is required to generate course code");
+        }
+
         // Get all courses for this subject, year, and semester
         List<Course> existingCourses = courseDAO.findBySubjectAndSemester(
-                request.getSubjectCode(),
+                subjectCode,
                 request.getAcademicYear(),
                 request.getSemester());
 
-        // Find the next sequence number
+        // Find the next sequence number (check for duplicates to avoid race condition)
         int nextSequence = existingCourses.size() + 1;
+        String courseCode;
+        int maxAttempts = 100; // Prevent infinite loop
+        int attempts = 0;
 
-        // Get subject code from request (assuming it's available)
-        String subjectCode = request.getSubjectCode();
-        if (subjectCode == null || subjectCode.isEmpty()) {
-            subjectCode = "SUBJ" + request.getSubjectCode();
+        do {
+            // Format: SUBJ_YEAR_SEM_SEQ
+            courseCode = String.format("%s_%s_%d_%02d",
+                    subjectCode,
+                    request.getAcademicYear(),
+                    request.getSemester(),
+                    nextSequence);
+
+            // Check if course code already exists (race condition protection)
+            Course existing = courseDAO.findByCourseCode(courseCode);
+            if (existing == null) {
+                break; // Course code is available
+            }
+
+            nextSequence++;
+            attempts++;
+        } while (attempts < maxAttempts);
+
+        if (attempts >= maxAttempts) {
+            throw new RuntimeException("Cannot generate unique course code after " + maxAttempts + " attempts");
         }
 
-        // Format: SUBJ_YEAR_SEM_SEQ
-        return String.format("%s_%s_%d_%02d",
-                subjectCode,
-                request.getAcademicYear(),
-                request.getSemester(),
-                nextSequence);
+        return courseCode;
     }
 
     public RequestStatistics getStatistics() {

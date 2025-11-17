@@ -20,12 +20,37 @@ public class UserDAO {
      * Thêm user mới
      */
     public boolean addUser(User user) {
+        // Validate required fields
+        if (user == null) {
+            LOGGER.warning("Cannot add user: User object is null");
+            return false;
+        }
+        if (user.getUsername() == null || user.getUsername().trim().isEmpty()) {
+            LOGGER.warning("Cannot add user: Username is required");
+            return false;
+        }
+        if (user.getPassword() == null || user.getPassword().trim().isEmpty()) {
+            LOGGER.warning("Cannot add user: Password is required");
+            return false;
+        }
+        if (user.getRole() == null) {
+            LOGGER.warning("Cannot add user: Role is required");
+            return false;
+        }
+
+        // Check if username already exists
+        User existingUser = findByUsername(user.getUsername());
+        if (existingUser != null) {
+            LOGGER.warning("Cannot add user: Username already exists - " + user.getUsername());
+            return false;
+        }
+
         String sql = "INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
-            stmt.setString(1, user.getUsername());
+            stmt.setString(1, user.getUsername().trim());
             stmt.setString(2, user.getPassword()); // Lưu plain text cho dễ test
             stmt.setString(3, user.getEmail());
             stmt.setString(4, user.getFullName());
@@ -46,7 +71,13 @@ public class UserDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error adding user: " + user.getUsername(), e);
+            // Check if it's a duplicate key error
+            if (e.getSQLState() != null && e.getSQLState().equals("23000")) {
+                LOGGER.warning(
+                        "Cannot add user: Username already exists (database constraint) - " + user.getUsername());
+            } else {
+                LOGGER.log(Level.SEVERE, "Error adding user: " + user.getUsername(), e);
+            }
         }
 
         return false;

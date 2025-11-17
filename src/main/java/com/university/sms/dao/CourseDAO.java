@@ -151,6 +151,39 @@ public class CourseDAO {
     }
 
     /**
+     * Tìm tất cả khóa học của giáo viên (không lọc theo status)
+     */
+    public List<Course> findAllByTeacherUsername(String teacherUsername) {
+        String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
+                "u.full_name AS teacher_name, cl.class_name " +
+                "FROM courses c " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
+                "WHERE c.teacher_username = ? " +
+                "ORDER BY c.academic_year DESC, c.semester DESC";
+
+        List<Course> courses = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, teacherUsername);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    courses.add(mapResultSetToCourse(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding all courses by teacher username: " + teacherUsername, e);
+        }
+
+        return courses;
+    }
+
+    /**
      * ✅ REFACTORED: Tìm khóa học theo lớp (dùng class_code)
      */
     public List<Course> findByClassCode(String classCode) {

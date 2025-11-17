@@ -366,7 +366,7 @@ public class ClientHandler implements Runnable {
 
         // Sử dụng authenticateDetailed để có thông tin chi tiết lỗi
         AuthenticationResult result = authService.authenticateDetailed(username, password);
-        
+
         if (result.isSuccess()) {
             User user = result.getUser();
             this.currentUser = user;
@@ -535,6 +535,32 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, Constants.MSG_INVALID_DATA);
         }
 
+        // Validate required fields
+        if (student.getStudentCode() == null || student.getStudentCode().trim().isEmpty()) {
+            return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Thiếu mã sinh viên");
+        }
+        if (student.getFacultyCode() == null || student.getFacultyCode().trim().isEmpty()) {
+            return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Thiếu mã khoa");
+        }
+
+        // Validate facultyCode exists
+        com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+        com.university.sms.model.Faculty faculty = facultyDAO.findByCode(student.getFacultyCode());
+        if (faculty == null) {
+            return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                    "Mã khoa không tồn tại: " + student.getFacultyCode());
+        }
+
+        // Validate classCode exists (if provided)
+        if (student.getClassCode() != null && !student.getClassCode().trim().isEmpty()) {
+            com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
+            com.university.sms.model.Class classObj = classDAO.findByCode(student.getClassCode());
+            if (classObj == null) {
+                return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                        "Mã lớp không tồn tại: " + student.getClassCode());
+            }
+        }
+
         // Ensure related user exists (create if missing)
         try {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
@@ -545,11 +571,20 @@ public class ClientHandler implements Runnable {
                 student.setUsername(username);
             }
 
+            // Check if username already exists
             com.university.sms.model.User byUsername = userDAO.findByUsername(username);
-            if (byUsername == null) {
+            if (byUsername != null) {
+                // Username exists - check if it's a student
+                if (byUsername.getRole() != com.university.sms.model.User.UserRole.STUDENT) {
+                    return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                            "Username đã tồn tại với vai trò khác: " + username);
+                }
+                // Username exists and is a student - OK, reuse it
+            } else {
+                // Create new user
                 com.university.sms.model.User u = new com.university.sms.model.User();
                 u.setUsername(username);
-                u.setPassword("password");
+                u.setPassword("password"); // Default password - should be changed on first login
                 u.setFullName(student.getFullName());
                 u.setEmail(student.getEmail());
                 u.setPhone(student.getPhone());
@@ -561,18 +596,30 @@ public class ClientHandler implements Runnable {
                 }
             }
             if (!userOk) {
-                return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Cannot create related user");
+                return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                        "Không thể tạo tài khoản người dùng. Username có thể đã tồn tại.");
             }
         } catch (Exception e) {
-            return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Error preparing user: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Error preparing user for student: " + student.getStudentCode(), e);
+            return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                    "Lỗi khi tạo tài khoản: " + e.getMessage());
+        }
+
+        // Check if student code already exists
+        com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
+        com.university.sms.model.Student existingStudent = studentDAO.findByStudentCode(student.getStudentCode());
+        if (existingStudent != null) {
+            return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                    "Mã sinh viên đã tồn tại: " + student.getStudentCode());
         }
 
         boolean ok = studentService.addStudent(student);
         if (ok) {
             saveDataOrigin("student", student.getStudentId(), clientSource);
-            return Message.createSuccessResponse(Constants.ACTION_ADD_STUDENT, Constants.MSG_SUCCESS);
+            LOGGER.info("Student added successfully: " + student.getStudentCode() + " by " + currentUser.getUsername());
+            return Message.createSuccessResponse(Constants.ACTION_ADD_STUDENT, "Thêm sinh viên thành công");
         }
-        return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, Constants.MSG_DATABASE_ERROR);
+        return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Không thể thêm sinh viên. Vui lòng thử lại.");
     }
 
     /**
@@ -908,7 +955,9 @@ public class ClientHandler implements Runnable {
     }
 
     /**
-     * Xóa khóa học
+     * Hủy/Xóa lớp học phần với logic hybrid:
+     * - Xóa hoàn toàn nếu: PLANNING + chưa có dữ liệu liên quan
+     * - Hủy và giữ lại nếu: đã có dữ liệu liên quan hoặc ONGOING
      */
     private Message handleDeleteCourse(Message request) {
         if (currentUser.getRole() != User.UserRole.ADMIN) {
@@ -919,20 +968,42 @@ public class ClientHandler implements Runnable {
         if (courseCode == null || courseCode.isEmpty()) {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_INVALID_DATA);
         }
-        // Lấy courseId trước khi xóa để cập nhật timestamp
+
+        // Lấy course để kiểm tra business rules trước
         com.university.sms.model.Course course = courseService.getCourseByCode(courseCode);
-        if (course != null && course.getCourseId() > 0) {
-            // Cập nhật version CSV nếu course có source CSV (trước khi xóa)
+        if (course == null) {
+            return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, "Không tìm thấy lớp học phần");
+        }
+
+        // Kiểm tra business rules và trả về thông báo lỗi cụ thể
+        // Business Rule: Không cho hủy lớp đã hoàn thành (completed) - cần lưu lịch sử
+        if (course.getCourseStatus() == com.university.sms.model.Course.CourseStatus.COMPLETED) {
+            return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
+                    "Không thể hủy lớp học phần đã hoàn thành. Lớp đã kết thúc và cần lưu lịch sử.");
+        }
+
+        // Business Rule: Không cho hủy lớp đã bị hủy (cancelled)
+        if (course.getCourseStatus() == com.university.sms.model.Course.CourseStatus.CANCELLED) {
+            return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
+                    "Lớp học phần đã bị hủy trước đó.");
+        }
+
+        // Cập nhật timestamp nếu course có source CSV (trước khi xóa)
+        if (course.getCourseId() > 0) {
             String existingSource = getDataOrigin("course", course.getCourseId());
             if ("CSV".equals(existingSource)) {
                 updateDataOriginTimestamp("course", course.getCourseId());
             }
         }
+
+        // Thực hiện hủy/xóa lớp (logic hybrid tự động quyết định)
         boolean ok = courseService.deleteCourse(courseCode);
         if (ok) {
-            return Message.createSuccessResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_SUCCESS);
+            LOGGER.info("Course deleted/cancelled successfully: " + courseCode + " by " + currentUser.getUsername());
+            return Message.createSuccessResponse(Constants.ACTION_DELETE_COURSE, "Hủy lớp học phần thành công");
         }
-        return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_DATABASE_ERROR);
+        return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
+                "Không thể hủy/xóa lớp học phần. Vui lòng thử lại.");
     }
 
     /**
@@ -3731,22 +3802,51 @@ public class ClientHandler implements Runnable {
             String phone = request.getData("phone", String.class);
             String address = request.getData("address", String.class);
 
-            if (username == null || password == null || fullName == null) {
-                return Message.createErrorResponse(request.getAction(), "Thiếu thông tin bắt buộc");
+            // Validate required fields
+            if (username == null || username.trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu tên đăng nhập");
+            }
+            if (password == null || password.trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu mật khẩu");
+            }
+            if (fullName == null || fullName.trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu họ tên");
+            }
+
+            // Validate password strength (minimum 6 characters)
+            if (password.length() < 6) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Mật khẩu phải có ít nhất 6 ký tự");
+            }
+
+            // Validate email format (if provided)
+            if (email != null && !email.trim().isEmpty()) {
+                String emailRegex = "^[A-Za-z0-9+_.-]+@(.+)$";
+                if (!email.matches(emailRegex)) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Email không hợp lệ: " + email);
+                }
+            }
+
+            // Check if username already exists
+            UserDAO userDAO = new UserDAO();
+            User existingUser = userDAO.findByUsername(username);
+            if (existingUser != null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Tên đăng nhập đã tồn tại: " + username);
             }
 
             // Create new teacher
             User newTeacher = new User();
-            newTeacher.setUsername(username);
+            newTeacher.setUsername(username.trim());
             newTeacher.setPassword(password);
-            newTeacher.setFullName(fullName);
-            newTeacher.setEmail(email);
-            newTeacher.setPhone(phone);
-            newTeacher.setAddress(address);
+            newTeacher.setFullName(fullName.trim());
+            newTeacher.setEmail(email != null ? email.trim() : null);
+            newTeacher.setPhone(phone != null ? phone.trim() : null);
+            newTeacher.setAddress(address != null ? address.trim() : null);
             newTeacher.setRole(User.UserRole.TEACHER);
             newTeacher.setActive(true);
 
-            UserDAO userDAO = new UserDAO();
             boolean success = userDAO.addUser(newTeacher);
 
             if (success) {
@@ -3757,7 +3857,8 @@ public class ClientHandler implements Runnable {
                 LOGGER.info("Teacher added: " + username + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Thêm giảng viên thành công");
             } else {
-                return Message.createErrorResponse(request.getAction(), "Không thể thêm giảng viên");
+                return Message.createErrorResponse(request.getAction(),
+                        "Không thể thêm giảng viên. Tên đăng nhập có thể đã tồn tại.");
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error adding teacher", e);
@@ -3849,22 +3950,69 @@ public class ClientHandler implements Runnable {
             ClassOpeningRequestService classRequestService = new ClassOpeningRequestService();
             List<ClassOpeningRequest> teacherRequests = classRequestService.getRequestsByTeacher(teacherUsername);
 
-            if (!teacherCourses.isEmpty() || !teacherRequests.isEmpty()) {
-                // Có dữ liệu liên quan, không cho phép xóa
-                StringBuilder errorMsg = new StringBuilder("Không thể xóa giảng viên. ");
-                if (!teacherCourses.isEmpty()) {
-                    String courseCodes = teacherCourses.stream()
-                            .map(Course::getCourseCode)
-                            .collect(java.util.stream.Collectors.joining(", "));
-                    errorMsg.append("Giảng viên này đang có " + teacherCourses.size() +
-                            " lớp học phần: " + courseCodes + ". ");
+            if (!teacherCourses.isEmpty()) {
+                // Có lớp đang diễn ra, không cho phép xóa
+                String courseCodes = teacherCourses.stream()
+                        .map(Course::getCourseCode)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                String errorMsg = "Không thể vô hiệu hóa giảng viên vì vẫn còn lớp đang dạy (trạng thái ongoing). "
+                        + "Các lớp chưa kết thúc: " + courseCodes;
+                return Message.createErrorResponse(request.getAction(), errorMsg);
+            }
+
+            // Tự động chuyển các lớp planning thành cancelled
+            List<Course> allTeacherCourses = courseDAO.findAllByTeacherUsername(teacherUsername);
+            List<Course> planningCourses = allTeacherCourses.stream()
+                    .filter(course -> course.getCourseStatus() == Course.CourseStatus.PLANNING)
+                    .collect(java.util.stream.Collectors.toList());
+
+            int cancelledCourses = 0;
+            for (Course planningCourse : planningCourses) {
+                try {
+                    boolean updated = courseDAO.updateCourseStatus(planningCourse.getCourseId(),
+                            Course.CourseStatus.CANCELLED);
+                    if (updated) {
+                        cancelledCourses++;
+                        LOGGER.info("Auto-cancelled planning course " + planningCourse.getCourseCode()
+                                + " for teacher " + teacherUsername);
+                    } else {
+                        LOGGER.warning("Failed to auto-cancel planning course " + planningCourse.getCourseCode()
+                                + " for teacher " + teacherUsername);
+                    }
+                } catch (Exception ex) {
+                    LOGGER.log(Level.WARNING,
+                            "Error auto-cancelling planning course " + planningCourse.getCourseCode()
+                                    + " for teacher " + teacherUsername,
+                            ex);
                 }
-                if (!teacherRequests.isEmpty()) {
-                    errorMsg.append("Giảng viên này đang có " + teacherRequests.size() +
-                            " yêu cầu mở lớp. ");
+            }
+
+            // Tự động từ chối mọi yêu cầu mở lớp đang chờ xử lý
+            List<ClassOpeningRequest> pendingRequests = teacherRequests.stream()
+                    .filter(req -> req.getRequestStatus() == ClassOpeningRequest.RequestStatus.PENDING)
+                    .collect(java.util.stream.Collectors.toList());
+
+            int rejectedRequests = 0;
+            for (ClassOpeningRequest pending : pendingRequests) {
+                try {
+                    boolean rejected = classRequestService.rejectRequest(
+                            pending.getRequestId(),
+                            currentUser.getUsername(),
+                            "Tự động từ chối do vô hiệu hóa giảng viên");
+                    if (rejected) {
+                        rejectedRequests++;
+                        LOGGER.info("Auto-rejected class opening request " + pending.getRequestId()
+                                + " for teacher " + teacherUsername);
+                    } else {
+                        LOGGER.warning("Failed to auto-reject class opening request " + pending.getRequestId()
+                                + " for teacher " + teacherUsername);
+                    }
+                } catch (Exception ex) {
+                    LOGGER.log(Level.WARNING,
+                            "Error auto-rejecting class opening request " + pending.getRequestId()
+                                    + " for teacher " + teacherUsername,
+                            ex);
                 }
-                errorMsg.append("Vui lòng xóa các lớp học phần và yêu cầu mở lớp trước.");
-                return Message.createErrorResponse(request.getAction(), errorMsg.toString());
             }
 
             // Cập nhật timestamp của source gốc trước khi deactivate
@@ -3880,7 +4028,14 @@ public class ClientHandler implements Runnable {
 
             if (success) {
                 LOGGER.info("Teacher deactivated: " + teacherUsername + " by " + currentUser.getUsername());
-                return Message.createSuccessResponse(request.getAction(), "Vô hiệu hóa giảng viên thành công");
+                String successMessage = "Vô hiệu hóa giảng viên thành công";
+                if (cancelledCourses > 0) {
+                    successMessage += ". Đã tự động hủy " + cancelledCourses + " lớp đang ở trạng thái planning.";
+                }
+                if (rejectedRequests > 0) {
+                    successMessage += " Đã tự động từ chối " + rejectedRequests + " yêu cầu mở lớp đang chờ.";
+                }
+                return Message.createSuccessResponse(request.getAction(), successMessage);
             } else {
                 return Message.createErrorResponse(request.getAction(), "Không thể vô hiệu hóa giảng viên");
             }
@@ -4133,6 +4288,48 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Thiếu thông tin môn học");
             }
 
+            // Validate required fields
+            if (subject.getSubjectCode() == null || subject.getSubjectCode().trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu mã môn học");
+            }
+            if (subject.getSubjectName() == null || subject.getSubjectName().trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu tên môn học");
+            }
+            if (subject.getFacultyCode() == null || subject.getFacultyCode().trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu mã khoa");
+            }
+
+            // Validate facultyCode exists
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+            com.university.sms.model.Faculty faculty = facultyDAO.findByCode(subject.getFacultyCode());
+            if (faculty == null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Mã khoa không tồn tại: " + subject.getFacultyCode());
+            }
+
+            // Validate prerequisiteSubjectCode exists (if provided)
+            if (subject.getPrerequisiteSubjectCode() != null
+                    && !subject.getPrerequisiteSubjectCode().trim().isEmpty()) {
+                com.university.sms.model.Subject prerequisite = subjectService
+                        .getSubjectByCode(subject.getPrerequisiteSubjectCode());
+                if (prerequisite == null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Môn học tiên quyết không tồn tại: " + subject.getPrerequisiteSubjectCode());
+                }
+                // Check circular prerequisite
+                if (subject.getSubjectCode().equals(subject.getPrerequisiteSubjectCode())) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Môn học không thể là môn học tiên quyết của chính nó");
+                }
+            }
+
+            // Check duplicate code
+            com.university.sms.model.Subject existing = subjectService.getSubjectByCode(subject.getSubjectCode());
+            if (existing != null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Mã môn học đã tồn tại: " + subject.getSubjectCode());
+            }
+
             boolean success = subjectService.addSubject(subject);
             if (success) {
                 // Lưu data origin sau khi thêm thành công
@@ -4142,7 +4339,8 @@ public class ClientHandler implements Runnable {
                 LOGGER.info("Subject added: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Thêm môn học thành công");
             } else {
-                return Message.createErrorResponse(request.getAction(), "Không thể thêm môn học");
+                return Message.createErrorResponse(request.getAction(),
+                        "Không thể thêm môn học. Vui lòng kiểm tra lại thông tin.");
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error adding subject", e);
@@ -4163,6 +4361,54 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Thiếu thông tin môn học");
             }
 
+            // Validate required fields
+            if (subject.getSubjectCode() == null || subject.getSubjectCode().trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu mã môn học");
+            }
+            if (subject.getSubjectName() == null || subject.getSubjectName().trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu tên môn học");
+            }
+            if (subject.getFacultyCode() == null || subject.getFacultyCode().trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Thiếu mã khoa");
+            }
+
+            // Validate facultyCode exists
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+            com.university.sms.model.Faculty faculty = facultyDAO.findByCode(subject.getFacultyCode());
+            if (faculty == null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Mã khoa không tồn tại: " + subject.getFacultyCode());
+            }
+
+            // Validate prerequisiteSubjectCode exists (if provided)
+            if (subject.getPrerequisiteSubjectCode() != null
+                    && !subject.getPrerequisiteSubjectCode().trim().isEmpty()) {
+                com.university.sms.model.Subject prerequisite = subjectService
+                        .getSubjectByCode(subject.getPrerequisiteSubjectCode());
+                if (prerequisite == null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Môn học tiên quyết không tồn tại: " + subject.getPrerequisiteSubjectCode());
+                }
+                // Check circular prerequisite
+                if (subject.getSubjectCode().equals(subject.getPrerequisiteSubjectCode())) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Môn học không thể là môn học tiên quyết của chính nó");
+                }
+                // Check indirect circular
+                if (prerequisite.getPrerequisiteSubjectCode() != null
+                        && prerequisite.getPrerequisiteSubjectCode().equals(subject.getSubjectCode())) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Phát hiện vòng lặp tiên quyết: Môn học này đang là tiên quyết của môn học tiên quyết");
+                }
+            }
+
+            // Check duplicate code
+            com.university.sms.model.Subject duplicate = subjectService.getSubjectByCode(subject.getSubjectCode());
+            if (duplicate != null && duplicate.getSubjectId() != subject.getSubjectId()) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Mã môn học đã tồn tại: " + subject.getSubjectCode());
+            }
+
             boolean success = subjectService.updateSubject(subject);
             if (success) {
                 // Cập nhật data origin sau khi update thành công
@@ -4172,7 +4418,8 @@ public class ClientHandler implements Runnable {
                 LOGGER.info("Subject updated: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
                 return Message.createSuccessResponse(request.getAction(), "Cập nhật môn học thành công");
             } else {
-                return Message.createErrorResponse(request.getAction(), "Không thể cập nhật môn học");
+                return Message.createErrorResponse(request.getAction(),
+                        "Không thể cập nhật môn học. Vui lòng kiểm tra lại thông tin.");
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error updating subject", e);
@@ -4206,8 +4453,20 @@ public class ClientHandler implements Runnable {
                                 " lớp học phần: " + courseCodes + ". Vui lòng xóa các lớp học phần trước.");
             }
 
-            // Lấy subjectId trước khi xóa để cập nhật timestamp
+            // Kiểm tra xem có môn học khác dùng subject này làm prerequisite không
             com.university.sms.dao.SubjectDAO subjectDAO = new com.university.sms.dao.SubjectDAO();
+            List<com.university.sms.model.Subject> dependentSubjects = subjectDAO.findByPrerequisite(subjectCode);
+            if (!dependentSubjects.isEmpty()) {
+                String dependentCodes = dependentSubjects.stream()
+                        .map(com.university.sms.model.Subject::getSubjectCode)
+                        .collect(java.util.stream.Collectors.joining(", "));
+                return Message.createErrorResponse(request.getAction(),
+                        "Không thể xóa môn học. Có " + dependentSubjects.size() +
+                                " môn học khác đang dùng môn này làm tiên quyết: " + dependentCodes +
+                                ". Vui lòng cập nhật hoặc xóa các môn học phụ thuộc trước.");
+            }
+
+            // Lấy subjectId trước khi xóa để cập nhật timestamp
             com.university.sms.model.Subject subject = subjectDAO.findByCode(subjectCode);
             if (subject != null && subject.getSubjectId() > 0) {
                 // Cập nhật timestamp của source gốc trước khi xóa

@@ -3,6 +3,7 @@ package com.university.sms.service;
 import com.university.sms.dao.UserDAO;
 import com.university.sms.model.User;
 
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 public class AuthenticationService {
@@ -90,7 +91,7 @@ public class AuthenticationService {
                 return null;
             }
         } catch (Exception e) {
-            LOGGER.severe("Error during authentication: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Error during authentication", e);
             return null;
         }
     }
@@ -105,9 +106,27 @@ public class AuthenticationService {
         }
 
         try {
-            return userDAO.authenticateDetailed(username, password);
+            User user = userDAO.findByUsername(username);
+
+            if (user == null) {
+                LOGGER.warning("Authentication failed: User not found - " + username);
+                return AuthenticationResult.userNotFound();
+            }
+
+            if (!user.isActive()) {
+                LOGGER.warning("Authentication failed: Account disabled - " + username);
+                return AuthenticationResult.accountDisabled();
+            }
+
+            if (!passwordsMatch(user.getPassword(), password)) {
+                LOGGER.warning("Authentication failed: Invalid password - " + username);
+                return AuthenticationResult.invalidPassword();
+            }
+
+            LOGGER.info("User authenticated successfully (detailed): " + username);
+            return AuthenticationResult.success(user);
         } catch (Exception e) {
-            LOGGER.severe("Error during authentication: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Error during authentication", e);
             return new AuthenticationResult(false, null, "ERROR", "Lỗi khi xác thực: " + e.getMessage());
         }
     }
@@ -208,6 +227,13 @@ public class AuthenticationService {
             LOGGER.severe("Error changing password: " + e.getMessage());
             return false;
         }
+    }
+
+    private boolean passwordsMatch(String storedPassword, String inputPassword) {
+        if (storedPassword == null || inputPassword == null) {
+            return false;
+        }
+        return storedPassword.equals(inputPassword);
     }
 
     public boolean deactivateUser(String username) {

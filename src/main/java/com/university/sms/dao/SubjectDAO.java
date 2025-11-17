@@ -313,6 +313,37 @@ public class SubjectDAO {
     }
 
     /**
+     * Tìm các môn học dùng subject này làm prerequisite
+     */
+    public List<Subject> findByPrerequisite(String prerequisiteSubjectCode) {
+        List<Subject> subjects = new ArrayList<>();
+        String sql = "SELECT s.*, f.faculty_name, " +
+                "ps.subject_name as prerequisite_name " +
+                "FROM subjects s " +
+                "LEFT JOIN faculties f ON s.faculty_code = f.faculty_code " +
+                "LEFT JOIN subjects ps ON s.prerequisite_subject_code = ps.subject_code " +
+                "WHERE s.prerequisite_subject_code = ? " +
+                "ORDER BY s.subject_code";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, prerequisiteSubjectCode);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    subjects.add(mapResultSetToSubject(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding subjects by prerequisite: " + prerequisiteSubjectCode, e);
+        }
+
+        return subjects;
+    }
+
+    /**
      * Delete subject
      */
     public boolean delete(int subjectId) {
