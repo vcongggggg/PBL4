@@ -420,9 +420,15 @@ public class StudentPanel extends JPanel {
         boolean includeInactive = showInactiveCheckbox.isSelected();
 
         for (Student student : students) {
-            if (!includeInactive && student.getStudentStatus() != Student.StudentStatus.ACTIVE) {
-                continue;
+            // Nếu không bao gồm inactive: chỉ hiển thị sinh viên có is_active = true VÀ student_status = ACTIVE
+            if (!includeInactive) {
+                // Kiểm tra cả is_active và student_status
+                if (!student.isActive() || student.getStudentStatus() != Student.StudentStatus.ACTIVE) {
+                    continue;
+                }
             }
+            // Nếu includeInactive = true: hiển thị tất cả (không lọc)
+            
             Object[] rowData = {
                     student.getStudentCode(),
                     student.getFullName(),
@@ -437,7 +443,7 @@ public class StudentPanel extends JPanel {
             tableModel.addRow(rowData);
         }
         addLog("Đã tải " + tableModel.getRowCount() + " sinh viên"
-                + (includeInactive ? " (bao gồm trạng thái không hoạt động)" : ""));
+                + (includeInactive ? " (bao gồm tài khoản và trạng thái không hoạt động)" : " (chỉ hiển thị tài khoản và trạng thái đang hoạt động)"));
     }
 
     private void showAddStudentDialog() {
