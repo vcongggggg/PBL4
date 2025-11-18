@@ -5,6 +5,8 @@ import com.university.sms.dao.CourseRegistrationDAO;
 import com.university.sms.dao.EnrollmentDAO;
 import com.university.sms.dao.GradeDAO;
 import com.university.sms.model.Course;
+import com.university.sms.model.CourseRegistration;
+import com.university.sms.model.Enrollment;
 
 import java.util.List;
 import java.util.logging.Logger;
@@ -14,11 +16,16 @@ import java.util.logging.Logger;
  */
 public class CourseService {
     private static final Logger LOGGER = Logger.getLogger(CourseService.class.getName());
+    private static final int MIN_STUDENTS_TO_START = 30;
 
-    private CourseDAO courseDAO;
+    private final CourseDAO courseDAO;
+    private final CourseRegistrationDAO courseRegistrationDAO;
+    private final EnrollmentDAO enrollmentDAO;
 
     public CourseService() {
         this.courseDAO = new CourseDAO();
+        this.courseRegistrationDAO = new CourseRegistrationDAO();
+        this.enrollmentDAO = new EnrollmentDAO();
     }
 
     /**
@@ -444,13 +451,143 @@ public class CourseService {
         }
     }
 
+    @SuppressWarnings("unused")
     private boolean isValidCourseCode(String courseCode) {
         if (courseCode == null || courseCode.trim().isEmpty()) {
             return false;
         }
 
-        String codeRegex = "^[A-Z]+\\d+_\\d{4}_\\d+$";
+        String codeRegex = "^[A-Z0-9]+-\\d{4}S\\d-\\d{2}$";
         return courseCode.matches(codeRegex);
+    }
+
+    public boolean openRegistration(int courseId) {
+        Course course = courseDAO.findById(courseId);
+        if (course == null) {
+            throw new IllegalArgumentException("Course not found");
+        }
+        if (course.getCourseStatus() != Course.CourseStatus.PLANNING) {
+            throw new IllegalStateException("Only courses in planning status can open registration");
+        }
+        if (course.getRegistrationStatus() == Course.RegistrationStatus.OPEN) {
+            return false;
+        }
+        return courseDAO.updateRegistrationStatus(courseId, Course.RegistrationStatus.OPEN);
+    }
+
+    public RegistrationClosureResult closeRegistration(int courseId) {
+        Course course = courseDAO.findById(courseId);
+        if (course == null) {
+            throw new IllegalArgumentException("Course not found");
+        }
+        if (course.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+            throw new IllegalStateException("Registration must be open before closing");
+        }
+
+        List<CourseRegistration> registrations = courseRegistrationDAO.findByCourse(course.getCourseCode());
+        if (registrations == null) {
+            registrations = List.of();
+        }
+        long activeRegistrations = registrations.stream()
+                .filter(r -> r.getRegistrationStatus() != CourseRegistration.RegistrationStatus.CANCELLED)
+                .count();
+
+        courseDAO.updateRegistrationStatus(courseId, Course.RegistrationStatus.CLOSED);
+
+        if (activeRegistrations >= MIN_STUDENTS_TO_START) {
+            // Approve all pending registrations
+            for (CourseRegistration registration : registrations) {
+                if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.CANCELLED) {
+                    continue;
+                }
+                if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.PENDING) {
+                    registration.setRegistrationStatus(CourseRegistration.RegistrationStatus.APPROVED);
+                    courseRegistrationDAO.update(registration);
+                }
+            }
+
+            // Ensure enrollments exist
+            for (CourseRegistration registration : registrations) {
+                if (registration.getRegistrationStatus() != CourseRegistration.RegistrationStatus.APPROVED) {
+                    continue;
+                }
+                Enrollment existing = enrollmentDAO.findByStudentAndCourse(
+                        registration.getStudentCode(), registration.getCourseCode());
+                if (existing == null) {
+                    Enrollment enrollment = new Enrollment(registration.getStudentCode(), registration.getCourseCode());
+                    enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.ENROLLED);
+                    enrollmentDAO.save(enrollment);
+                }
+            }
+
+            int totalEnrollments = enrollmentDAO.countByCourse(course.getCourseCode());
+            courseDAO.updateCurrentStudents(courseId, totalEnrollments);
+            courseDAO.updateCourseStatus(courseId, Course.CourseStatus.ONGOING);
+
+            return new RegistrationClosureResult(true,
+                    (int) activeRegistrations,
+                    totalEnrollments,
+                    Course.CourseStatus.ONGOING,
+                    "Đã chốt đăng ký và lớp sẽ diễn ra");
+        } else {
+            // Cancel all active registrations
+            for (CourseRegistration registration : registrations) {
+                if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.CANCELLED) {
+                    continue;
+                }
+                registration.setRegistrationStatus(CourseRegistration.RegistrationStatus.CANCELLED);
+                if (registration.getNotes() == null || registration.getNotes().isBlank()) {
+                    registration.setNotes("Đợt đăng ký bị hủy do không đủ " + MIN_STUDENTS_TO_START + " sinh viên.");
+                }
+                courseRegistrationDAO.update(registration);
+            }
+
+            courseDAO.updateCourseStatus(courseId, Course.CourseStatus.CANCELLED);
+            courseDAO.updateCurrentStudents(courseId, 0);
+
+            return new RegistrationClosureResult(false,
+                    (int) activeRegistrations,
+                    0,
+                    Course.CourseStatus.CANCELLED,
+                    "Đã hủy lớp vì không đủ " + MIN_STUDENTS_TO_START + " sinh viên.");
+        }
+    }
+
+    public static class RegistrationClosureResult {
+        private final boolean started;
+        private final int registrations;
+        private final int enrollments;
+        private final Course.CourseStatus finalStatus;
+        private final String message;
+
+        public RegistrationClosureResult(boolean started, int registrations, int enrollments,
+                Course.CourseStatus finalStatus, String message) {
+            this.started = started;
+            this.registrations = registrations;
+            this.enrollments = enrollments;
+            this.finalStatus = finalStatus;
+            this.message = message;
+        }
+
+        public boolean isStarted() {
+            return started;
+        }
+
+        public int getRegistrations() {
+            return registrations;
+        }
+
+        public int getEnrollments() {
+            return enrollments;
+        }
+
+        public Course.CourseStatus getFinalStatus() {
+            return finalStatus;
+        }
+
+        public String getMessage() {
+            return message;
+        }
     }
 
     public static class CourseStatistics {

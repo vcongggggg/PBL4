@@ -84,6 +84,14 @@ public class CourseRegistrationService {
                 throw new IllegalArgumentException("Course not found");
             }
 
+            if (course.getCourseStatus() != Course.CourseStatus.PLANNING) {
+                throw new IllegalStateException("Course is not open for registration");
+            }
+
+            if (course.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+                throw new IllegalStateException("Registration period is not open for this course");
+            }
+
             if (registrationDAO.isAlreadyRegistered(studentCode, courseCode)) {
                 throw new IllegalStateException("Student is already registered for this course");
             }
@@ -225,6 +233,14 @@ public class CourseRegistrationService {
             Course course = courseDAO.findByCourseCode(courseCode);
             if (course == null) {
                 return new RegistrationValidation(false, "Course not found");
+            }
+
+            if (course.getCourseStatus() != Course.CourseStatus.PLANNING) {
+                return new RegistrationValidation(false, "Course is not open for registration");
+            }
+
+            if (course.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+                return new RegistrationValidation(false, "Registration period is closed");
             }
 
             if (registrationDAO.isAlreadyRegistered(studentCode, courseCode)) {

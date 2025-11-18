@@ -42,6 +42,8 @@ public class Constants {
     public static final String ACTION_ADD_COURSE = "ADD_COURSE";
     public static final String ACTION_UPDATE_COURSE = "UPDATE_COURSE";
     public static final String ACTION_DELETE_COURSE = "DELETE_COURSE";
+    public static final String ACTION_OPEN_COURSE_REGISTRATION = "OPEN_COURSE_REGISTRATION";
+    public static final String ACTION_CLOSE_COURSE_REGISTRATION = "CLOSE_COURSE_REGISTRATION";
 
     // Enrollment Actions
     public static final String ACTION_ENROLL_COURSE = "ENROLL_COURSE";
@@ -73,8 +75,10 @@ public class Constants {
 
     // Class Actions
     public static final String ACTION_GET_CLASSES = "GET_CLASSES";
+    public static final String ACTION_GET_ALL_CLASSES = "GET_ALL_CLASSES";
     public static final String ACTION_ADD_CLASS = "ADD_CLASS";
     public static final String ACTION_UPDATE_CLASS = "UPDATE_CLASS";
+    public static final String ACTION_DELETE_CLASS = "DELETE_CLASS";
 
     // Report Actions
     public static final String ACTION_GET_STUDENT_TRANSCRIPT = "GET_STUDENT_TRANSCRIPT";
@@ -158,6 +162,7 @@ public class Constants {
     public static final String KEY_FACULTY_CODE = "facultyCode";
     public static final String KEY_SEARCH_KEYWORD = "searchKeyword";
     public static final String KEY_CLASS_ID = "classId";
+    public static final String KEY_CLASS_CODE = "classCode";
     public static final String KEY_FACULTY_ID = "facultyId";
     public static final String KEY_ACADEMIC_YEAR = "academicYear";
     public static final String KEY_SEMESTER = "semester";

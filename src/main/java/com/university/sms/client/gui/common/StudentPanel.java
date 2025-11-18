@@ -434,24 +434,216 @@ public class StudentPanel extends JPanel {
     }
 
     private void showAddStudentDialog() {
-        JTextField code = new JTextField();
-        JTextField name = new JTextField();
-        JTextField email = new JTextField();
-        JTextField phone = new JTextField();
-        JTextField facultyCode = new JTextField();
-        JTextField classCode = new JTextField();
-        JTextField username = new JTextField();
-        Object[] fields = {
-                "Mã SV:", code,
-                "Username:", username,
-                "Họ tên:", name,
-                "Email:", email,
-                "SĐT:", phone,
-                "Khoa (Code):", facultyCode,
-                "Lớp (Code, có thể để trống):", classCode
+        // Create a custom dialog with dropdowns
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Thêm sinh viên", true);
+        dialog.setSize(500, 400);
+        dialog.setLocationRelativeTo(this);
+
+        JPanel panel = new JPanel(new GridBagLayout());
+        GridBagConstraints gbc = new GridBagConstraints();
+        gbc.insets = new Insets(5, 5, 5, 5);
+        gbc.anchor = GridBagConstraints.WEST;
+
+        JTextField code = new JTextField(20);
+        JTextField username = new JTextField(20);
+        JTextField name = new JTextField(20);
+        JTextField email = new JTextField(20);
+        JTextField phone = new JTextField(20);
+        JComboBox<FacultyItem> facultyCombo = new JComboBox<>();
+        JComboBox<ClassItem> classCombo = new JComboBox<>();
+        classCombo.addItem(new ClassItem(null, "-- Không có --"));
+
+        // Thêm item mặc định cho faculty combo
+        facultyCombo.addItem(new FacultyItem(null, "-- Chọn khoa --"));
+
+        // Load faculties
+        SwingWorker<List<com.university.sms.model.Faculty>, Void> facultyWorker = new SwingWorker<List<com.university.sms.model.Faculty>, Void>() {
+            @Override
+            protected List<com.university.sms.model.Faculty> doInBackground() throws Exception {
+                Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
+                Message response = serverConnection.sendRequest(request);
+                if (response != null && response.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    List<com.university.sms.model.Faculty> faculties = (List<com.university.sms.model.Faculty>) response
+                            .getData("faculties");
+                    return faculties;
+                } else {
+                    String errorMsg = response != null ? response.getMessage() : "Không nhận được phản hồi từ server";
+                    throw new Exception(errorMsg);
+                }
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<com.university.sms.model.Faculty> faculties = get();
+                    if (faculties != null && !faculties.isEmpty()) {
+                        // Xóa item mặc định và thêm danh sách khoa
+                        facultyCombo.removeAllItems();
+                        facultyCombo.addItem(new FacultyItem(null, "-- Chọn khoa --"));
+                        for (com.university.sms.model.Faculty f : faculties) {
+                            facultyCombo.addItem(new FacultyItem(f.getFacultyCode(), f.getFacultyName()));
+                        }
+                        addLog("Đã tải " + faculties.size() + " khoa");
+                    } else {
+                        addLog("Không có khoa nào trong hệ thống");
+                        JOptionPane.showMessageDialog(dialog,
+                                "Không có khoa nào trong hệ thống. Vui lòng thêm khoa trước khi thêm sinh viên.",
+                                "Cảnh báo",
+                                JOptionPane.WARNING_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    String errorMsg = "Lỗi khi tải danh sách khoa: " + e.getMessage();
+                    addLog(errorMsg);
+                    JOptionPane.showMessageDialog(dialog,
+                            errorMsg,
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
         };
-        int res = JOptionPane.showConfirmDialog(this, fields, "Thêm sinh viên", JOptionPane.OK_CANCEL_OPTION);
-        if (res != JOptionPane.OK_OPTION)
+        facultyWorker.execute();
+
+        // Load classes
+        SwingWorker<List<com.university.sms.model.Class>, Void> classWorker = new SwingWorker<List<com.university.sms.model.Class>, Void>() {
+            @Override
+            protected List<com.university.sms.model.Class> doInBackground() throws Exception {
+                Message request = Message.createRequest(Constants.ACTION_GET_ALL_CLASSES);
+                Message response = serverConnection.sendRequest(request);
+                if (response != null && response.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    List<com.university.sms.model.Class> classes = (List<com.university.sms.model.Class>) response
+                            .getData(Constants.KEY_CLASSES);
+                    return classes;
+                }
+                return null;
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    List<com.university.sms.model.Class> classes = get();
+                    if (classes != null) {
+                        for (com.university.sms.model.Class c : classes) {
+                            classCombo.addItem(
+                                    new ClassItem(c.getClassCode(), c.getClassCode() + " - " + c.getClassName()));
+                        }
+                    }
+                } catch (Exception e) {
+                    addLog("Lỗi khi tải danh sách lớp: " + e.getMessage());
+                }
+            }
+        };
+        classWorker.execute();
+
+        // Add listener to filter classes by selected faculty
+        facultyCombo.addActionListener(e -> {
+            FacultyItem selected = (FacultyItem) facultyCombo.getSelectedItem();
+            if (selected != null && selected.code != null) {
+                classCombo.removeAllItems();
+                classCombo.addItem(new ClassItem(null, "-- Không có --"));
+                // Reload classes filtered by faculty
+                SwingWorker<List<com.university.sms.model.Class>, Void> filterWorker = new SwingWorker<List<com.university.sms.model.Class>, Void>() {
+                    @Override
+                    protected List<com.university.sms.model.Class> doInBackground() throws Exception {
+                        Message request = Message.createRequest(Constants.ACTION_GET_ALL_CLASSES);
+                        Message response = serverConnection.sendRequest(request);
+                        if (response != null && response.isSuccess()) {
+                            @SuppressWarnings("unchecked")
+                            List<com.university.sms.model.Class> classes = (List<com.university.sms.model.Class>) response
+                                    .getData(Constants.KEY_CLASSES);
+                            return classes;
+                        }
+                        return null;
+                    }
+
+                    @Override
+                    protected void done() {
+                        try {
+                            List<com.university.sms.model.Class> classes = get();
+                            if (classes != null) {
+                                for (com.university.sms.model.Class c : classes) {
+                                    if (selected.code.equals(c.getFacultyCode())) {
+                                        classCombo.addItem(new ClassItem(c.getClassCode(),
+                                                c.getClassCode() + " - " + c.getClassName()));
+                                    }
+                                }
+                            }
+                        } catch (Exception ex) {
+                            addLog("Lỗi khi lọc lớp: " + ex.getMessage());
+                        }
+                    }
+                };
+                filterWorker.execute();
+            }
+        });
+
+        int row = 0;
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("Mã SV:"), gbc);
+        gbc.gridx = 1;
+        panel.add(code, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("Username:"), gbc);
+        gbc.gridx = 1;
+        panel.add(username, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("Họ tên:"), gbc);
+        gbc.gridx = 1;
+        panel.add(name, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("Email:"), gbc);
+        gbc.gridx = 1;
+        panel.add(email, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("SĐT:"), gbc);
+        gbc.gridx = 1;
+        panel.add(phone, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("Khoa:"), gbc);
+        gbc.gridx = 1;
+        panel.add(facultyCombo, gbc);
+
+        gbc.gridx = 0;
+        gbc.gridy = row++;
+        panel.add(new JLabel("Lớp (có thể để trống):"), gbc);
+        gbc.gridx = 1;
+        panel.add(classCombo, gbc);
+
+        JButton okButton = new JButton("OK");
+        JButton cancelButton = new JButton("Hủy");
+        JPanel buttonPanel = new JPanel(new FlowLayout());
+        buttonPanel.add(okButton);
+        buttonPanel.add(cancelButton);
+
+        dialog.add(panel, BorderLayout.CENTER);
+        dialog.add(buttonPanel, BorderLayout.SOUTH);
+
+        final boolean[] confirmed = { false };
+        okButton.addActionListener(e -> {
+            if (facultyCombo.getSelectedItem() == null) {
+                JOptionPane.showMessageDialog(dialog, "Vui lòng chọn khoa", "Lỗi", JOptionPane.ERROR_MESSAGE);
+                return;
+            }
+            confirmed[0] = true;
+            dialog.dispose();
+        });
+        cancelButton.addActionListener(e -> dialog.dispose());
+
+        dialog.setVisible(true);
+
+        if (!confirmed[0])
             return;
 
         com.university.sms.model.Student s = new com.university.sms.model.Student();
@@ -464,9 +656,10 @@ public class StudentPanel extends JPanel {
         s.setFullName(name.getText().trim());
         s.setEmail(email.getText().trim());
         s.setPhone(phone.getText().trim());
-        s.setFacultyCode(facultyCode.getText().trim());
-        String classCodeText = classCode.getText().trim();
-        s.setClassCode(classCodeText.isEmpty() ? null : classCodeText);
+        FacultyItem selectedFaculty = (FacultyItem) facultyCombo.getSelectedItem();
+        s.setFacultyCode(selectedFaculty != null ? selectedFaculty.code : null);
+        ClassItem selectedClass = (ClassItem) classCombo.getSelectedItem();
+        s.setClassCode(selectedClass != null && selectedClass.code != null ? selectedClass.code : null);
         s.setAdmissionYear(java.time.LocalDate.now().getYear());
         s.setStudentStatus(com.university.sms.model.Student.StudentStatus.ACTIVE);
 
@@ -717,5 +910,36 @@ public class StudentPanel extends JPanel {
         };
 
         worker.execute();
+    }
+
+    // Helper classes for ComboBox items
+    private static class FacultyItem {
+        String code;
+        String name;
+
+        FacultyItem(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
+    }
+
+    private static class ClassItem {
+        String code;
+        String name;
+
+        ClassItem(String code, String name) {
+            this.code = code;
+            this.name = name;
+        }
+
+        @Override
+        public String toString() {
+            return name;
+        }
     }
 }

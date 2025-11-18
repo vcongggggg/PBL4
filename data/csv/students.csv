@@ -1,5 +1,5 @@
 studentId,username,studentCode,classCode,facultyCode,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address
-50,csv_sv01,CSV2022001,DTVT22A_CSV,DTVT_CSV,2022,active,3.25,16,2004-03-12,male,079204012345,Tran Van Cha,0911222333,2024-06-01 07:00:00,Tran Van Dat,dattv@csv-student.edu.vn,0955555555,Quang Nam
-51,csv_sv02,CSV2022002,DTVT22A_CSV,DTVT_CSV,2022,active,3.60,18,2004-07-25,female,079204054321,Vo Van Ba,0922333444,2024-06-01 07:00:00,Vo Thi Mai,maivt@csv-student.edu.vn,0966666666,Hue
-52,csv_sv03,CSV2022003,QTKD22A_CSV,QTKD_CSV,2022,active,3.10,14,2004-11-08,male,079204098765,Dang Van Ong,0933444555,2024-06-01 07:00:00,Dang Hoang Long,longdh@csv-student.edu.vn,0977777777,Da Nang
-53,csv_sv04,CSV2022004,XDDD22A_CSV,XDDD_CSV,2022,active,2.85,12,2004-01-20,female,079204087654,Bui Thi Me,0944555666,2024-06-01 07:00:00,Bui Thanh Tam,tambt@csv-student.edu.vn,0988888888,Quang Tri
+50,sv01,ST2022001,DTVT22A,DTVT,2022,active,3.25,16,2004-03-12,male,079204012345,Tran Van Cha,0911222333,2024-06-01 07:00:00,Tran Van Dat,dattv@student.university.edu.vn,0955555555,Quang Nam
+51,sv02,ST2022002,DTVT22A,DTVT,2022,active,3.60,18,2004-07-25,female,079204054321,Vo Van Ba,0922333444,2024-06-01 07:00:00,Vo Thi Mai,maivt@student.university.edu.vn,0966666666,Hue
+52,sv03,ST2022003,QTKD22A,QTKD,2022,active,3.10,14,2004-11-08,male,079204098765,Dang Van Ong,0933444555,2024-06-01 07:00:00,Dang Hoang Long,longdh@student.university.edu.vn,0977777777,Da Nang
+53,sv04,ST2022004,XDDD22A,XDDD,2022,active,2.85,12,2004-01-20,female,079204087654,Bui Thi Me,0944555666,2024-06-01 07:00:00,Bui Thanh Tam,tambt@student.university.edu.vn,0988888888,Quang Tri

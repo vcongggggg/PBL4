@@ -427,6 +427,25 @@ public class EnrollmentDAO {
         return false;
     }
 
+    public int countByCourse(String courseCode) {
+        String sql = "SELECT COUNT(*) AS total FROM enrollments WHERE course_code = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, courseCode);
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("total");
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error counting enrollments for course: " + courseCode, e);
+        }
+
+        return 0;
+    }
+
     /**
      * ✅ REFACTORED: Map ResultSet to Enrollment object
      */

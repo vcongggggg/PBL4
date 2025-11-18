@@ -30,6 +30,7 @@ public class AdminMainFrame extends JFrame {
     private ReportPanel reportPanel;
     private TeacherPanel teacherPanel;
     private SubjectPanel subjectPanel;
+    private ClassPanel classPanel;
     private NotificationPanel notificationPanel;
     private javax.swing.Timer clientDbVersionTimer;
     private WatchService watchService;
@@ -106,6 +107,10 @@ public class AdminMainFrame extends JFrame {
         // Khung chương trình đào tạo
         subjectPanel = new SubjectPanel(currentUser, serverConnection);
         modernDashboard.addNavItem("📖", "Khung chương trình", "subject", subjectPanel);
+
+        // Quản lý lớp sinh hoạt
+        classPanel = new ClassPanel(currentUser, serverConnection);
+        modernDashboard.addNavItem("🏫", "Quản lý Lớp sinh hoạt", "class", classPanel);
 
         // Quản trị Hệ thống
         adminPanel = new AdminPanel(currentUser, serverConnection);
@@ -268,6 +273,8 @@ public class AdminMainFrame extends JFrame {
             teacherPanel.refreshData();
         if (subjectPanel != null)
             subjectPanel.refreshData();
+        if (classPanel != null)
+            classPanel.refreshData();
         if (notificationPanel != null)
             notificationPanel.refreshData();
         updateConnectionStatus();

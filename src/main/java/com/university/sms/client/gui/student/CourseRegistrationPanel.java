@@ -146,7 +146,9 @@ public class CourseRegistrationPanel extends JPanel {
 
                 if (!isSelected) {
                     String status = (String) table.getValueAt(row, 8);
-                    if ("Đã đăng ký".equals(status)) {
+                    if ("Đã đầy".equals(status)) {
+                        c.setBackground(new Color(255, 205, 210)); // Light red
+                    } else if ("Đã đăng ký".equals(status)) {
                         c.setBackground(new Color(200, 230, 201)); // Light green
                     } else if ("Đã chọn".equals(status)) {
                         c.setBackground(new Color(255, 245, 157)); // Light yellow
@@ -309,6 +311,14 @@ public class CourseRegistrationPanel extends JPanel {
                 continue;
             }
 
+            if (course.getCourseStatus() != Course.CourseStatus.PLANNING) {
+                continue;
+            }
+
+            if (course.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+                continue;
+            }
+
             // Apply search filter
             if (!searchText.isEmpty()) {
                 String searchableText = (course.getCourseCode() + " " +
@@ -322,10 +332,7 @@ public class CourseRegistrationPanel extends JPanel {
             int remaining = course.getMaxStudents() - course.getCurrentEnrollment();
             String availabilityText = remaining + "/" + course.getMaxStudents();
 
-            String status = "Có thể đăng ký";
-            if (remaining <= 0) {
-                status = "Đã đầy";
-            }
+            String status = remaining <= 0 ? "Đã đầy" : "Mở đăng ký";
 
             availableModel.addRow(new Object[] {
                     course.getCourseCode(),
@@ -363,6 +370,14 @@ public class CourseRegistrationPanel extends JPanel {
         }
 
         if (courseToAdd == null) {
+            return;
+        }
+
+        if (courseToAdd.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+            JOptionPane.showMessageDialog(this,
+                    "Lớp học này hiện không mở đăng ký.",
+                    "Không thể thêm",
+                    JOptionPane.WARNING_MESSAGE);
             return;
         }
 

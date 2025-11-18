@@ -1,4 +1,4 @@
 classId,classCode,className,facultyCode,teacherUsername,academicYear,semester,maxStudents,createdAt
-20,DTVT22A_CSV,Dien tu Vien thong K22A CSV,DTVT_CSV,csv_gv01,2024-2025,1,40,2024-06-01 07:00:00
-21,QTKD22A_CSV,Quan tri Kinh doanh K22A CSV,QTKD_CSV,csv_gv02,2024-2025,1,45,2024-06-01 07:00:00
-22,XDDD22A_CSV,Xay dung Dan dung K22A CSV,XDDD_CSV,csv_gv03,2024-2025,1,35,2024-06-01 07:00:00
+20,DTVT22A,Dien tu Vien thong K22A,DTVT,gv01,2024-2025,1,40,2024-06-01 07:00:00
+21,QTKD22A,Quan tri Kinh doanh K22A,QTKD,gv02,2024-2025,1,45,2024-06-01 07:00:00
+22,XDDD22A,Xay dung Dan dung K22A,XDDD,gv03,2024-2025,1,35,2024-06-01 07:00:00

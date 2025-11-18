@@ -163,6 +163,8 @@ public class ClientHandler implements Runnable {
                     return handleGetStudentInfo(request);
                 case Constants.ACTION_GET_ALL_STUDENTS:
                     return handleGetAllStudents(request);
+                case Constants.ACTION_GET_STUDENTS_BY_CLASS:
+                    return handleGetStudentsByClass(request);
                 case Constants.ACTION_SEARCH_STUDENTS:
                     return handleSearchStudents(request);
                 case Constants.ACTION_ADD_STUDENT:
@@ -185,6 +187,10 @@ public class ClientHandler implements Runnable {
                     return handleUpdateCourse(request);
                 case Constants.ACTION_DELETE_COURSE:
                     return handleDeleteCourse(request);
+                case Constants.ACTION_OPEN_COURSE_REGISTRATION:
+                    return handleOpenCourseRegistration(request);
+                case Constants.ACTION_CLOSE_COURSE_REGISTRATION:
+                    return handleCloseCourseRegistration(request);
 
                 // Teacher actions
                 case Constants.ACTION_GET_ALL_TEACHERS:
@@ -198,6 +204,11 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_GET_FACULTIES:
                 case Constants.ACTION_GET_ALL_FACULTIES:
                     return handleGetAllFaculties(request);
+
+                // Class actions
+                case Constants.ACTION_GET_CLASSES:
+                case Constants.ACTION_GET_ALL_CLASSES:
+                    return handleGetAllClasses(request);
 
                 // Subject actions
                 case Constants.ACTION_GET_SUBJECTS:
@@ -505,6 +516,33 @@ public class ClientHandler implements Runnable {
     }
 
     /**
+     * Lấy danh sách sinh viên theo lớp
+     */
+    private Message handleGetStudentsByClass(Message request) {
+        // Chỉ admin và giáo viên mới có quyền xem danh sách sinh viên theo lớp
+        if (currentUser.getRole() != User.UserRole.ADMIN && currentUser.getRole() != User.UserRole.TEACHER) {
+            return Message.createErrorResponse(Constants.ACTION_GET_STUDENTS_BY_CLASS, Constants.MSG_UNAUTHORIZED);
+        }
+
+        try {
+            String classCode = request.getData(Constants.KEY_CLASS_CODE, String.class);
+            if (classCode == null || classCode.trim().isEmpty()) {
+                return Message.createErrorResponse(Constants.ACTION_GET_STUDENTS_BY_CLASS, "Thiếu mã lớp");
+            }
+
+            List<Student> students = studentService.getStudentsByClass(classCode.trim());
+            Message response = Message.createSuccessResponse(Constants.ACTION_GET_STUDENTS_BY_CLASS,
+                    "Lấy danh sách sinh viên thành công");
+            response.addData(Constants.KEY_STUDENTS, students);
+            return response;
+        } catch (Exception e) {
+            LOGGER.severe("Lỗi khi lấy danh sách sinh viên theo lớp: " + e.getMessage());
+            LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(Constants.ACTION_GET_STUDENTS_BY_CLASS, "Lỗi server: " + e.getMessage());
+        }
+    }
+
+    /**
      * Xử lý tìm kiếm sinh viên
      */
     private Message handleSearchStudents(Message request) {
@@ -571,6 +609,46 @@ public class ClientHandler implements Runnable {
                 student.setUsername(username);
             }
 
+            // Validate email format (if provided) - ALWAYS check, regardless of username
+            // existence
+            if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
+                if (!isValidEmailFormat(student.getEmail().trim())) {
+                    return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                            "Email không hợp lệ. Email phải có định dạng: example@domain.com");
+                }
+            }
+
+            // Normalize and validate phone format (if provided) - ALWAYS check, regardless
+            // of username existence
+            String normalizedStudentPhone = null;
+            if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
+                normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
+                if (!isValidPhoneFormat(normalizedStudentPhone)) {
+                    return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                            "Số điện thoại không hợp lệ. Số điện thoại phải có 10 số (bắt đầu bằng 0) hoặc 11 số (bắt đầu bằng +84). Ví dụ: 0912345678 hoặc +84912345678");
+                }
+            }
+
+            // Check if email already exists (if provided) - ALWAYS check, regardless of
+            // username existence
+            if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
+                com.university.sms.model.User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
+                if (existingUserByEmail != null) {
+                    return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                            "Email đã được sử dụng bởi user khác: " + student.getEmail());
+                }
+            }
+
+            // Check if phone already exists (if provided) - ALWAYS check, regardless of
+            // username existence
+            if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty()) {
+                com.university.sms.model.User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
+                if (existingUserByPhone != null) {
+                    return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
+                            "Số điện thoại đã được sử dụng bởi user khác: " + normalizedStudentPhone);
+                }
+            }
+
             // Check if username already exists
             com.university.sms.model.User byUsername = userDAO.findByUsername(username);
             if (byUsername != null) {
@@ -580,6 +658,7 @@ public class ClientHandler implements Runnable {
                             "Username đã tồn tại với vai trò khác: " + username);
                 }
                 // Username exists and is a student - OK, reuse it
+                // Note: Phone and email validation already done above, so they won't conflict
             } else {
                 // Create new user
                 com.university.sms.model.User u = new com.university.sms.model.User();
@@ -587,7 +666,7 @@ public class ClientHandler implements Runnable {
                 u.setPassword("password"); // Default password - should be changed on first login
                 u.setFullName(student.getFullName());
                 u.setEmail(student.getEmail());
-                u.setPhone(student.getPhone());
+                u.setPhone(normalizedStudentPhone); // Use normalized phone
                 u.setAddress(student.getAddress());
                 u.setRole(com.university.sms.model.User.UserRole.STUDENT);
                 userOk = userDAO.addUser(u);
@@ -637,6 +716,64 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, Constants.MSG_INVALID_DATA);
         }
 
+        // Validate email format (if provided)
+        if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
+            if (!isValidEmailFormat(student.getEmail().trim())) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Email không hợp lệ. Email phải có định dạng: example@domain.com");
+            }
+        }
+
+        // Normalize and validate phone format (if provided)
+        String normalizedStudentPhone = null;
+        if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
+            normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
+            if (!isValidPhoneFormat(normalizedStudentPhone)) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Số điện thoại không hợp lệ. Số điện thoại phải có 10 số (bắt đầu bằng 0) hoặc 11 số (bắt đầu bằng +84). Ví dụ: 0912345678 hoặc +84912345678");
+            }
+        }
+
+        // Check if email already exists (if provided and different from current)
+        if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.model.User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
+            if (existingUserByEmail != null && student.getUsername() != null
+                    && !existingUserByEmail.getUsername().equals(student.getUsername())) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Email đã được sử dụng bởi user khác: " + student.getEmail());
+            }
+        }
+
+        // Get current student to compare phone
+        com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
+        com.university.sms.model.Student currentStudent = studentDAO.findById(student.getStudentId());
+        if (currentStudent == null) {
+            return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Không tìm thấy sinh viên");
+        }
+
+        // Check if phone has changed (compare normalized versions)
+        String currentPhone = currentStudent.getPhone();
+        String normalizedCurrentPhone = currentPhone != null ? normalizePhoneNumber(currentPhone) : null;
+        boolean phoneChanged = normalizedStudentPhone != null
+                && !normalizedStudentPhone.equals(normalizedCurrentPhone != null ? normalizedCurrentPhone : "");
+
+        // Check if phone already exists (if provided and different from current)
+        if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty() && phoneChanged) {
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.model.User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
+            if (existingUserByPhone != null && student.getUsername() != null
+                    && !existingUserByPhone.getUsername().equals(student.getUsername())) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Số điện thoại đã được sử dụng bởi user khác: " + normalizedStudentPhone);
+            }
+        }
+
+        // Update student with normalized phone (if changed) or keep current
+        if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty()) {
+            student.setPhone(phoneChanged ? normalizedStudentPhone : currentPhone);
+        }
+
         // Kiểm tra quyền và xử lý tương ứng
         if (currentUser.getRole() == User.UserRole.STUDENT) {
             // Sinh viên chỉ được cập nhật thông tin của chính mình
@@ -676,10 +813,56 @@ public class ClientHandler implements Runnable {
                     "Bạn chỉ có thể cập nhật thông tin của chính mình");
         }
 
+        // Validate email format (if provided)
+        if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
+            if (!isValidEmailFormat(student.getEmail().trim())) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Email không hợp lệ. Email phải có định dạng: example@domain.com");
+            }
+        }
+
+        // Normalize and validate phone format (if provided)
+        String normalizedStudentPhone = null;
+        if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
+            normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
+            if (!isValidPhoneFormat(normalizedStudentPhone)) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Số điện thoại không hợp lệ. Số điện thoại phải có 10 số (bắt đầu bằng 0) hoặc 11 số (bắt đầu bằng +84). Ví dụ: 0912345678 hoặc +84912345678");
+            }
+        }
+
+        // Check if email already exists (if provided and different from current)
+        if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.model.User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
+            if (existingUserByEmail != null && currentStudent.getUsername() != null
+                    && !existingUserByEmail.getUsername().equals(currentStudent.getUsername())) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Email đã được sử dụng bởi user khác: " + student.getEmail());
+            }
+        }
+
+        // Check if phone has changed (compare normalized versions)
+        String currentPhone = currentStudent.getPhone();
+        String normalizedCurrentPhone = currentPhone != null ? normalizePhoneNumber(currentPhone) : null;
+        boolean phoneChanged = normalizedStudentPhone != null
+                && !normalizedStudentPhone.equals(normalizedCurrentPhone != null ? normalizedCurrentPhone : "");
+
+        // Check if phone already exists (if provided and different from current)
+        if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty() && phoneChanged) {
+            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.model.User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
+            if (existingUserByPhone != null && currentStudent.getUsername() != null
+                    && !existingUserByPhone.getUsername().equals(currentStudent.getUsername())) {
+                return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
+                        "Số điện thoại đã được sử dụng bởi user khác: " + normalizedStudentPhone);
+            }
+        }
+
         // Sinh viên chỉ được phép cập nhật các field sau:
         // - Thông tin liên hệ: email, phone, emergency_contact, emergency_phone
         currentStudent.setEmail(student.getEmail());
-        currentStudent.setPhone(student.getPhone());
+        currentStudent.setPhone(phoneChanged ? normalizedStudentPhone : currentPhone);
         currentStudent.setEmergencyContact(student.getEmergencyContact());
         currentStudent.setEmergencyPhone(student.getEmergencyPhone());
 
@@ -1004,6 +1187,53 @@ public class ClientHandler implements Runnable {
         }
         return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
                 "Không thể hủy/xóa lớp học phần. Vui lòng thử lại.");
+    }
+
+    private Message handleOpenCourseRegistration(Message request) {
+        if (currentUser.getRole() != User.UserRole.ADMIN) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+        }
+
+        Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+        if (courseId == null) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_INVALID_DATA);
+        }
+
+        try {
+            boolean opened = courseService.openRegistration(courseId);
+            if (opened) {
+                return Message.createSuccessResponse(request.getAction(), "Đã mở đăng ký cho lớp học phần.");
+            }
+            return Message.createErrorResponse(request.getAction(),
+                    "Lớp học phần đang trong trạng thái không thể mở đăng ký.");
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error opening course registration", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleCloseCourseRegistration(Message request) {
+        if (currentUser.getRole() != User.UserRole.ADMIN) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+        }
+
+        Integer courseId = request.getData(Constants.KEY_COURSE_ID, Integer.class);
+        if (courseId == null) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_INVALID_DATA);
+        }
+
+        try {
+            CourseService.RegistrationClosureResult result = courseService.closeRegistration(courseId);
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    result.getMessage() != null ? result.getMessage() : Constants.MSG_SUCCESS);
+            response.addData("registrations", result.getRegistrations());
+            response.addData("enrollments", result.getEnrollments());
+            response.addData(Constants.KEY_STATUS, result.getFinalStatus());
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error closing course registration", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
     }
 
     /**
@@ -3801,6 +4031,7 @@ public class ClientHandler implements Runnable {
             String email = request.getData("email", String.class);
             String phone = request.getData("phone", String.class);
             String address = request.getData("address", String.class);
+            String facultyCode = request.getData("facultyCode", String.class);
 
             // Validate required fields
             if (username == null || username.trim().isEmpty()) {
@@ -3821,10 +4052,9 @@ public class ClientHandler implements Runnable {
 
             // Validate email format (if provided)
             if (email != null && !email.trim().isEmpty()) {
-                String emailRegex = "^[A-Za-z0-9+_.-]+@(.+)$";
-                if (!email.matches(emailRegex)) {
+                if (!isValidEmailFormat(email.trim())) {
                     return Message.createErrorResponse(request.getAction(),
-                            "Email không hợp lệ: " + email);
+                            "Email không hợp lệ. Email phải có định dạng: example@domain.com");
                 }
             }
 
@@ -3836,14 +4066,53 @@ public class ClientHandler implements Runnable {
                         "Tên đăng nhập đã tồn tại: " + username);
             }
 
+            // Check if email already exists (if provided)
+            if (email != null && !email.trim().isEmpty()) {
+                User existingUserByEmail = userDAO.findByEmail(email.trim());
+                if (existingUserByEmail != null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Email đã được sử dụng bởi user khác: " + email);
+                }
+            }
+
+            // Normalize and validate phone format (if provided)
+            String normalizedPhone = null;
+            if (phone != null && !phone.trim().isEmpty()) {
+                normalizedPhone = normalizePhoneNumber(phone.trim());
+                if (!isValidPhoneFormat(normalizedPhone)) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Số điện thoại không hợp lệ. Số điện thoại phải có 10 số (bắt đầu bằng 0) hoặc 11 số (bắt đầu bằng +84). Ví dụ: 0912345678 hoặc +84912345678");
+                }
+            }
+
+            // Check if phone already exists (if provided)
+            if (normalizedPhone != null && !normalizedPhone.isEmpty()) {
+                User existingUserByPhone = userDAO.findByPhone(normalizedPhone);
+                if (existingUserByPhone != null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Số điện thoại đã được sử dụng bởi user khác: " + normalizedPhone);
+                }
+            }
+
+            // Validate facultyCode if provided
+            if (facultyCode != null && !facultyCode.trim().isEmpty()) {
+                com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+                com.university.sms.model.Faculty faculty = facultyDAO.findByCode(facultyCode.trim());
+                if (faculty == null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Mã khoa không tồn tại: " + facultyCode);
+                }
+            }
+
             // Create new teacher
             User newTeacher = new User();
             newTeacher.setUsername(username.trim());
             newTeacher.setPassword(password);
             newTeacher.setFullName(fullName.trim());
             newTeacher.setEmail(email != null ? email.trim() : null);
-            newTeacher.setPhone(phone != null ? phone.trim() : null);
+            newTeacher.setPhone(normalizedPhone); // Use normalized phone
             newTeacher.setAddress(address != null ? address.trim() : null);
+            newTeacher.setFacultyCode(facultyCode != null && !facultyCode.trim().isEmpty() ? facultyCode.trim() : null);
             newTeacher.setRole(User.UserRole.TEACHER);
             newTeacher.setActive(true);
 
@@ -3890,15 +4159,77 @@ public class ClientHandler implements Runnable {
             String phone = request.getData("phone", String.class);
             String address = request.getData("address", String.class);
             String password = request.getData("password", String.class);
+            String facultyCode = request.getData("facultyCode", String.class);
+
+            // Validate facultyCode if provided
+            if (facultyCode != null && !facultyCode.trim().isEmpty()) {
+                com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
+                com.university.sms.model.Faculty faculty = facultyDAO.findByCode(facultyCode.trim());
+                if (faculty == null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Mã khoa không tồn tại: " + facultyCode);
+                }
+            }
+
+            // Validate email format (if provided)
+            if (email != null && !email.trim().isEmpty()) {
+                if (!isValidEmailFormat(email.trim())) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Email không hợp lệ. Email phải có định dạng: example@domain.com");
+                }
+            }
+
+            // Check if email already exists (if provided and different from current)
+            if (email != null && !email.trim().isEmpty()) {
+                User existingUserByEmail = userDAO.findByEmail(email.trim());
+                if (existingUserByEmail != null && existingUserByEmail.getUserId() != teacher.getUserId()) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Email đã được sử dụng bởi user khác: " + email);
+                }
+            }
+            // Normalize phone for comparison and validation
+            String normalizedPhone = null;
+            if (phone != null && !phone.trim().isEmpty()) {
+                normalizedPhone = normalizePhoneNumber(phone.trim());
+            }
+
+            // Check if phone has changed (compare normalized versions)
+            String currentPhone = teacher.getPhone();
+            String normalizedCurrentPhone = currentPhone != null ? normalizePhoneNumber(currentPhone) : null;
+            boolean phoneChanged = normalizedPhone != null
+                    && !normalizedPhone.equals(normalizedCurrentPhone != null ? normalizedCurrentPhone : "");
+
+            // Validate phone format (if provided and different from current)
+            if (normalizedPhone != null && !normalizedPhone.isEmpty()) {
+                // Only validate format if phone has changed
+                if (phoneChanged && !isValidPhoneFormat(normalizedPhone)) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Số điện thoại không hợp lệ. Số điện thoại phải có 10 số (bắt đầu bằng 0) hoặc 11 số (bắt đầu bằng +84). Ví dụ: 0912345678 hoặc +84912345678");
+                }
+            }
+
+            // Check if phone already exists (if provided and different from current)
+            if (normalizedPhone != null && !normalizedPhone.isEmpty() && phoneChanged) {
+                User existingUserByPhone = userDAO.findByPhone(normalizedPhone);
+                if (existingUserByPhone != null && existingUserByPhone.getUserId() != teacher.getUserId()) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Số điện thoại đã được sử dụng bởi user khác: " + normalizedPhone);
+                }
+            }
 
             if (fullName != null)
                 teacher.setFullName(fullName);
             if (email != null)
                 teacher.setEmail(email);
-            if (phone != null)
-                teacher.setPhone(phone);
+            if (phone != null) {
+                // Use normalized phone (or keep current if not changed)
+                teacher.setPhone(phoneChanged ? normalizedPhone : currentPhone);
+            }
             if (address != null)
                 teacher.setAddress(address);
+            if (facultyCode != null) {
+                teacher.setFacultyCode(facultyCode.trim().isEmpty() ? null : facultyCode.trim());
+            }
 
             boolean success = userDAO.updateUser(teacher);
 
@@ -4316,10 +4647,11 @@ public class ClientHandler implements Runnable {
                     return Message.createErrorResponse(request.getAction(),
                             "Môn học tiên quyết không tồn tại: " + subject.getPrerequisiteSubjectCode());
                 }
-                // Check circular prerequisite
-                if (subject.getSubjectCode().equals(subject.getPrerequisiteSubjectCode())) {
-                    return Message.createErrorResponse(request.getAction(),
-                            "Môn học không thể là môn học tiên quyết của chính nó");
+                // Check circular prerequisite (direct and indirect)
+                String circularError = checkCircularPrerequisite(subject.getSubjectCode(),
+                        subject.getPrerequisiteSubjectCode(), subjectService);
+                if (circularError != null) {
+                    return Message.createErrorResponse(request.getAction(), circularError);
                 }
             }
 
@@ -4332,7 +4664,6 @@ public class ClientHandler implements Runnable {
 
             boolean success = subjectService.addSubject(subject);
             if (success) {
-                // Lưu data origin sau khi thêm thành công
                 if (subject.getSubjectId() > 0) {
                     saveDataOrigin("subject", subject.getSubjectId(), clientSource);
                 }
@@ -4389,16 +4720,11 @@ public class ClientHandler implements Runnable {
                     return Message.createErrorResponse(request.getAction(),
                             "Môn học tiên quyết không tồn tại: " + subject.getPrerequisiteSubjectCode());
                 }
-                // Check circular prerequisite
-                if (subject.getSubjectCode().equals(subject.getPrerequisiteSubjectCode())) {
-                    return Message.createErrorResponse(request.getAction(),
-                            "Môn học không thể là môn học tiên quyết của chính nó");
-                }
-                // Check indirect circular
-                if (prerequisite.getPrerequisiteSubjectCode() != null
-                        && prerequisite.getPrerequisiteSubjectCode().equals(subject.getSubjectCode())) {
-                    return Message.createErrorResponse(request.getAction(),
-                            "Phát hiện vòng lặp tiên quyết: Môn học này đang là tiên quyết của môn học tiên quyết");
+                // Check circular prerequisite (direct and indirect, including complex loops)
+                String circularError = checkCircularPrerequisite(subject.getSubjectCode(),
+                        subject.getPrerequisiteSubjectCode(), subjectService);
+                if (circularError != null) {
+                    return Message.createErrorResponse(request.getAction(), circularError);
                 }
             }
 
@@ -4425,6 +4751,64 @@ public class ClientHandler implements Runnable {
             LOGGER.log(Level.SEVERE, "Error updating subject", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
+    }
+
+    /**
+     * Kiểm tra vòng lặp tiên quyết (circular prerequisite)
+     * Phát hiện các vòng lặp như: A -> B -> C -> A hoặc A -> B -> A
+     * 
+     * @param subjectCode      Mã môn học hiện tại
+     * @param prerequisiteCode Mã môn học tiên quyết
+     * @param subjectService   Service để lấy thông tin môn học
+     * @return Thông báo lỗi nếu phát hiện vòng lặp, null nếu không có vòng lặp
+     */
+    private String checkCircularPrerequisite(String subjectCode, String prerequisiteCode,
+            com.university.sms.service.SubjectService subjectService) {
+        if (subjectCode == null || prerequisiteCode == null || subjectCode.equals(prerequisiteCode)) {
+            return "Môn học không thể là môn học tiên quyết của chính nó";
+        }
+
+        // Sử dụng Set để theo dõi các môn học đã thăm (tránh vòng lặp vô hạn)
+        java.util.Set<String> visited = new java.util.HashSet<>();
+        java.util.List<String> path = new java.util.ArrayList<>(); // Để hiển thị đường đi của vòng lặp
+
+        // Bắt đầu từ môn học tiên quyết
+        String currentCode = prerequisiteCode;
+        visited.add(subjectCode); // Thêm môn học hiện tại vào visited
+        path.add(subjectCode);
+
+        // Theo dõi chuỗi tiên quyết
+        while (currentCode != null && !currentCode.trim().isEmpty()) {
+            // Nếu gặp lại môn học ban đầu → phát hiện vòng lặp
+            if (currentCode.equals(subjectCode)) {
+                path.add(currentCode);
+                return "Phát hiện vòng lặp tiên quyết: " + String.join(" -> ", path);
+            }
+
+            // Nếu đã thăm môn học này trước đó → có vòng lặp
+            if (visited.contains(currentCode)) {
+                path.add(currentCode);
+                // Tìm vị trí bắt đầu vòng lặp
+                int loopStart = path.indexOf(currentCode);
+                java.util.List<String> loopPath = new java.util.ArrayList<>(path.subList(loopStart, path.size()));
+                loopPath.add(currentCode); // Thêm lại để đóng vòng lặp
+                return "Phát hiện vòng lặp tiên quyết: " + String.join(" -> ", loopPath);
+            }
+
+            visited.add(currentCode);
+            path.add(currentCode);
+
+            // Lấy môn học tiếp theo trong chuỗi tiên quyết
+            com.university.sms.model.Subject currentSubject = subjectService.getSubjectByCode(currentCode);
+            if (currentSubject == null) {
+                break; // Không tìm thấy môn học, dừng lại
+            }
+
+            currentCode = currentSubject.getPrerequisiteSubjectCode();
+        }
+
+        // Không phát hiện vòng lặp
+        return null;
     }
 
     private Message handleDeleteSubject(Message request) {
@@ -4504,6 +4888,23 @@ public class ClientHandler implements Runnable {
             return response;
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error getting faculties", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== Class Handlers ====================
+
+    private Message handleGetAllClasses(Message request) {
+        try {
+            com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
+            List<com.university.sms.model.Class> classes = classDAO.findAll();
+
+            Message response = Message.createSuccessResponse(request.getAction(), "Lấy danh sách lớp thành công");
+            response.addData(Constants.KEY_CLASSES, classes);
+
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting classes", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
@@ -5035,6 +5436,81 @@ public class ClientHandler implements Runnable {
             LOGGER.log(Level.SEVERE, "Error getting server statistics", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
+    }
+
+    /**
+     * Validate email format
+     * 
+     * @param email Email to validate
+     * @return true if email format is valid, false otherwise
+     */
+    private boolean isValidEmailFormat(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+        // RFC 5322 compliant email regex (simplified but robust)
+        String emailRegex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
+        return email.trim().matches(emailRegex);
+    }
+
+    /**
+     * Validate phone number format (Vietnam phone numbers)
+     * Supports:
+     * - 10 digits starting with 0: 0123456789, 0912345678
+     * - 11 digits starting with +84: +84123456789, +84912345678
+     * - 10 digits without leading 0: 1234567890 (less common)
+     * 
+     * @param phone Phone number to validate
+     * @return true if phone format is valid, false otherwise
+     */
+    private boolean isValidPhoneFormat(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return false;
+        }
+        String phoneStr = phone.trim();
+
+        // Remove all non-digit characters except + for validation
+        // This handles spaces, dashes, dots, parentheses, etc.
+        String normalized = phoneStr.replaceAll("[^0-9+]", "");
+
+        // If normalized is empty after removing non-digits, it's invalid
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        // Pattern 1: 10 digits starting with 0 (e.g., 0123456789, 0912345678)
+        if (normalized.matches("^0[0-9]{9}$")) {
+            return true;
+        }
+
+        // Pattern 2: 11 digits starting with +84 (e.g., +84123456789, +84912345678)
+        if (normalized.matches("^\\+84[0-9]{9}$")) {
+            return true;
+        }
+
+        // Pattern 3: 10 digits without leading 0 (less common, but acceptable)
+        // Only accept if it doesn't start with 0 (to avoid conflict with Pattern 1)
+        if (normalized.matches("^[1-9][0-9]{9}$")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize phone number by removing spaces, dashes, dots, etc.
+     * Keeps the + sign if present for international format.
+     * 
+     * @param phone Phone number to normalize
+     * @return Normalized phone number
+     */
+    private String normalizePhoneNumber(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return phone;
+        }
+        // Remove all non-digit characters except +
+        String normalized = phone.trim().replaceAll("[^0-9+]", "");
+        return normalized;
     }
 
     // Getters

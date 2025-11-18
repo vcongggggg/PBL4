@@ -72,7 +72,7 @@ public class CSVDataService {
   private void createSampleDataIfNotExists() {
     try {
       createEmptyFileIfNotExists(USERS_FILE,
-          "userId,username,password,fullName,email,phone,address,role,isActive,createdAt");
+          "userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode");
       createEmptyFileIfNotExists(FACULTIES_FILE,
           "facultyId,facultyCode,facultyName,description,headTeacherUsername,createdAt");
       createEmptyFileIfNotExists(CLASSES_FILE,
@@ -345,7 +345,23 @@ public class CSVDataService {
       user.setAddress(fields[6].trim());
       user.setRole(User.UserRole.valueOf(fields[7].trim().toUpperCase()));
       user.setActive(Boolean.parseBoolean(fields[8].trim()));
-      user.setCreatedAt(java.sql.Timestamp.valueOf(fields[9].trim()));
+      // Handle createdAt - có thể là null hoặc timestamp
+      if (fields.length > 9 && fields[9].trim() != null && !fields[9].trim().isEmpty()
+          && !fields[9].trim().equals("null")) {
+        try {
+          user.setCreatedAt(java.sql.Timestamp.valueOf(fields[9].trim()));
+        } catch (Exception e) {
+          user.setCreatedAt(null);
+        }
+      } else {
+        user.setCreatedAt(null);
+      }
+      // Handle facultyCode (field 10, optional)
+      if (fields.length > 10 && fields[10].trim() != null && !fields[10].trim().isEmpty()) {
+        user.setFacultyCode(fields[10].trim());
+      } else {
+        user.setFacultyCode(null);
+      }
       return user;
     } catch (Exception e) {
       return null;
@@ -355,19 +371,20 @@ public class CSVDataService {
   private boolean writeUsersToCSV(List<User> users) {
     Path file = dataDir.resolve(USERS_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
-      writer.println("userId,username,password,fullName,email,phone,address,role,isActive,createdAt");
+      writer.println("userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode");
       for (User user : users) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
             user.getUserId(),
             user.getUsername(),
             user.getPassword(),
             user.getFullName(),
             user.getEmail(),
-            user.getPhone(),
-            user.getAddress(),
+            user.getPhone() != null ? user.getPhone() : "",
+            user.getAddress() != null ? user.getAddress() : "",
             user.getRole(),
             user.isActive(),
-            user.getCreatedAt()));
+            user.getCreatedAt() != null ? user.getCreatedAt() : "null",
+            user.getFacultyCode() != null ? user.getFacultyCode() : ""));
       }
       return true;
     } catch (IOException e) {
