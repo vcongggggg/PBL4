@@ -4,7 +4,6 @@ import java.sql.Timestamp;
 
 /**
  * Model class cho bảng faculties
- * ✅ REFACTORED: Dùng head_teacher_username làm FK (client-safe)
  */
 public class Faculty implements java.io.Serializable {
     private static final long serialVersionUID = 1L;
@@ -12,17 +11,13 @@ public class Faculty implements java.io.Serializable {
     // Primary key
     private int facultyId;
 
-    // ✅ NEW: Foreign key dùng code (KHÔNG bị conflict giữa clients)
+    // Foreign key dùng code (KHÔNG bị conflict giữa clients)
     private String facultyCode; // UNIQUE identifier for faculty
     private String facultyName;
     private String description;
-    private String headTeacherUsername; // FK to users.username (teacher)
 
     private Timestamp createdAt;
     private Timestamp updatedAt;
-
-    // Teacher information (from join)
-    private String headTeacherName;
 
     // Constructors
     public Faculty() {
@@ -67,14 +62,6 @@ public class Faculty implements java.io.Serializable {
         this.description = description;
     }
 
-    public String getHeadTeacherUsername() {
-        return headTeacherUsername;
-    }
-
-    public void setHeadTeacherUsername(String headTeacherUsername) {
-        this.headTeacherUsername = headTeacherUsername;
-    }
-
     public Timestamp getCreatedAt() {
         return createdAt;
     }
@@ -91,21 +78,12 @@ public class Faculty implements java.io.Serializable {
         this.updatedAt = updatedAt;
     }
 
-    public String getHeadTeacherName() {
-        return headTeacherName;
-    }
-
-    public void setHeadTeacherName(String headTeacherName) {
-        this.headTeacherName = headTeacherName;
-    }
-
     @Override
     public String toString() {
         return "Faculty{" +
                 "facultyId=" + facultyId +
                 ", facultyCode='" + facultyCode + '\'' +
                 ", facultyName='" + facultyName + '\'' +
-                ", headTeacherName='" + headTeacherName + '\'' +
                 '}';
     }
 }

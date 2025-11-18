@@ -260,36 +260,40 @@ public class StudentDetailDialog extends JDialog {
             return;
         }
 
-        // Update student object with form data
-        student.setFullName(fullNameField.getText().trim());
-        student.setEmail(emailField.getText().trim());
-        student.setPhone(phoneField.getText().trim());
-        student.setCitizenId(citizenIdField.getText().trim());
-        student.setEmergencyContact(emergencyContactField.getText().trim());
-        student.setEmergencyPhone(emergencyPhoneField.getText().trim());
+        // Tạo snapshot để tránh làm bẩn dữ liệu gốc khi lưu thất bại
+        Student updatedStudent = createStudentSnapshot();
+
+        updatedStudent.setFullName(fullNameField.getText().trim());
+        updatedStudent.setEmail(emailField.getText().trim());
+        updatedStudent.setPhone(phoneField.getText().trim());
+        updatedStudent.setCitizenId(citizenIdField.getText().trim());
+        updatedStudent.setEmergencyContact(emergencyContactField.getText().trim());
+        updatedStudent.setEmergencyPhone(emergencyPhoneField.getText().trim());
 
         String statusStr = (String) statusComboBox.getSelectedItem();
         if (statusStr != null) {
-            student.setStudentStatus(Student.StudentStatus.valueOf(statusStr));
+            updatedStudent.setStudentStatus(Student.StudentStatus.valueOf(statusStr));
         }
 
         String genderStr = (String) genderComboBox.getSelectedItem();
         if (genderStr != null) {
-            student.setGender(Student.Gender.valueOf(genderStr));
+            updatedStudent.setGender(Student.Gender.valueOf(genderStr));
         }
 
         try {
-            student.setAdmissionYear(Integer.parseInt(admissionYearField.getText().trim()));
+            updatedStudent.setAdmissionYear(Integer.parseInt(admissionYearField.getText().trim()));
         } catch (NumberFormatException ex) {
-            // Keep old value
+            // Giữ giá trị cũ trong snapshot
         }
 
         // Send update to server
         saveButton.setEnabled(false);
+        final Student studentForUpdate = updatedStudent;
+
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
-                return serverConnection.updateStudent(student);
+                return serverConnection.updateStudent(studentForUpdate);
             }
 
             @Override
@@ -298,6 +302,7 @@ public class StudentDetailDialog extends JDialog {
                 try {
                     Message response = get();
                     if (response.isSuccess()) {
+                        applyUpdatedStudentData(studentForUpdate);
                         dataChanged = true;
                         JOptionPane.showMessageDialog(StudentDetailDialog.this,
                                 "Cập nhật thông tin sinh viên thành công!",
@@ -335,5 +340,45 @@ public class StudentDetailDialog extends JDialog {
 
     public boolean isDataChanged() {
         return dataChanged;
+    }
+
+    private Student createStudentSnapshot() {
+        Student snapshot = new Student();
+        snapshot.setStudentId(student.getStudentId());
+        snapshot.setStudentCode(student.getStudentCode());
+        snapshot.setUsername(student.getUsername());
+        snapshot.setClassCode(student.getClassCode());
+        snapshot.setFacultyCode(student.getFacultyCode());
+        snapshot.setAdmissionYear(student.getAdmissionYear());
+        snapshot.setStudentStatus(student.getStudentStatus());
+        snapshot.setGpa(student.getGpa());
+        snapshot.setTotalCredits(student.getTotalCredits());
+        snapshot.setBirthDate(student.getBirthDate());
+        snapshot.setGender(student.getGender());
+        snapshot.setCitizenId(student.getCitizenId());
+        snapshot.setEmergencyContact(student.getEmergencyContact());
+        snapshot.setEmergencyPhone(student.getEmergencyPhone());
+        snapshot.setFullName(student.getFullName());
+        snapshot.setEmail(student.getEmail());
+        snapshot.setPhone(student.getPhone());
+        snapshot.setAddress(student.getAddress());
+        snapshot.setFacultyName(student.getFacultyName());
+        snapshot.setClassName(student.getClassName());
+        snapshot.setActive(student.isActive());
+        snapshot.setCreatedAt(student.getCreatedAt());
+        snapshot.setUpdatedAt(student.getUpdatedAt());
+        return snapshot;
+    }
+
+    private void applyUpdatedStudentData(Student updatedStudent) {
+        student.setFullName(updatedStudent.getFullName());
+        student.setEmail(updatedStudent.getEmail());
+        student.setPhone(updatedStudent.getPhone());
+        student.setCitizenId(updatedStudent.getCitizenId());
+        student.setEmergencyContact(updatedStudent.getEmergencyContact());
+        student.setEmergencyPhone(updatedStudent.getEmergencyPhone());
+        student.setAdmissionYear(updatedStudent.getAdmissionYear());
+        student.setStudentStatus(updatedStudent.getStudentStatus());
+        student.setGender(updatedStudent.getGender());
     }
 }

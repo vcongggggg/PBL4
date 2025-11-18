@@ -74,7 +74,7 @@ public class CSVDataService {
       createEmptyFileIfNotExists(USERS_FILE,
           "userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode");
       createEmptyFileIfNotExists(FACULTIES_FILE,
-          "facultyId,facultyCode,facultyName,description,headTeacherUsername,createdAt");
+          "facultyId,facultyCode,facultyName,description,createdAt");
       createEmptyFileIfNotExists(CLASSES_FILE,
           "classId,classCode,className,facultyCode,teacherUsername,academicYear,semester,maxStudents,createdAt");
       createEmptyFileIfNotExists(STUDENTS_FILE,
@@ -82,7 +82,7 @@ public class CSVDataService {
       createEmptyFileIfNotExists(SUBJECTS_FILE,
           "subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt");
       createEmptyFileIfNotExists(COURSES_FILE,
-          "courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,courseStatus,startDate,endDate,createdAt");
+          "courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,registrationStatus,courseStatus,startDate,endDate,createdAt");
       createEmptyFileIfNotExists(ENROLLMENTS_FILE,
           "enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints");
       createEmptyFileIfNotExists(GRADES_FILE,
@@ -425,7 +425,7 @@ public class CSVDataService {
   private Course parseCourseFromCSV(String line) {
     try {
       String[] fields = line.split(",");
-      if (fields.length < 16)
+      if (fields.length < 17)
         return null;
       Course course = new Course();
       course.setCourseId(Integer.parseInt(fields[0].trim()));
@@ -440,10 +440,32 @@ public class CSVDataService {
       course.setRoom(fields[9].trim().isEmpty() ? null : fields[9].trim());
       course.setMaxStudents(Integer.parseInt(fields[10].trim()));
       course.setCurrentStudents(Integer.parseInt(fields[11].trim()));
-      course.setCourseStatus(Course.CourseStatus.valueOf(fields[12].trim().toUpperCase()));
-      course.setStartDate(fields[13].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[13].trim()));
-      course.setEndDate(fields[14].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[14].trim()));
-      course.setCreatedAt(java.sql.Timestamp.valueOf(fields[15].trim()));
+
+      String registrationStatusStr = fields[12].trim();
+      if (!registrationStatusStr.isEmpty()) {
+        try {
+          course.setRegistrationStatus(Course.RegistrationStatus.valueOf(registrationStatusStr.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+          course.setRegistrationStatus(Course.RegistrationStatus.LOCKED);
+        }
+      } else {
+        course.setRegistrationStatus(Course.RegistrationStatus.LOCKED);
+      }
+
+      String courseStatusStr = fields[13].trim();
+      if (!courseStatusStr.isEmpty()) {
+        try {
+          course.setCourseStatus(Course.CourseStatus.valueOf(courseStatusStr.toUpperCase()));
+        } catch (IllegalArgumentException e) {
+          course.setCourseStatus(Course.CourseStatus.PLANNING);
+        }
+      } else {
+        course.setCourseStatus(Course.CourseStatus.PLANNING);
+      }
+
+      course.setStartDate(fields[14].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[14].trim()));
+      course.setEndDate(fields[15].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[15].trim()));
+      course.setCreatedAt(java.sql.Timestamp.valueOf(fields[16].trim()));
       return course;
     } catch (Exception e) {
       return null;
@@ -454,9 +476,9 @@ public class CSVDataService {
     Path file = dataDir.resolve(COURSES_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
       writer.println(
-          "courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,courseStatus,startDate,endDate,createdAt");
+          "courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,registrationStatus,courseStatus,startDate,endDate,createdAt");
       for (Course course : courses) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%d,%s,%s,%s,%d,%d,%s,%s,%s,%s",
+        writer.println(String.format("%d,%s,%s,%s,%s,%s,%d,%s,%s,%s,%d,%d,%s,%s,%s,%s,%s",
             course.getCourseId(),
             course.getCourseCode(),
             course.getSubjectCode(),
@@ -469,7 +491,8 @@ public class CSVDataService {
             course.getRoom() != null ? course.getRoom() : "",
             course.getMaxStudents(),
             course.getCurrentStudents(),
-            course.getCourseStatus(),
+            course.getRegistrationStatus() != null ? course.getRegistrationStatus() : Course.RegistrationStatus.LOCKED,
+            course.getCourseStatus() != null ? course.getCourseStatus() : Course.CourseStatus.PLANNING,
             course.getStartDate() != null ? course.getStartDate() : "",
             course.getEndDate() != null ? course.getEndDate() : "",
             course.getCreatedAt()));
@@ -645,15 +668,14 @@ public class CSVDataService {
   private Faculty parseFacultyFromCSV(String line) {
     try {
       String[] fields = line.split(",");
-      if (fields.length < 6)
+      if (fields.length < 5)
         return null;
       Faculty faculty = new Faculty();
       faculty.setFacultyId(Integer.parseInt(fields[0].trim()));
       faculty.setFacultyCode(fields[1].trim());
       faculty.setFacultyName(fields[2].trim());
       faculty.setDescription(fields[3].trim().isEmpty() ? null : fields[3].trim());
-      faculty.setHeadTeacherUsername(fields[4].trim().isEmpty() ? null : fields[4].trim());
-      faculty.setCreatedAt(java.sql.Timestamp.valueOf(fields[5].trim()));
+      faculty.setCreatedAt(java.sql.Timestamp.valueOf(fields[4].trim()));
       return faculty;
     } catch (Exception e) {
       return null;
@@ -663,14 +685,13 @@ public class CSVDataService {
   private boolean writeFacultiesToCSV(List<Faculty> faculties) {
     Path file = dataDir.resolve(FACULTIES_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
-      writer.println("facultyId,facultyCode,facultyName,description,headTeacherUsername,createdAt");
+      writer.println("facultyId,facultyCode,facultyName,description,createdAt");
       for (Faculty f : faculties) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s",
+        writer.println(String.format("%d,%s,%s,%s,%s",
             f.getFacultyId(),
             f.getFacultyCode(),
             f.getFacultyName(),
             f.getDescription() != null ? f.getDescription() : "",
-            f.getHeadTeacherUsername() != null ? f.getHeadTeacherUsername() : "",
             f.getCreatedAt()));
       }
       return true;

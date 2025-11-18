@@ -330,6 +330,32 @@ public class CourseDAO {
             }
 
         } catch (SQLException e) {
+            // Check if error is due to missing registration_status column
+            if (e.getMessage() != null && e.getMessage().contains("registration_status")) {
+                LOGGER.warning("registration_status column not found, attempting to add it...");
+                try {
+                    // Try to add the column
+                    String alterSql = "ALTER TABLE courses ADD COLUMN registration_status ENUM('locked', 'open', 'closed') DEFAULT 'locked' AFTER current_students";
+                    try (Connection conn = DatabaseConnection.getConnection();
+                            Statement alterStmt = conn.createStatement()) {
+                        alterStmt.executeUpdate(alterSql);
+                        LOGGER.info("Successfully added registration_status column to courses table");
+                        // Retry the insert
+                        return addCourse(course);
+                    }
+                } catch (SQLException alterEx) {
+                    // If column already exists, that's OK - just retry the insert
+                    if (alterEx.getMessage() != null &&
+                            (alterEx.getMessage().contains("Duplicate column name") ||
+                                    alterEx.getMessage().contains("already exists"))) {
+                        LOGGER.info("registration_status column already exists, retrying insert...");
+                        // Retry the insert
+                        return addCourse(course);
+                    }
+                    LOGGER.log(Level.SEVERE, "Failed to add registration_status column: " + alterEx.getMessage(),
+                            alterEx);
+                }
+            }
             LOGGER.log(Level.SEVERE, "Error adding course: " + course.getCourseCode(), e);
         }
 

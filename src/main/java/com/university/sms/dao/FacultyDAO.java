@@ -19,10 +19,7 @@ public class FacultyDAO {
      * Lấy tất cả khoa
      */
     public List<Faculty> findAll() {
-        String sql = "SELECT f.*, u.full_name AS head_teacher_name " +
-                "FROM faculties f " +
-                "LEFT JOIN users u ON f.head_teacher_username = u.username " +
-                "ORDER BY f.faculty_name";
+        String sql = "SELECT f.* FROM faculties f ORDER BY f.faculty_name";
 
         List<Faculty> faculties = new ArrayList<>();
 
@@ -45,10 +42,7 @@ public class FacultyDAO {
      * Tìm khoa theo ID
      */
     public Faculty findById(int facultyId) {
-        String sql = "SELECT f.*, u.full_name AS head_teacher_name " +
-                "FROM faculties f " +
-                "LEFT JOIN users u ON f.head_teacher_username = u.username " +
-                "WHERE f.faculty_id = ?";
+        String sql = "SELECT f.* FROM faculties f WHERE f.faculty_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -72,10 +66,7 @@ public class FacultyDAO {
      * Tìm khoa theo mã khoa
      */
     public Faculty findByCode(String facultyCode) {
-        String sql = "SELECT f.*, u.full_name AS head_teacher_name " +
-                "FROM faculties f " +
-                "LEFT JOIN users u ON f.head_teacher_username = u.username " +
-                "WHERE f.faculty_code = ?";
+        String sql = "SELECT f.* FROM faculties f WHERE f.faculty_code = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -116,8 +107,8 @@ public class FacultyDAO {
      */
     private boolean addFacultyWithId(Faculty faculty) {
         String sql = faculty.getFacultyId() > 0
-                ? "INSERT INTO faculties (faculty_id, faculty_code, faculty_name, description, head_teacher_username) VALUES (?, ?, ?, ?, ?)"
-                : "INSERT INTO faculties (faculty_code, faculty_name, description, head_teacher_username) VALUES (?, ?, ?, ?)";
+                ? "INSERT INTO faculties (faculty_id, faculty_code, faculty_name, description) VALUES (?, ?, ?, ?)"
+                : "INSERT INTO faculties (faculty_code, faculty_name, description) VALUES (?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -130,12 +121,6 @@ public class FacultyDAO {
             stmt.setString(paramIndex++, faculty.getFacultyCode());
             stmt.setString(paramIndex++, faculty.getFacultyName());
             stmt.setString(paramIndex++, faculty.getDescription());
-
-            if (faculty.getHeadTeacherUsername() != null && !faculty.getHeadTeacherUsername().isEmpty()) {
-                stmt.setString(paramIndex++, faculty.getHeadTeacherUsername());
-            } else {
-                stmt.setNull(paramIndex++, Types.VARCHAR);
-            }
 
             int result = stmt.executeUpdate();
 
@@ -162,7 +147,7 @@ public class FacultyDAO {
      * Thêm khoa mới
      */
     public boolean addFaculty(Faculty faculty) {
-        String sql = "INSERT INTO faculties (faculty_code, faculty_name, description, head_teacher_username) VALUES (?, ?, ?, ?)";
+        String sql = "INSERT INTO faculties (faculty_code, faculty_name, description) VALUES (?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -170,12 +155,6 @@ public class FacultyDAO {
             stmt.setString(1, faculty.getFacultyCode());
             stmt.setString(2, faculty.getFacultyName());
             stmt.setString(3, faculty.getDescription());
-
-            if (faculty.getHeadTeacherUsername() != null && !faculty.getHeadTeacherUsername().isEmpty()) {
-                stmt.setString(4, faculty.getHeadTeacherUsername());
-            } else {
-                stmt.setNull(4, Types.VARCHAR);
-            }
 
             int result = stmt.executeUpdate();
 
@@ -200,21 +179,14 @@ public class FacultyDAO {
      * Cập nhật khoa
      */
     public boolean updateFaculty(Faculty faculty) {
-        String sql = "UPDATE faculties SET faculty_name = ?, description = ?, head_teacher_username = ? WHERE faculty_id = ?";
+        String sql = "UPDATE faculties SET faculty_name = ?, description = ? WHERE faculty_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
             stmt.setString(1, faculty.getFacultyName());
             stmt.setString(2, faculty.getDescription());
-
-            if (faculty.getHeadTeacherUsername() != null && !faculty.getHeadTeacherUsername().isEmpty()) {
-                stmt.setString(3, faculty.getHeadTeacherUsername());
-            } else {
-                stmt.setNull(3, Types.VARCHAR);
-            }
-
-            stmt.setInt(4, faculty.getFacultyId());
+            stmt.setInt(3, faculty.getFacultyId());
 
             int result = stmt.executeUpdate();
 
@@ -264,14 +236,7 @@ public class FacultyDAO {
         faculty.setFacultyCode(rs.getString("faculty_code"));
         faculty.setFacultyName(rs.getString("faculty_name"));
         faculty.setDescription(rs.getString("description"));
-
-        String headTeacherUsername = rs.getString("head_teacher_username");
-        if (headTeacherUsername != null) {
-            faculty.setHeadTeacherUsername(headTeacherUsername);
-        }
-
         faculty.setCreatedAt(rs.getTimestamp("created_at"));
-        faculty.setHeadTeacherName(rs.getString("head_teacher_name"));
 
         return faculty;
     }

@@ -412,13 +412,19 @@ public class StudentDAO {
             conn = DatabaseConnection.getConnection();
             conn.setAutoCommit(false); // Start transaction
 
-            // Update user information first (full_name, email, phone)
-            String userSql = "UPDATE users SET full_name = ?, email = ?, phone = ? WHERE username = ?";
+            // Determine active status based on student status (only ACTIVE students keep
+            // account active)
+            boolean shouldBeActive = student.getStudentStatus() == null
+                    || student.getStudentStatus() == Student.StudentStatus.ACTIVE;
+
+            // Update user information first (full_name, email, phone, is_active)
+            String userSql = "UPDATE users SET full_name = ?, email = ?, phone = ?, is_active = ? WHERE username = ?";
             try (PreparedStatement userStmt = conn.prepareStatement(userSql)) {
                 userStmt.setString(1, student.getFullName());
                 userStmt.setString(2, student.getEmail());
                 userStmt.setString(3, student.getPhone());
-                userStmt.setString(4, student.getUsername());
+                userStmt.setBoolean(4, shouldBeActive);
+                userStmt.setString(5, student.getUsername());
                 userStmt.executeUpdate();
             }
 
@@ -506,23 +512,66 @@ public class StudentDAO {
      * Cập nhật trạng thái sinh viên
      */
     public boolean updateStudentStatus(int studentId, Student.StudentStatus status) {
-        String sql = "UPDATE students SET student_status = ? WHERE student_id = ?";
+        String studentSql = "UPDATE students SET student_status = ? WHERE student_id = ?";
+        String selectUsernameSql = "SELECT username FROM students WHERE student_id = ?";
+        String userSql = "UPDATE users SET is_active = ? WHERE username = ?";
 
-        try (Connection conn = DatabaseConnection.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+        Connection conn = null;
+        try {
+            conn = DatabaseConnection.getConnection();
+            conn.setAutoCommit(false);
 
-            stmt.setString(1, status.name().toLowerCase());
-            stmt.setInt(2, studentId);
-
-            int result = stmt.executeUpdate();
-
-            if (result > 0) {
-                LOGGER.info("Student status updated successfully: " + studentId);
-                return true;
+            try (PreparedStatement stmt = conn.prepareStatement(studentSql)) {
+                stmt.setString(1, status.name().toLowerCase());
+                stmt.setInt(2, studentId);
+                int result = stmt.executeUpdate();
+                if (result == 0) {
+                    conn.rollback();
+                    return false;
+                }
             }
+
+            String username = null;
+            try (PreparedStatement selectStmt = conn.prepareStatement(selectUsernameSql)) {
+                selectStmt.setInt(1, studentId);
+                try (ResultSet rs = selectStmt.executeQuery()) {
+                    if (rs.next()) {
+                        username = rs.getString("username");
+                    }
+                }
+            }
+
+            if (username != null && !username.isEmpty()) {
+                boolean shouldBeActive = status == Student.StudentStatus.ACTIVE;
+                try (PreparedStatement userStmt = conn.prepareStatement(userSql)) {
+                    userStmt.setBoolean(1, shouldBeActive);
+                    userStmt.setString(2, username);
+                    userStmt.executeUpdate();
+                }
+            }
+
+            conn.commit();
+            LOGGER.info("Student status updated successfully: " + studentId + " -> " + status);
+            return true;
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating student status: " + studentId, e);
+            if (conn != null) {
+                try {
+                    conn.rollback();
+                } catch (SQLException ex) {
+                    LOGGER.log(Level.SEVERE, "Error rolling back transaction", ex);
+                }
+            }
+        } finally {
+            if (conn != null) {
+                try {
+                    conn.setAutoCommit(true);
+                    conn.close();
+                } catch (SQLException e) {
+                    LOGGER.log(Level.SEVERE, "Error closing connection", e);
+                }
+            }
         }
 
         return false;

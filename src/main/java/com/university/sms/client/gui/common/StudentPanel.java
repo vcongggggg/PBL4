@@ -264,11 +264,11 @@ public class StudentPanel extends JPanel {
                 currentStudents != null && selectedRow < currentStudents.size()) {
 
             Student selectedStudent = currentStudents.get(selectedRow);
-            // Check if student's user is active
-            boolean isActive = selectedStudent.isActive(); // Assuming Student has isActive() method from User
+            boolean isAccountActive = selectedStudent.isActive();
+            boolean isStatusActive = selectedStudent.getStudentStatus() == Student.StudentStatus.ACTIVE;
 
-            deleteButton.setEnabled(isActive); // Chỉ cho xóa (vô hiệu hóa) nếu đang active
-            activateButton.setEnabled(!isActive); // Chỉ cho kích hoạt lại nếu đang inactive
+            deleteButton.setEnabled(isAccountActive && isStatusActive);
+            activateButton.setEnabled(!isAccountActive);
         } else {
             deleteButton.setEnabled(false);
             activateButton.setEnabled(false);
@@ -281,6 +281,7 @@ public class StudentPanel extends JPanel {
         logArea.setCaretPosition(logArea.getDocument().getLength());
     }
 
+    @SuppressWarnings("unused")
     private void loadInitialData() {
         // Don't load data here - it will be called by setServerConnection()
         // This prevents double loading
@@ -416,7 +417,12 @@ public class StudentPanel extends JPanel {
         currentStudents = students;
         tableModel.setRowCount(0);
 
+        boolean includeInactive = showInactiveCheckbox.isSelected();
+
         for (Student student : students) {
+            if (!includeInactive && student.getStudentStatus() != Student.StudentStatus.ACTIVE) {
+                continue;
+            }
             Object[] rowData = {
                     student.getStudentCode(),
                     student.getFullName(),
@@ -430,7 +436,8 @@ public class StudentPanel extends JPanel {
             };
             tableModel.addRow(rowData);
         }
-        addLog("Đã tải " + students.size() + " sinh viên");
+        addLog("Đã tải " + tableModel.getRowCount() + " sinh viên"
+                + (includeInactive ? " (bao gồm trạng thái không hoạt động)" : ""));
     }
 
     private void showAddStudentDialog() {
