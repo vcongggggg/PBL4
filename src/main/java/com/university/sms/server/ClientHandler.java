@@ -5342,10 +5342,7 @@ public class ClientHandler implements Runnable {
         try {
             String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
 
-            if (facultyCode == null) {
-                return Message.createErrorResponse(request.getAction(), "Faculty ID is required");
-            }
-
+            // Allow null facultyCode to get honor students from all faculties
             List<?> honorStudents = transcriptService.getHonorStudents(facultyCode);
 
             Message response = Message.createSuccessResponse(request.getAction(),
