@@ -60,7 +60,7 @@ public class LoginFrame extends JFrame {
     private boolean isConnectedToServer = false;
     private boolean isPasswordVisible = false;
 
-    // Dark theme colors
+    // // Dark theme colors
     private static final Color BG_DARK = new Color(66, 71, 85);
     private static final Color CARD_BG = new Color(82, 88, 102);
     private static final Color INPUT_BG = new Color(95, 102, 117);
