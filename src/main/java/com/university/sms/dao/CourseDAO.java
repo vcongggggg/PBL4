@@ -285,8 +285,8 @@ public class CourseDAO {
      */
     public boolean addCourse(Course course) {
         String sql = "INSERT INTO courses (course_code, subject_code, teacher_username, class_code, " +
-                "academic_year, semester, schedule_day, schedule_time, room, max_students, " +
-                "start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                "academic_year, semester, schedule_day, schedule_time, room, max_students, current_students, " +
+                "registration_status, course_status, start_date, end_date) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -307,8 +307,15 @@ public class CourseDAO {
             stmt.setString(8, course.getScheduleTime());
             stmt.setString(9, course.getRoom());
             stmt.setInt(10, course.getMaxStudents());
-            stmt.setDate(11, course.getStartDate());
-            stmt.setDate(12, course.getEndDate());
+            stmt.setInt(11, course.getCurrentStudents());
+            stmt.setString(12, course.getRegistrationStatus() != null
+                    ? course.getRegistrationStatus().name().toLowerCase()
+                    : Course.RegistrationStatus.LOCKED.name().toLowerCase());
+            stmt.setString(13, course.getCourseStatus() != null
+                    ? course.getCourseStatus().name().toLowerCase()
+                    : Course.CourseStatus.PLANNING.name().toLowerCase());
+            stmt.setDate(14, course.getStartDate());
+            stmt.setDate(15, course.getEndDate());
 
             int result = stmt.executeUpdate();
 
@@ -353,10 +360,10 @@ public class CourseDAO {
         String sql = course.getCourseId() > 0
                 ? "INSERT INTO courses (course_id, course_code, subject_code, teacher_username, class_code, " +
                         "academic_year, semester, schedule_day, schedule_time, room, max_students, " +
-                        "start_date, end_date, course_status, current_students) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
+                        "start_date, end_date, course_status, registration_status, current_students) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
                 : "INSERT INTO courses (course_code, subject_code, teacher_username, class_code, " +
                         "academic_year, semester, schedule_day, schedule_time, room, max_students, " +
-                        "start_date, end_date, course_status, current_students) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
+                        "start_date, end_date, course_status, registration_status, current_students) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -385,7 +392,11 @@ public class CourseDAO {
             stmt.setDate(paramIndex++, course.getStartDate());
             stmt.setDate(paramIndex++, course.getEndDate());
             stmt.setString(paramIndex++,
-                    course.getCourseStatus() != null ? course.getCourseStatus().name().toLowerCase() : "ongoing");
+                    course.getCourseStatus() != null ? course.getCourseStatus().name().toLowerCase()
+                            : Course.CourseStatus.PLANNING.name().toLowerCase());
+            stmt.setString(paramIndex++,
+                    course.getRegistrationStatus() != null ? course.getRegistrationStatus().name().toLowerCase()
+                            : Course.RegistrationStatus.LOCKED.name().toLowerCase());
             stmt.setInt(paramIndex++, course.getCurrentStudents());
 
             int result = stmt.executeUpdate();
@@ -481,6 +492,29 @@ public class CourseDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error updating course status: " + courseId, e);
+        }
+
+        return false;
+    }
+
+    public boolean updateRegistrationStatus(int courseId, Course.RegistrationStatus status) {
+        String sql = "UPDATE courses SET registration_status = ? WHERE course_id = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, status.name().toLowerCase());
+            stmt.setInt(2, courseId);
+
+            int result = stmt.executeUpdate();
+
+            if (result > 0) {
+                LOGGER.info("Course registration status updated successfully: " + courseId);
+                return true;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error updating course registration status: " + courseId, e);
         }
 
         return false;
@@ -599,6 +633,10 @@ public class CourseDAO {
         String status = rs.getString("course_status");
         if (status != null) {
             course.setCourseStatus(Course.CourseStatus.valueOf(status.toUpperCase()));
+        }
+        String registrationStatus = rs.getString("registration_status");
+        if (registrationStatus != null) {
+            course.setRegistrationStatus(Course.RegistrationStatus.valueOf(registrationStatus.toUpperCase()));
         }
 
         course.setStartDate(rs.getDate("start_date"));

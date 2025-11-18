@@ -232,7 +232,7 @@ public class SubjectEditDialog extends JDialog {
       protected void done() {
         try {
           List<Subject> subjects = get();
-          if (subjects != null) {
+          if (subjects != null && !subjects.isEmpty()) {
             for (Subject subj : subjects) {
               // Don't include current subject if editing
               if (subject == null
@@ -241,16 +241,29 @@ public class SubjectEditDialog extends JDialog {
                     new SubjectItem(subj.getSubjectCode(), subj.getSubjectCode() + " - " + subj.getSubjectName()));
               }
             }
-            // Set selection if editing
-            if (subject != null && subject.getPrerequisiteSubjectCode() != null) {
-              for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
-                SubjectItem item = prerequisiteCombo.getItemAt(i);
-                if (item.code != null && item.code.equals(subject.getPrerequisiteSubjectCode())) {
-                  prerequisiteCombo.setSelectedIndex(i);
-                  break;
-                }
+          }
+
+          // Set selection if editing (after loading all subjects)
+          if (subject != null && subject.getPrerequisiteSubjectCode() != null) {
+            boolean found = false;
+            for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
+              SubjectItem item = prerequisiteCombo.getItemAt(i);
+              if (item.code != null && item.code.equals(subject.getPrerequisiteSubjectCode())) {
+                prerequisiteCombo.setSelectedIndex(i);
+                found = true;
+                break;
               }
             }
+            // If prerequisite subject not found in list (might have been deleted),
+            // add it to the combo for display purposes
+            if (!found) {
+              prerequisiteCombo.addItem(new SubjectItem(subject.getPrerequisiteSubjectCode(),
+                  subject.getPrerequisiteSubjectCode() + " - (Đã bị xóa hoặc không tồn tại)"));
+              prerequisiteCombo.setSelectedIndex(prerequisiteCombo.getItemCount() - 1);
+            }
+          } else if (subject == null) {
+            // When adding new subject, default to "-- Không có --"
+            prerequisiteCombo.setSelectedIndex(0);
           }
         } catch (Exception e) {
           JOptionPane.showMessageDialog(SubjectEditDialog.this,

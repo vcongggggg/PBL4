@@ -9,7 +9,20 @@ CREATE DATABASE IF NOT EXISTS student_management_system;
 USE student_management_system;
 
 -- ===============================================
--- 1. BẢNG NGƯỜI DÙNG (USERS)
+-- 1. BẢNG KHOA (FACULTIES) - Tạo trước vì users cần FK đến đây
+-- ===============================================
+CREATE TABLE faculties (
+    faculty_id INT PRIMARY KEY AUTO_INCREMENT,
+    faculty_code VARCHAR(10) UNIQUE NOT NULL,  -- ✅ DÙNG LÀM FK
+    faculty_name VARCHAR(100) NOT NULL,
+    description TEXT,
+    head_teacher_username VARCHAR(50),  -- ✅ CHANGED: username thay vì user_id (FK sẽ thêm sau)
+    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+    -- FOREIGN KEY (head_teacher_username) sẽ thêm sau khi tạo bảng users (xem dòng 43-46)
+);
+
+-- ===============================================
+-- 2. BẢNG NGƯỜI DÙNG (USERS)
 -- ===============================================
 CREATE TABLE users (
     user_id INT PRIMARY KEY AUTO_INCREMENT,
@@ -18,25 +31,19 @@ CREATE TABLE users (
     email VARCHAR(100) UNIQUE NOT NULL,
     full_name VARCHAR(100) NOT NULL,
     role ENUM('admin', 'teacher', 'student') NOT NULL,
-    phone VARCHAR(20),
+    phone VARCHAR(20) UNIQUE,  -- ✅ UNIQUE: Mỗi số điện thoại chỉ thuộc về 1 user
     address TEXT,
+    faculty_code VARCHAR(10),  -- ✅ NEW: Khoa của giáo viên (chỉ áp dụng cho role='teacher')
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
     updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP ON UPDATE CURRENT_TIMESTAMP,
-    is_active BOOLEAN DEFAULT TRUE
+    is_active BOOLEAN DEFAULT TRUE,
+    FOREIGN KEY (faculty_code) REFERENCES faculties(faculty_code) ON UPDATE CASCADE
 );
 
--- ===============================================
--- 2. BẢNG KHOA (FACULTIES)
--- ===============================================
-CREATE TABLE faculties (
-    faculty_id INT PRIMARY KEY AUTO_INCREMENT,
-    faculty_code VARCHAR(10) UNIQUE NOT NULL,  -- ✅ DÙNG LÀM FK
-    faculty_name VARCHAR(100) NOT NULL,
-    description TEXT,
-    head_teacher_username VARCHAR(50),  -- ✅ CHANGED: username thay vì user_id
-    created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-    FOREIGN KEY (head_teacher_username) REFERENCES users(username) ON UPDATE CASCADE
-);
+-- Thêm FOREIGN KEY từ faculties đến users (sau khi users đã được tạo)
+ALTER TABLE faculties
+ADD CONSTRAINT fk_faculties_head_teacher 
+FOREIGN KEY (head_teacher_username) REFERENCES users(username) ON UPDATE CASCADE;
 
 -- ===============================================
 -- 3. BẢNG LỚP HỌC (CLASSES)
@@ -112,6 +119,7 @@ CREATE TABLE courses (
     room VARCHAR(20),
     max_students INT DEFAULT 50,
     current_students INT DEFAULT 0,
+    registration_status ENUM('locked', 'open', 'closed') DEFAULT 'locked',
     course_status ENUM('planning', 'ongoing', 'completed', 'cancelled') DEFAULT 'planning',
     start_date DATE,
     end_date DATE,
@@ -587,105 +595,7 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
 -- Admin
 INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES
 ('admin', 'password', 'admin@university.edu.vn', 'Quản trị viên hệ thống', 'admin', '0123456789', 'Trường Đại học ABC');
-
--- Faculties
-INSERT INTO faculties (faculty_code, faculty_name, description) VALUES
-('CNTT', 'Công nghệ thông tin', 'Khoa Công nghệ thông tin'),
-('KT', 'Kinh tế', 'Khoa Kinh tế'),
-('NN', 'Ngoại ngữ', 'Khoa Ngoại ngữ'),
-('KHTN', 'Khoa học tự nhiên', 'Khoa Khoa học tự nhiên');
-
--- Teachers
-INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES
-('gv001', 'password', 'nguyenvana@university.edu.vn', 'Nguyễn Văn A', 'teacher', '0987654321', 'Hà Nội'),
-('gv002', 'password', 'tranthib@university.edu.vn', 'Trần Thị B', 'teacher', '0987654322', 'Hà Nội');
-
--- Classes
-INSERT INTO classes (class_code, class_name, faculty_code, teacher_username, academic_year, semester) VALUES
-('CNTT2024A', 'Công nghệ thông tin 2024A', 'CNTT', 'gv001', '2024-2025', 1),
-('KT2024A', 'Kinh tế 2024A', 'KT', 'gv002', '2024-2025', 1);
-
--- Students
-INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES
-('sv001', 'password', 'sv001@student.university.edu.vn', 'Lê Văn C', 'student', '0123456788', 'Hà Nội'),
-('sv002', 'password', 'sv002@student.university.edu.vn', 'Phạm Thị D', 'student', '0123456787', 'Hà Nội');
-
-INSERT INTO students (username, student_code, class_code, faculty_code, admission_year, birth_date, gender, citizen_id) VALUES
-('sv001', 'SV2024001', 'CNTT2024A', 'CNTT', 2024, '2002-05-15', 'male', '001202012345'),
-('sv002', 'SV2024002', 'KT2024A', 'KT', 2024, '2002-08-20', 'female', '001202054321');
-
--- Subjects
-INSERT INTO subjects (subject_code, subject_name, credits, faculty_code, description) VALUES
-('CNTT101', 'Nhập môn lập trình', 3, 'CNTT', 'Môn học cơ bản về lập trình'),
-('CNTT201', 'Cấu trúc dữ liệu và giải thuật', 4, 'CNTT', 'Môn học về cấu trúc dữ liệu'),
-('KT101', 'Kinh tế vi mô', 3, 'KT', 'Môn học cơ bản về kinh tế vi mô'),
-('NN101', 'Tiếng Anh cơ bản', 2, 'NN', 'Môn học tiếng Anh cơ bản');
-
--- Courses
-INSERT INTO courses (course_code, subject_code, teacher_username, class_code, academic_year, semester, schedule_day, schedule_time, room, course_status) VALUES
-('CNTT101_2024_1', 'CNTT101', 'gv001', 'CNTT2024A', '2024-2025', 1, 'Thứ 2, Thứ 4', '07:00-09:00', 'A101', 'ongoing'),
-('KT101_2024_1', 'KT101', 'gv002', 'KT2024A', '2024-2025', 1, 'Thứ 3, Thứ 5', '09:00-11:00', 'B201', 'ongoing'),
-('CNTT201_2024_1', 'CNTT201', 'gv001', 'CNTT2024A', '2024-2025', 1, 'Thứ 3, Thứ 6', '13:00-17:00', 'C305', 'ongoing');
-
 COMMIT;
 
--- ===============================================
--- MIGRATION NOTES
--- ===============================================
-/*
-✅ THAY ĐỔI CHÍNH:
 
-1. ENROLLMENTS:
-   - student_id → student_code
-   - course_id → course_code
-   
-2. COURSE_REGISTRATIONS:
-   - student_id → student_code
-   - course_id → course_code
-   
-3. GRADES:
-   - enrollment_id → (student_code, course_code) composite FK
-   
-4. CLASS_OPENING_REQUESTS:
-   - teacher_id → teacher_username
-   - subject_id → subject_code
-   - approved_by → approved_by_username
-   - approved_course_id → approved_course_code
-   
-5. NOTIFICATIONS:
-   - sender_id → sender_username
-   - target_id → target_code
-   
-6. STUDENTS:
-   - user_id → username
-   - class_id → class_code
-   - faculty_id → faculty_code
-   
-7. COURSES:
-   - subject_id → subject_code
-   - teacher_id → teacher_username
-   - class_id → class_code
-   
-8. CLASSES:
-   - faculty_id → faculty_code
-   - teacher_id → teacher_username
-   
-9. FACULTIES:
-   - head_teacher_id → head_teacher_username
-   
-10. SUBJECTS:
-    - faculty_id → faculty_code
-    - prerequisite_subject_id → prerequisite_subject_code
-
-✅ LỢI ÍCH:
-- Không conflict giữa các clients (CSV, POSTGRES, MYSQL)
-- student_code, course_code là UNIQUE và STABLE
-- Dễ debug và trace data
-- Có thể merge data từ nhiều nguồn
-
-✅ TRADE-OFFS:
-- JOIN query chậm hơn một chút (VARCHAR vs INT)
-- Cần index tốt trên các code columns
-- Phải ensure codes không bao giờ thay đổi
-*/
 

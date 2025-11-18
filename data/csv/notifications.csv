@@ -1,5 +1,5 @@
 notificationId,title,content,senderUsername,targetType,targetCode,priority,isRead,createdAt,expiresAt
-100,Thong bao tu CSV,Day la thong bao test tu he thong CSV,csv_admin,ALL,,MEDIUM,false,2024-11-01 08:00:00,2025-01-31 23:59:59
-101,Thong bao khoa DTVT CSV,Khoa Dien tu Vien thong co thong bao quan trong tu CSV,csv_gv01,FACULTY,DTVT_CSV,HIGH,false,2024-11-05 09:00:00,2024-12-31 23:59:59
-102,Thong bao lop DTVT22A CSV,Lop DTVT22A co lich hoc bu tu CSV,csv_gv01,CLASS,DTVT22A_CSV,MEDIUM,false,2024-11-10 10:00:00,2024-11-30 23:59:59
-103,Nhan cho sinh vien CSV,Ban can cap nhat thong tin ca nhan tu he thong CSV,csv_admin,STUDENT,CSV2022001,LOW,false,2024-11-12 11:00:00,
+100,Thong bao he thong,Day la thong bao thu nghiem tu he thong,admin,ALL,,MEDIUM,false,2024-11-01 08:00:00,2025-01-31 23:59:59
+101,Thong bao khoa DTVT,Khoa Dien tu Vien thong co thong bao quan trong,gv01,FACULTY,DTVT,HIGH,false,2024-11-05 09:00:00,2024-12-31 23:59:59
+102,Thong bao lop DTVT22A,Lop DTVT22A co lich hoc bu,gv01,CLASS,DTVT22A,MEDIUM,false,2024-11-10 10:00:00,2024-11-30 23:59:59
+103,Nhan cho sinh vien,Ban can cap nhat thong tin ca nhan,admin,STUDENT,ST2022001,LOW,false,2024-11-12 11:00:00,

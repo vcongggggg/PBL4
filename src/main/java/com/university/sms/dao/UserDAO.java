@@ -45,7 +45,7 @@ public class UserDAO {
             return false;
         }
 
-        String sql = "INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES (?, ?, ?, ?, ?, ?, ?)";
+        String sql = "INSERT INTO users (username, password, email, full_name, role, phone, address, faculty_code) VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
@@ -57,6 +57,11 @@ public class UserDAO {
             stmt.setString(5, user.getRole().name().toLowerCase());
             stmt.setString(6, user.getPhone());
             stmt.setString(7, user.getAddress());
+            if (user.getFacultyCode() != null && !user.getFacultyCode().trim().isEmpty()) {
+                stmt.setString(8, user.getFacultyCode().trim());
+            } else {
+                stmt.setNull(8, Types.VARCHAR);
+            }
 
             int result = stmt.executeUpdate();
 
@@ -73,8 +78,15 @@ public class UserDAO {
         } catch (SQLException e) {
             // Check if it's a duplicate key error
             if (e.getSQLState() != null && e.getSQLState().equals("23000")) {
-                LOGGER.warning(
-                        "Cannot add user: Username already exists (database constraint) - " + user.getUsername());
+                String errorMsg = e.getMessage();
+                if (errorMsg != null && errorMsg.contains("phone")) {
+                    LOGGER.warning(
+                            "Cannot add user: Phone already exists (database constraint) - " + user.getPhone());
+                } else {
+                    LOGGER.warning(
+                            "Cannot add user: Username or email already exists (database constraint) - "
+                                    + user.getUsername());
+                }
             } else {
                 LOGGER.log(Level.SEVERE, "Error adding user: " + user.getUsername(), e);
             }
@@ -96,9 +108,9 @@ public class UserDAO {
             }
 
             if (user.getUserId() > 0) {
-                String insertWithId = "INSERT INTO users (user_id, username, password, email, full_name, role, phone, address) "
+                String insertWithId = "INSERT INTO users (user_id, username, password, email, full_name, role, phone, address, faculty_code) "
                         +
-                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?)";
+                        "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)";
                 try (Connection conn = DatabaseConnection.getConnection();
                         PreparedStatement stmt = conn.prepareStatement(insertWithId)) {
                     stmt.setInt(1, user.getUserId());
@@ -109,6 +121,11 @@ public class UserDAO {
                     stmt.setString(6, user.getRole().name().toLowerCase());
                     stmt.setString(7, user.getPhone());
                     stmt.setString(8, user.getAddress());
+                    if (user.getFacultyCode() != null && !user.getFacultyCode().trim().isEmpty()) {
+                        stmt.setString(9, user.getFacultyCode().trim());
+                    } else {
+                        stmt.setNull(9, Types.VARCHAR);
+                    }
                     int result = stmt.executeUpdate();
                     if (result > 0) {
                         LOGGER.info("User added with explicit ID: " + user.getUserId());
@@ -203,6 +220,68 @@ public class UserDAO {
     }
 
     /**
+     * Tìm user theo phone (số điện thoại)
+     * 
+     * @param phone Số điện thoại cần tìm
+     * @return User nếu tìm thấy, null nếu không tìm thấy
+     */
+    public User findByPhone(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return null;
+        }
+
+        String sql = "SELECT * FROM users WHERE phone = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, phone.trim());
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToUser(rs);
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding user by phone: " + phone, e);
+        }
+
+        return null;
+    }
+
+    /**
+     * Tìm user theo email
+     * 
+     * @param email Email cần tìm
+     * @return User nếu tìm thấy, null nếu không tìm thấy
+     */
+    public User findByEmail(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return null;
+        }
+
+        String sql = "SELECT * FROM users WHERE email = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, email.trim());
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return mapResultSetToUser(rs);
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding user by email: " + email, e);
+        }
+
+        return null;
+    }
+
+    /**
      * Lấy tất cả users theo role
      */
     public List<User> findByRole(User.UserRole role) {
@@ -281,7 +360,7 @@ public class UserDAO {
      * Cập nhật thông tin user
      */
     public boolean updateUser(User user) {
-        String sql = "UPDATE users SET email = ?, full_name = ?, phone = ?, address = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
+        String sql = "UPDATE users SET email = ?, full_name = ?, phone = ?, address = ?, faculty_code = ?, updated_at = CURRENT_TIMESTAMP WHERE user_id = ?";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
@@ -290,7 +369,12 @@ public class UserDAO {
             stmt.setString(2, user.getFullName());
             stmt.setString(3, user.getPhone());
             stmt.setString(4, user.getAddress());
-            stmt.setInt(5, user.getUserId());
+            if (user.getFacultyCode() != null && !user.getFacultyCode().trim().isEmpty()) {
+                stmt.setString(5, user.getFacultyCode().trim());
+            } else {
+                stmt.setNull(5, Types.VARCHAR);
+            }
+            stmt.setInt(6, user.getUserId());
 
             int result = stmt.executeUpdate();
 
@@ -300,7 +384,19 @@ public class UserDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error updating user: " + user.getUserId(), e);
+            // Check if it's a duplicate key error
+            if (e.getSQLState() != null && e.getSQLState().equals("23000")) {
+                String errorMsg = e.getMessage();
+                if (errorMsg != null && errorMsg.contains("phone")) {
+                    LOGGER.warning(
+                            "Cannot update user: Phone already exists (database constraint) - " + user.getPhone());
+                } else {
+                    LOGGER.warning(
+                            "Cannot update user: Email already exists (database constraint) - " + user.getEmail());
+                }
+            } else {
+                LOGGER.log(Level.SEVERE, "Error updating user: " + user.getUserId(), e);
+            }
         }
 
         return false;
@@ -391,6 +487,7 @@ public class UserDAO {
         user.setRole(User.UserRole.valueOf(rs.getString("role").toUpperCase()));
         user.setPhone(rs.getString("phone"));
         user.setAddress(rs.getString("address"));
+        user.setFacultyCode(rs.getString("faculty_code"));
         user.setCreatedAt(rs.getTimestamp("created_at"));
         user.setUpdatedAt(rs.getTimestamp("updated_at"));
         user.setActive(rs.getBoolean("is_active"));

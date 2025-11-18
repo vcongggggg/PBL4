@@ -387,6 +387,8 @@ public class ClassOpeningRequestService {
         // Set capacity
         course.setMaxStudents(request.getMaxStudents());
         course.setCurrentStudents(0); // Initially 0 students
+        course.setRegistrationStatus(Course.RegistrationStatus.LOCKED);
+        course.setCourseStatus(Course.CourseStatus.PLANNING);
 
         // Note: Course model doesn't have status field
         // course.setStatus("ACTIVE");
@@ -413,11 +415,12 @@ public class ClassOpeningRequestService {
         int maxAttempts = 100; // Prevent infinite loop
         int attempts = 0;
 
+        String academicYearTag = buildAcademicYearTag(request.getAcademicYear());
         do {
-            // Format: SUBJ_YEAR_SEM_SEQ
-            courseCode = String.format("%s_%s_%d_%02d",
+            // New compact format: {SUBJECT}-{YYYY}S{semester}-{sequence}
+            courseCode = String.format("%s-%sS%d-%02d",
                     subjectCode,
-                    request.getAcademicYear(),
+                    academicYearTag,
                     request.getSemester(),
                     nextSequence);
 
@@ -436,6 +439,25 @@ public class ClassOpeningRequestService {
         }
 
         return courseCode;
+    }
+
+    private String buildAcademicYearTag(String academicYear) {
+        if (academicYear == null || academicYear.isBlank()) {
+            return "0000";
+        }
+        String[] parts = academicYear.split("-");
+        if (parts.length == 2) {
+            String start = parts[0].trim();
+            String end = parts[1].trim();
+            String startSuffix = start.length() >= 2 ? start.substring(start.length() - 2) : start;
+            String endSuffix = end.length() >= 2 ? end.substring(end.length() - 2) : end;
+            return startSuffix + endSuffix;
+        }
+        String digits = academicYear.replaceAll("[^0-9]", "");
+        if (digits.length() >= 4) {
+            return digits.substring(digits.length() - 4);
+        }
+        return digits.isEmpty() ? "0000" : digits;
     }
 
     public RequestStatistics getStatistics() {

@@ -57,7 +57,7 @@ public class TeacherPanel extends JPanel {
 
   private void initializeComponents() {
     // Create table
-    String[] columnNames = { "Mã GV", "Họ tên", "Email", "Số điện thoại", "Địa chỉ", "Trạng thái" };
+    String[] columnNames = { "Mã GV", "Họ tên", "Email", "Số điện thoại", "Địa chỉ", "Khoa", "Trạng thái" };
     tableModel = new DefaultTableModel(columnNames, 0) {
       @Override
       public boolean isCellEditable(int row, int column) {
@@ -352,17 +352,68 @@ public class TeacherPanel extends JPanel {
     this.currentTeachers = teachers;
     tableModel.setRowCount(0);
 
-    for (User teacher : teachers) {
-      Object[] row = {
-          teacher.getUsername(),
-          teacher.getFullName(),
-          teacher.getEmail(),
-          teacher.getPhone(),
-          teacher.getAddress(),
-          teacher.isActive() ? "Hoạt động" : "Khóa"
-      };
-      tableModel.addRow(row);
-    }
+    // Load faculty names for display
+    java.util.Map<String, String> facultyMap = new java.util.HashMap<>();
+    SwingWorker<java.util.Map<String, String>, Void> facultyWorker = new SwingWorker<java.util.Map<String, String>, Void>() {
+      @Override
+      protected java.util.Map<String, String> doInBackground() throws Exception {
+        Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
+        Message response = serverConnection.sendRequest(request);
+        if (response != null && response.isSuccess()) {
+          @SuppressWarnings("unchecked")
+          List<com.university.sms.model.Faculty> faculties = (List<com.university.sms.model.Faculty>) response
+              .getData("faculties");
+          java.util.Map<String, String> map = new java.util.HashMap<>();
+          if (faculties != null) {
+            for (com.university.sms.model.Faculty f : faculties) {
+              map.put(f.getFacultyCode(), f.getFacultyName());
+            }
+          }
+          return map;
+        }
+        return new java.util.HashMap<>();
+      }
+
+      @Override
+      protected void done() {
+        try {
+          facultyMap.putAll(get());
+          // Update table with faculty names
+          tableModel.setRowCount(0);
+          for (User teacher : currentTeachers) {
+            String facultyName = teacher.getFacultyCode() != null
+                ? facultyMap.getOrDefault(teacher.getFacultyCode(), teacher.getFacultyCode())
+                : "N/A";
+            Object[] row = {
+                teacher.getUsername(),
+                teacher.getFullName(),
+                teacher.getEmail(),
+                teacher.getPhone(),
+                teacher.getAddress(),
+                facultyName,
+                teacher.isActive() ? "Hoạt động" : "Khóa"
+            };
+            tableModel.addRow(row);
+          }
+        } catch (Exception e) {
+          // If loading fails, show without faculty
+          for (User teacher : currentTeachers) {
+            String facultyName = teacher.getFacultyCode() != null ? teacher.getFacultyCode() : "N/A";
+            Object[] row = {
+                teacher.getUsername(),
+                teacher.getFullName(),
+                teacher.getEmail(),
+                teacher.getPhone(),
+                teacher.getAddress(),
+                facultyName,
+                teacher.isActive() ? "Hoạt động" : "Khóa"
+            };
+            tableModel.addRow(row);
+          }
+        }
+      }
+    };
+    facultyWorker.execute();
   }
 
   private void updateButtonStates() {
@@ -544,6 +595,7 @@ public class TeacherPanel extends JPanel {
     private JTextField emailField;
     private JTextField phoneField;
     private JTextArea addressArea;
+    private JComboBox<FacultyItem> facultyCombo;
 
     public TeacherEditDialog(Frame parent, IServerConnection serverConnection, User teacher) {
       super(parent, teacher == null ? "Thêm giảng viên mới" : "Chỉnh sửa giảng viên", true);
@@ -615,6 +667,58 @@ public class TeacherPanel extends JPanel {
       JScrollPane addressScroll = new JScrollPane(addressArea);
       formPanel.add(addressScroll, gbc);
 
+      // Faculty
+      gbc.gridx = 0;
+      gbc.gridy = 6;
+      formPanel.add(new JLabel("Khoa:"), gbc);
+      gbc.gridx = 1;
+      facultyCombo = new JComboBox<>();
+      formPanel.add(facultyCombo, gbc);
+
+      // Load faculties
+      SwingWorker<List<com.university.sms.model.Faculty>, Void> facultyWorker = new SwingWorker<List<com.university.sms.model.Faculty>, Void>() {
+        @Override
+        protected List<com.university.sms.model.Faculty> doInBackground() throws Exception {
+          Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
+          Message response = serverConnection.sendRequest(request);
+          if (response != null && response.isSuccess()) {
+            @SuppressWarnings("unchecked")
+            List<com.university.sms.model.Faculty> faculties = (List<com.university.sms.model.Faculty>) response
+                .getData("faculties");
+            return faculties;
+          }
+          return null;
+        }
+
+        @Override
+        protected void done() {
+          try {
+            List<com.university.sms.model.Faculty> faculties = get();
+            if (faculties != null) {
+              for (com.university.sms.model.Faculty f : faculties) {
+                facultyCombo.addItem(new FacultyItem(f.getFacultyCode(), f.getFacultyName()));
+              }
+              // Set selection if editing
+              if (teacher != null && teacher.getFacultyCode() != null) {
+                for (int i = 0; i < facultyCombo.getItemCount(); i++) {
+                  FacultyItem item = facultyCombo.getItemAt(i);
+                  if (item.code != null && item.code.equals(teacher.getFacultyCode())) {
+                    facultyCombo.setSelectedIndex(i);
+                    break;
+                  }
+                }
+              }
+            }
+          } catch (Exception e) {
+            JOptionPane.showMessageDialog(TeacherEditDialog.this,
+                "Lỗi khi tải danh sách khoa: " + e.getMessage(),
+                "Lỗi",
+                JOptionPane.ERROR_MESSAGE);
+          }
+        }
+      };
+      facultyWorker.execute();
+
       // Load data if editing
       if (teacher != null) {
         usernameField.setText(teacher.getUsername());
@@ -663,6 +767,10 @@ public class TeacherPanel extends JPanel {
         return;
       }
 
+      // Get selected faculty
+      FacultyItem selectedFaculty = (FacultyItem) facultyCombo.getSelectedItem();
+      String facultyCode = selectedFaculty != null ? selectedFaculty.code : null;
+
       // Create/update teacher
       Message request;
       if (teacher == null) {
@@ -674,6 +782,9 @@ public class TeacherPanel extends JPanel {
         request.addData("email", email);
         request.addData("phone", phoneField.getText().trim());
         request.addData("address", addressArea.getText().trim());
+        if (facultyCode != null) {
+          request.addData("facultyCode", facultyCode);
+        }
       } else {
         // Update existing teacher
         request = Message.createRequest(Constants.ACTION_UPDATE_TEACHER);
@@ -682,6 +793,9 @@ public class TeacherPanel extends JPanel {
         request.addData("email", email);
         request.addData("phone", phoneField.getText().trim());
         request.addData("address", addressArea.getText().trim());
+        if (facultyCode != null) {
+          request.addData("facultyCode", facultyCode);
+        }
 
         // Only update password if provided
         if (!password.isEmpty()) {
@@ -715,5 +829,21 @@ public class TeacherPanel extends JPanel {
 
   private void showErrorMessage(String message) {
     JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
+  }
+
+  // Helper class for ComboBox items
+  private static class FacultyItem {
+    String code;
+    String name;
+
+    FacultyItem(String code, String name) {
+      this.code = code;
+      this.name = name;
+    }
+
+    @Override
+    public String toString() {
+      return name;
+    }
   }
 }

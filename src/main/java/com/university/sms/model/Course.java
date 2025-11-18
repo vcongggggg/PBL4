@@ -29,6 +29,7 @@ public class Course implements java.io.Serializable {
     private int maxStudents;
     private int currentStudents;
     private CourseStatus courseStatus;
+    private RegistrationStatus registrationStatus;
     private Date startDate;
     private Date endDate;
     private Timestamp createdAt;
@@ -45,11 +46,16 @@ public class Course implements java.io.Serializable {
         PLANNING, ONGOING, COMPLETED, CANCELLED
     }
 
+    public enum RegistrationStatus {
+        LOCKED, OPEN, CLOSED
+    }
+
     // Constructors
     public Course() {
         this.maxStudents = 50;
         this.currentStudents = 0;
         this.courseStatus = CourseStatus.PLANNING;
+        this.registrationStatus = RegistrationStatus.LOCKED;
     }
 
     public Course(String courseCode, String subjectCode, String teacherUsername, String academicYear, int semester) {
@@ -156,6 +162,14 @@ public class Course implements java.io.Serializable {
 
     public void setCourseStatus(CourseStatus courseStatus) {
         this.courseStatus = courseStatus;
+    }
+
+    public RegistrationStatus getRegistrationStatus() {
+        return registrationStatus;
+    }
+
+    public void setRegistrationStatus(RegistrationStatus registrationStatus) {
+        this.registrationStatus = registrationStatus;
     }
 
     public Date getStartDate() {
@@ -266,6 +280,8 @@ public class Course implements java.io.Serializable {
                 ", semester=" + semester +
                 ", currentStudents=" + currentStudents +
                 ", maxStudents=" + maxStudents +
+                ", courseStatus=" + courseStatus +
+                ", registrationStatus=" + registrationStatus +
                 '}';
     }
 }

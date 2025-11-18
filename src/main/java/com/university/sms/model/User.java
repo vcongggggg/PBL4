@@ -15,6 +15,7 @@ public class User implements java.io.Serializable {
     private UserRole role;
     private String phone;
     private String address;
+    private String facultyCode; // ✅ NEW: Khoa của giáo viên (chỉ áp dụng cho role=TEACHER)
     private Timestamp createdAt;
     private Timestamp updatedAt;
     private boolean isActive;
@@ -24,7 +25,8 @@ public class User implements java.io.Serializable {
     }
 
     // Constructors
-    public User() {}
+    public User() {
+    }
 
     public User(String username, String password, String email, String fullName, UserRole role) {
         this.username = username;
@@ -98,6 +100,14 @@ public class User implements java.io.Serializable {
 
     public void setAddress(String address) {
         this.address = address;
+    }
+
+    public String getFacultyCode() {
+        return facultyCode;
+    }
+
+    public void setFacultyCode(String facultyCode) {
+        this.facultyCode = facultyCode;
     }
 
     public Timestamp getCreatedAt() {

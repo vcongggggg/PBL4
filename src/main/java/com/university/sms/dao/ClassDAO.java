@@ -299,9 +299,29 @@ public class ClassDAO {
     classEntity.setClassName(rs.getString("class_name"));
     classEntity.setFacultyCode(rs.getString("faculty_code"));
 
+    // Set faculty name if available
+    try {
+      String facultyName = rs.getString("faculty_name");
+      if (facultyName != null) {
+        classEntity.setFacultyName(facultyName);
+      }
+    } catch (SQLException e) {
+      // Column may not exist in some queries
+    }
+
     String teacherUsername = rs.getString("teacher_username");
     if (!rs.wasNull()) {
       classEntity.setTeacherUsername(teacherUsername);
+    }
+
+    // Set teacher name if available
+    try {
+      String teacherName = rs.getString("teacher_name");
+      if (teacherName != null) {
+        classEntity.setTeacherName(teacherName);
+      }
+    } catch (SQLException e) {
+      // Column may not exist in some queries
     }
 
     classEntity.setAcademicYear(rs.getString("academic_year"));

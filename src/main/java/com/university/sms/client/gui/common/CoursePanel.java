@@ -39,6 +39,8 @@ public class CoursePanel extends JPanel {
     private JButton viewStudentsButton; // For Admin/Teacher (top button)
     private JButton deleteCourseButton; // For Admin - Hủy lớp
     private JButton gradeEntryButton; // For Teacher
+    private JButton openRegistrationButton; // For Admin
+    private JButton closeRegistrationButton; // For Admin
 
     private List<Course> currentCourses;
     private List<Course> allCourses; // All courses for filtering
@@ -53,7 +55,7 @@ public class CoursePanel extends JPanel {
     private boolean isInitialized = false;
 
     // Column index for "SV hiện tại/Tối đa"
-    private static final int STUDENT_COUNT_COLUMN = 7;
+    private static final int STUDENT_COUNT_COLUMN = 9;
 
     public CoursePanel(User currentUser, IServerConnection serverConnection, boolean isReadOnly) {
         this.currentUser = currentUser;
@@ -69,7 +71,7 @@ public class CoursePanel extends JPanel {
     private void initializeComponents() {
         // Create table
         String[] columnNames = { "Mã lớp", "Môn học", "Giáo viên", "Năm học", "Học kỳ", "Phòng", "Lịch học",
-                "SV hiện tại/Tối đa" };
+                "Trạng thái", "Đăng ký", "SV hiện tại/Tối đa" };
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -111,6 +113,12 @@ public class CoursePanel extends JPanel {
             deleteCourseButton = new JButton("Hủy lớp");
             deleteCourseButton.setEnabled(false);
             deleteCourseButton.setForeground(Color.RED);
+
+            openRegistrationButton = new JButton("Mở đăng ký");
+            openRegistrationButton.setEnabled(false);
+
+            closeRegistrationButton = new JButton("Chốt đăng ký");
+            closeRegistrationButton.setEnabled(false);
         }
 
         // Teacher: "Nhập điểm" và "Xem danh sách sinh viên"
@@ -149,6 +157,12 @@ public class CoursePanel extends JPanel {
             if (viewStudentsButton != null) {
                 rightPanel.add(viewStudentsButton);
             }
+            if (openRegistrationButton != null) {
+                rightPanel.add(openRegistrationButton);
+            }
+            if (closeRegistrationButton != null) {
+                rightPanel.add(closeRegistrationButton);
+            }
             if (deleteCourseButton != null) {
                 rightPanel.add(deleteCourseButton);
             }
@@ -177,6 +191,14 @@ public class CoursePanel extends JPanel {
 
         if (deleteCourseButton != null) {
             deleteCourseButton.addActionListener(e -> deleteCourse());
+        }
+
+        if (openRegistrationButton != null) {
+            openRegistrationButton.addActionListener(e -> openRegistrationPeriod());
+        }
+
+        if (closeRegistrationButton != null) {
+            closeRegistrationButton.addActionListener(e -> closeRegistrationPeriod());
         }
 
         if (gradeEntryButton != null) {
@@ -436,6 +458,8 @@ public class CoursePanel extends JPanel {
                         course.getRoom(),
                         (course.getScheduleDay() != null ? course.getScheduleDay() : "") + " " +
                                 (course.getScheduleTime() != null ? course.getScheduleTime() : ""),
+                        getCourseStatusText(course),
+                        getRegistrationStatusText(course),
                         course.getCurrentStudents() + "/" + course.getMaxStudents() // This will be rendered as button
                 };
                 tableModel.addRow(rowData);
@@ -444,8 +468,8 @@ public class CoursePanel extends JPanel {
     }
 
     private void updateButtonStates() {
-        int selectedRow = courseTable.getSelectedRow();
-        boolean hasSelection = selectedRow >= 0;
+        Course course = getSelectedCourse();
+        boolean hasSelection = course != null;
 
         if (viewStudentsButton != null) {
             viewStudentsButton.setEnabled(hasSelection);
@@ -453,8 +477,134 @@ public class CoursePanel extends JPanel {
         if (deleteCourseButton != null) {
             deleteCourseButton.setEnabled(hasSelection);
         }
+        if (openRegistrationButton != null) {
+            openRegistrationButton.setEnabled(hasSelection && canOpenRegistration(course));
+        }
+        if (closeRegistrationButton != null) {
+            closeRegistrationButton.setEnabled(hasSelection && canCloseRegistration(course));
+        }
         if (gradeEntryButton != null) {
-            gradeEntryButton.setEnabled(hasSelection);
+            gradeEntryButton.setEnabled(hasSelection
+                    && course.getCourseStatus() == Course.CourseStatus.ONGOING);
+        }
+    }
+
+    private Course getSelectedCourse() {
+        int selectedRow = courseTable.getSelectedRow();
+        if (selectedRow < 0 || courseMap == null) {
+            return null;
+        }
+        String courseCode = (String) courseTable.getValueAt(selectedRow, 0);
+        return courseMap.get(courseCode);
+    }
+
+    private boolean canOpenRegistration(Course course) {
+        if (course == null) {
+            return false;
+        }
+        return course.getCourseStatus() == Course.CourseStatus.PLANNING
+                && course.getRegistrationStatus() != Course.RegistrationStatus.OPEN;
+    }
+
+    private boolean canCloseRegistration(Course course) {
+        if (course == null) {
+            return false;
+        }
+        return course.getRegistrationStatus() == Course.RegistrationStatus.OPEN;
+    }
+
+    private void openRegistrationPeriod() {
+        Course course = getSelectedCourse();
+        if (course == null) {
+            return;
+        }
+
+        Message request = Message.createRequest(Constants.ACTION_OPEN_COURSE_REGISTRATION);
+        request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
+
+        try {
+            Message response = serverConnection.sendRequest(request);
+            if (response != null && response.isSuccess()) {
+                JOptionPane.showMessageDialog(this,
+                        response.getMessage() != null ? response.getMessage() : "Đã mở đăng ký cho lớp.",
+                        "Thành công",
+                        JOptionPane.INFORMATION_MESSAGE);
+                refreshData();
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        response != null ? response.getMessage() : "Không thể mở đăng ký cho lớp này.",
+                        "Lỗi",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Lỗi khi mở đăng ký: " + ex.getMessage(),
+                    "Lỗi",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private void closeRegistrationPeriod() {
+        Course course = getSelectedCourse();
+        if (course == null) {
+            return;
+        }
+
+        Message request = Message.createRequest(Constants.ACTION_CLOSE_COURSE_REGISTRATION);
+        request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
+
+        try {
+            Message response = serverConnection.sendRequest(request);
+            if (response != null && response.isSuccess()) {
+                JOptionPane.showMessageDialog(this,
+                        response.getMessage() != null ? response.getMessage() : "Đã chốt đăng ký cho lớp.",
+                        "Thành công",
+                        JOptionPane.INFORMATION_MESSAGE);
+                refreshData();
+            } else {
+                JOptionPane.showMessageDialog(this,
+                        response != null ? response.getMessage() : "Không thể chốt đăng ký cho lớp này.",
+                        "Lỗi",
+                        JOptionPane.ERROR_MESSAGE);
+            }
+        } catch (Exception ex) {
+            JOptionPane.showMessageDialog(this,
+                    "Lỗi khi chốt đăng ký: " + ex.getMessage(),
+                    "Lỗi",
+                    JOptionPane.ERROR_MESSAGE);
+        }
+    }
+
+    private String getCourseStatusText(Course course) {
+        if (course == null || course.getCourseStatus() == null) {
+            return "Không xác định";
+        }
+        switch (course.getCourseStatus()) {
+            case PLANNING:
+                return "Lên lịch";
+            case ONGOING:
+                return "Đang diễn ra";
+            case COMPLETED:
+                return "Đã hoàn thành";
+            case CANCELLED:
+                return "Đã hủy";
+            default:
+                return course.getCourseStatus().name();
+        }
+    }
+
+    private String getRegistrationStatusText(Course course) {
+        if (course == null || course.getRegistrationStatus() == null) {
+            return "Chưa mở";
+        }
+        switch (course.getRegistrationStatus()) {
+            case OPEN:
+                return "Mở đăng ký";
+            case CLOSED:
+                return "Đã chốt";
+            case LOCKED:
+            default:
+                return "Chưa mở";
         }
     }
 
