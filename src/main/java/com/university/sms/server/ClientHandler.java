@@ -52,7 +52,7 @@ public class ClientHandler implements Runnable {
     private User currentUser;
     private boolean isConnected;
 
-    // Services
+    // Các service
     private AuthenticationService authService;
     private StudentService studentService;
     private CourseService courseService;
@@ -64,14 +64,14 @@ public class ClientHandler implements Runnable {
     private TimetableService timetableService;
     private TranscriptService transcriptService;
 
-    // Source/client provenance (e.g., CSV, POSTGRES, etc.) captured during sync
+    // Nguồn dữ liệu client (ví dụ: CSV, POSTGRES, v.v.) được lưu khi đồng bộ
     private String clientSource = "UNKNOWN";
 
     public ClientHandler(Socket clientSocket) {
         this.clientSocket = clientSocket;
         this.isConnected = true;
 
-        // Initialize services
+        // Khởi tạo các service
         this.authService = new AuthenticationService();
         this.studentService = new StudentService();
         this.courseService = new CourseService();
@@ -92,7 +92,7 @@ public class ClientHandler implements Runnable {
 
             LOGGER.info("Client connected: " + clientSocket.getRemoteSocketAddress());
 
-            // Listen for messages from client
+            // Lắng nghe tin nhắn từ client
             while (isConnected && !clientSocket.isClosed()) {
                 try {
                     Message request = (Message) inputStream.readObject();
@@ -130,13 +130,13 @@ public class ClientHandler implements Runnable {
         String action = request.getAction();
 
         try {
-            // Authentication required actions
+            // Các hành động yêu cầu xác thực
             if (!isAuthenticated() && !isPublicAction(action)) {
                 return Message.createErrorResponse(action, Constants.MSG_UNAUTHORIZED);
             }
 
             switch (action) {
-                // Authentication actions
+                // Hành động xác thực
                 case Constants.ACTION_LOGIN:
                     return handleLogin(request);
                 case Constants.ACTION_LOGOUT:
@@ -144,7 +144,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_CHANGE_PASSWORD:
                     return handleChangePassword(request);
 
-                // Teacher Management actions
+                // Hành động quản lý giáo viên
                 case Constants.ACTION_ADD_TEACHER:
                     return handleAddTeacher(request);
                 case Constants.ACTION_UPDATE_TEACHER:
@@ -158,7 +158,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_GET_ALL_STUDENTS_INCLUDE_INACTIVE:
                     return handleGetAllStudentsIncludeInactive(request);
 
-                // Student actions
+                // Hành động sinh viên
                 case Constants.ACTION_GET_STUDENT_INFO:
                     return handleGetStudentInfo(request);
                 case Constants.ACTION_GET_ALL_STUDENTS:
@@ -174,7 +174,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_DELETE_STUDENT:
                     return handleDeleteStudent(request);
 
-                // Course actions
+                // Hành động khóa học
                 case Constants.ACTION_GET_ALL_COURSES:
                     return handleGetAllCourses(request);
                 case Constants.ACTION_GET_COURSES:
@@ -192,7 +192,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_CLOSE_COURSE_REGISTRATION:
                     return handleCloseCourseRegistration(request);
 
-                // Teacher actions
+                // Hành động giáo viên
                 case Constants.ACTION_GET_ALL_TEACHERS:
                     return handleGetAllTeachers(request);
                 case Constants.ACTION_SEARCH_TEACHERS:
@@ -200,17 +200,17 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_GET_COURSES_BY_TEACHER:
                     return handleGetCoursesByTeacher(request);
 
-                // Faculty actions
+                // Hành động khoa
                 case Constants.ACTION_GET_FACULTIES:
                 case Constants.ACTION_GET_ALL_FACULTIES:
                     return handleGetAllFaculties(request);
 
-                // Class actions
+                // Hành động lớp
                 case Constants.ACTION_GET_CLASSES:
                 case Constants.ACTION_GET_ALL_CLASSES:
                     return handleGetAllClasses(request);
 
-                // Subject actions
+                // Hành động môn học
                 case Constants.ACTION_GET_SUBJECTS:
                     return handleGetSubjects(request);
                 case Constants.ACTION_GET_ALL_SUBJECTS:
@@ -224,7 +224,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_DELETE_SUBJECT:
                     return handleDeleteSubject(request);
 
-                // Enrollment actions
+                // Hành động đăng ký học phần
                 case Constants.ACTION_GET_ENROLLMENTS_BY_COURSE:
                     return handleGetEnrollmentsByCourse(request);
                 case Constants.ACTION_GET_ENROLLMENTS:
@@ -236,7 +236,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_DROP_COURSE:
                     return handleDropCourse(request);
 
-                // Grade actions
+                // Hành động điểm
                 case Constants.ACTION_ADD_GRADE:
                     return handleAddGrade(request);
                 case Constants.ACTION_UPDATE_GRADE:
@@ -248,7 +248,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_CALCULATE_FINAL_GRADE:
                     return handleCalculateFinalGrade(request);
 
-                // Sync actions
+                // Hành động đồng bộ
                 case Constants.ACTION_SYNC_CHECK:
                     return handleSyncCheck(request);
                 case Constants.ACTION_DOWNLOAD_DATA:
@@ -276,7 +276,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_UPLOAD_NOTIFICATIONS:
                     return handleUploadNotifications(request);
 
-                // Class Opening Request actions
+                // Hành động yêu cầu mở lớp
                 case Constants.ACTION_GET_ALL_CLASS_REQUESTS:
                     return handleGetAllClassRequests(request);
                 case Constants.ACTION_GET_CLASS_REQUEST_BY_ID:
@@ -298,7 +298,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_GET_CLASS_REQUEST_STATS:
                     return handleGetClassRequestStats(request);
 
-                // Course Registration actions
+                // Hành động đăng ký khóa học
                 case Constants.ACTION_GET_ALL_REGISTRATIONS:
                     return handleGetAllRegistrations(request);
                 case Constants.ACTION_GET_REGISTRATION_BY_ID:
@@ -324,7 +324,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_GET_REGISTRATION_STATS:
                     return handleGetRegistrationStats(request);
 
-                // Notification actions
+                // Hành động thông báo
                 case Constants.ACTION_GET_NOTIFICATIONS:
                     return handleGetNotifications(request);
                 case Constants.ACTION_SEND_NOTIFICATION:
@@ -332,7 +332,7 @@ public class ClientHandler implements Runnable {
                 case Constants.ACTION_MARK_NOTIFICATION_READ:
                     return handleMarkNotificationRead(request);
 
-                // Timetable & Transcript actions
+                // Hành động thời khóa biểu và bảng điểm
                 case Constants.ACTION_GET_TIMETABLE:
                     return handleGetTimetable(request);
 
@@ -391,7 +391,7 @@ public class ClientHandler implements Runnable {
             LOGGER.info("User logged in successfully: " + username);
             return response;
         } else {
-            // Log failed login attempt
+            // Ghi log lần đăng nhập thất bại
             authService.logFailedLogin(username, clientSocket.getRemoteSocketAddress().toString());
 
             // Trả về message chi tiết dựa trên errorCode
@@ -573,7 +573,7 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, Constants.MSG_INVALID_DATA);
         }
 
-        // Validate required fields
+        // Kiểm tra các trường bắt buộc
         if (student.getStudentCode() == null || student.getStudentCode().trim().isEmpty()) {
             return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Thiếu mã sinh viên");
         }
@@ -581,7 +581,7 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Thiếu mã khoa");
         }
 
-        // Validate facultyCode exists
+        // Kiểm tra facultyCode có tồn tại
         com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
         com.university.sms.model.Faculty faculty = facultyDAO.findByCode(student.getFacultyCode());
         if (faculty == null) {
@@ -589,7 +589,7 @@ public class ClientHandler implements Runnable {
                     "Mã khoa không tồn tại: " + student.getFacultyCode());
         }
 
-        // Validate classCode exists (if provided)
+        // Kiểm tra classCode có tồn tại (nếu có)
         if (student.getClassCode() != null && !student.getClassCode().trim().isEmpty()) {
             com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
             com.university.sms.model.Class classObj = classDAO.findByCode(student.getClassCode());
@@ -599,7 +599,7 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Ensure related user exists (create if missing)
+        // Đảm bảo user liên quan tồn tại (tạo mới nếu thiếu)
         try {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
             boolean userOk = true;
@@ -609,8 +609,8 @@ public class ClientHandler implements Runnable {
                 student.setUsername(username);
             }
 
-            // Validate email format (if provided) - ALWAYS check, regardless of username
-            // existence
+            // Kiểm tra định dạng email (nếu có) - LUÔN kiểm tra, bất kể username có tồn tại
+            // hay không
             if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
                 if (!isValidEmailFormat(student.getEmail().trim())) {
                     return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
@@ -618,8 +618,8 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Normalize and validate phone format (if provided) - ALWAYS check, regardless
-            // of username existence
+            // Chuẩn hóa và kiểm tra định dạng số điện thoại (nếu có) - LUÔN kiểm tra, bất
+            // kể username có tồn tại hay không
             String normalizedStudentPhone = null;
             if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
                 normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
@@ -629,8 +629,8 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Check if email already exists (if provided) - ALWAYS check, regardless of
-            // username existence
+            // Kiểm tra email đã tồn tại chưa (nếu có) - LUÔN kiểm tra, bất kể username có
+            // tồn tại hay không
             if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
                 com.university.sms.model.User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
                 if (existingUserByEmail != null) {
@@ -639,8 +639,8 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Check if phone already exists (if provided) - ALWAYS check, regardless of
-            // username existence
+            // Kiểm tra số điện thoại đã tồn tại chưa (nếu có) - LUÔN kiểm tra, bất kể
+            // username có tồn tại hay không
             if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty()) {
                 com.university.sms.model.User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
                 if (existingUserByPhone != null) {
@@ -649,18 +649,19 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Check if username already exists
+            // Kiểm tra username đã tồn tại chưa
             com.university.sms.model.User byUsername = userDAO.findByUsername(username);
             if (byUsername != null) {
-                // Username exists - check if it's a student
+                // Username đã tồn tại - kiểm tra xem có phải là sinh viên không
                 if (byUsername.getRole() != com.university.sms.model.User.UserRole.STUDENT) {
                     return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
                             "Username đã tồn tại với vai trò khác: " + username);
                 }
-                // Username exists and is a student - OK, reuse it
-                // Note: Phone and email validation already done above, so they won't conflict
+                // Username đã tồn tại và là sinh viên - OK, tái sử dụng
+                // Lưu ý: Validation phone và email đã được thực hiện ở trên, nên sẽ không bị
+                // conflict
             } else {
-                // Create new user
+                // Tạo user mới
                 com.university.sms.model.User u = new com.university.sms.model.User();
                 u.setUsername(username);
                 u.setPassword("password"); // Default password - should be changed on first login
@@ -684,7 +685,7 @@ public class ClientHandler implements Runnable {
                     "Lỗi khi tạo tài khoản: " + e.getMessage());
         }
 
-        // Check if student code already exists
+        // Kiểm tra mã sinh viên đã tồn tại chưa
         com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
         com.university.sms.model.Student existingStudent = studentDAO.findByStudentCode(student.getStudentCode());
         if (existingStudent != null) {
@@ -716,7 +717,7 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, Constants.MSG_INVALID_DATA);
         }
 
-        // Validate email format (if provided)
+        // Kiểm tra định dạng email (nếu có)
         if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
             if (!isValidEmailFormat(student.getEmail().trim())) {
                 return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
@@ -724,7 +725,7 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Normalize and validate phone format (if provided)
+        // Chuẩn hóa và kiểm tra định dạng số điện thoại (nếu có)
         String normalizedStudentPhone = null;
         if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
             normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
@@ -734,7 +735,7 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Check if email already exists (if provided and different from current)
+        // Kiểm tra email đã tồn tại chưa (nếu có và khác với email hiện tại)
         if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
             com.university.sms.model.User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
@@ -745,20 +746,20 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Get current student to compare phone
+        // Lấy sinh viên hiện tại để so sánh số điện thoại
         com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
         com.university.sms.model.Student currentStudent = studentDAO.findById(student.getStudentId());
         if (currentStudent == null) {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Không tìm thấy sinh viên");
         }
 
-        // Check if phone has changed (compare normalized versions)
+        // Kiểm tra số điện thoại có thay đổi không (so sánh phiên bản đã chuẩn hóa)
         String currentPhone = currentStudent.getPhone();
         String normalizedCurrentPhone = currentPhone != null ? normalizePhoneNumber(currentPhone) : null;
         boolean phoneChanged = normalizedStudentPhone != null
                 && !normalizedStudentPhone.equals(normalizedCurrentPhone != null ? normalizedCurrentPhone : "");
 
-        // Check if phone already exists (if provided and different from current)
+        // Kiểm tra số điện thoại đã tồn tại chưa (nếu có và khác với số hiện tại)
         if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty() && phoneChanged) {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
             com.university.sms.model.User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
@@ -769,7 +770,8 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Update student with normalized phone (if changed) or keep current
+        // Cập nhật sinh viên với số điện thoại đã chuẩn hóa (nếu thay đổi) hoặc giữ
+        // nguyên
         if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty()) {
             student.setPhone(phoneChanged ? normalizedStudentPhone : currentPhone);
         }
@@ -796,7 +798,7 @@ public class ClientHandler implements Runnable {
      * Xử lý sinh viên tự cập nhật thông tin cá nhân (giới hạn một số field)
      */
     private Message handleStudentSelfUpdate(com.university.sms.model.Student student) {
-        // ✅ REFACTORED: Lấy thông tin sinh viên hiện tại từ database bằng studentCode
+        // Lấy thông tin sinh viên hiện tại từ database bằng studentCode
         StudentDAO studentDAO = new StudentDAO();
         if (student.getStudentCode() == null || student.getStudentCode().isEmpty()) {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Student code is required");
@@ -807,13 +809,13 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Không tìm thấy thông tin sinh viên");
         }
 
-        // ✅ Kiểm tra quyền: Sinh viên chỉ được cập nhật thông tin của chính mình
+        // Kiểm tra quyền: Sinh viên chỉ được cập nhật thông tin của chính mình
         if (currentStudent.getUsername() == null || !currentStudent.getUsername().equals(currentUser.getUsername())) {
             return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
                     "Bạn chỉ có thể cập nhật thông tin của chính mình");
         }
 
-        // Validate email format (if provided)
+        // Kiểm tra định dạng email (nếu có)
         if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
             if (!isValidEmailFormat(student.getEmail().trim())) {
                 return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT,
@@ -821,7 +823,7 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Normalize and validate phone format (if provided)
+        // Chuẩn hóa và kiểm tra định dạng số điện thoại (nếu có)
         String normalizedStudentPhone = null;
         if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
             normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
@@ -831,7 +833,7 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Check if email already exists (if provided and different from current)
+        // Kiểm tra email đã tồn tại chưa (nếu có và khác với email hiện tại)
         if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
             com.university.sms.model.User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
@@ -842,13 +844,13 @@ public class ClientHandler implements Runnable {
             }
         }
 
-        // Check if phone has changed (compare normalized versions)
+        // Kiểm tra số điện thoại có thay đổi không (so sánh phiên bản đã chuẩn hóa)
         String currentPhone = currentStudent.getPhone();
         String normalizedCurrentPhone = currentPhone != null ? normalizePhoneNumber(currentPhone) : null;
         boolean phoneChanged = normalizedStudentPhone != null
                 && !normalizedStudentPhone.equals(normalizedCurrentPhone != null ? normalizedCurrentPhone : "");
 
-        // Check if phone already exists (if provided and different from current)
+        // Kiểm tra số điện thoại đã tồn tại chưa (nếu có và khác với số hiện tại)
         if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty() && phoneChanged) {
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
             com.university.sms.model.User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
@@ -881,7 +883,7 @@ public class ClientHandler implements Runnable {
 
     private Message handleDeleteStudent(Message request) {
         try {
-            // Only admin can delete students
+            // Chỉ admin mới có thể xóa sinh viên
             if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
                 return Message.createErrorResponse(request.getAction(), "Chỉ admin mới có quyền xóa sinh viên");
             }
@@ -897,36 +899,37 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Không tìm thấy sinh viên");
             }
 
-            // Lưu source gốc để dùng sau
+            // Lưu nguồn gốc để dùng sau
             String existingSource = getDataOrigin("student", student.getStudentId());
 
-            // Cập nhật trạng thái tất cả enrollments của student
-            // Giữ nguyên grades và course_registrations, chỉ cập nhật enrollment status
+            // Cập nhật trạng thái tất cả đăng ký học phần của sinh viên
+            // Giữ nguyên điểm và đăng ký khóa học, chỉ cập nhật trạng thái đăng ký học phần
             EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
             List<Enrollment> enrollments = enrollmentDAO.findByStudentCode(studentCode);
             int enrollmentsUpdated = 0;
             for (Enrollment enrollment : enrollments) {
                 try {
-                    // Đảm bảo enrollment có source trong data_origin để có thể sync
-                    // Nếu chưa có, tạo mới với source = CSV (mặc định cho enrollments)
+                    // Đảm bảo đăng ký học phần có nguồn trong data_origin để có thể đồng bộ
+                    // Nếu chưa có, tạo mới với nguồn = CSV (mặc định cho đăng ký học phần)
                     String enrollmentSource = getDataOrigin("enrollment", enrollment.getEnrollmentId());
                     if (enrollmentSource == null) {
-                        // Enrollment chưa có source, tạo mới với source = CSV để có thể sync
+                        // Đăng ký học phần chưa có nguồn, tạo mới với nguồn = CSV để có thể đồng bộ
                         saveDataOrigin("enrollment", enrollment.getEnrollmentId(), "CSV");
                         enrollmentSource = "CSV";
                         LOGGER.info("Đã tạo data_origin cho enrollment ID: " + enrollment.getEnrollmentId()
                                 + " với source = CSV");
                     }
 
-                    // Kiểm tra trạng thái hiện tại của enrollment
-                    // Nếu status khác COMPLETED (Kết thúc học phần) → chuyển về DROPPED (Thôi học)
+                    // Kiểm tra trạng thái hiện tại của đăng ký học phần
+                    // Nếu trạng thái khác COMPLETED (Kết thúc học phần) → chuyển về DROPPED (Thôi
+                    // học)
                     if (enrollment.getEnrollmentStatus() != Enrollment.EnrollmentStatus.COMPLETED) {
                         if (enrollmentDAO.updateEnrollmentStatus(enrollment.getEnrollmentId(),
                                 Enrollment.EnrollmentStatus.DROPPED)) {
                             enrollmentsUpdated++;
 
-                            // Cập nhật timestamp SAU KHI update enrollment status thành công
-                            // Đảm bảo version tăng để CSV client có thể download
+                            // Cập nhật timestamp SAU KHI cập nhật trạng thái đăng ký học phần thành công
+                            // Đảm bảo version tăng để CSV client có thể tải xuống
                             if (enrollmentSource != null) {
                                 int updated = updateDataOriginTimestampWithResult("enrollment",
                                         enrollment.getEnrollmentId());
@@ -963,23 +966,23 @@ public class ClientHandler implements Runnable {
                 LOGGER.info("Đã cập nhật " + enrollmentsUpdated + " enrollments của sinh viên " + studentCode);
             }
 
-            // Chuyển tất cả course_registrations đang PENDING thành CANCELLED khi student
-            // bị SUSPENDED
+            // Chuyển tất cả đăng ký khóa học đang PENDING thành CANCELLED khi sinh viên bị
+            // SUSPENDED
             CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
             List<CourseRegistration> registrations = registrationDAO.findByStudent(studentCode);
             int registrationsCancelled = 0;
             for (CourseRegistration registration : registrations) {
                 try {
-                    // Chỉ chuyển những registration đang PENDING
+                    // Chỉ chuyển những đăng ký đang PENDING
                     if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.PENDING) {
-                        // Cập nhật timestamp data_origin nếu registration có source CSV
+                        // Cập nhật timestamp data_origin nếu đăng ký có nguồn CSV
                         String registrationSource = getDataOrigin("course_registration",
                                 registration.getRegistrationId());
                         if (registrationSource != null) {
                             updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
                         }
 
-                        // Chuyển từ PENDING sang CANCELLED (reject)
+                        // Chuyển từ PENDING sang CANCELLED (từ chối)
                         if (registrationDAO.cancel(registration.getRegistrationId())) {
                             registrationsCancelled++;
                             LOGGER.info("Đã hủy (reject) course registration ID: " + registration.getRegistrationId()
@@ -1058,7 +1061,7 @@ public class ClientHandler implements Runnable {
             LOGGER.info("Getting all courses...");
             var courses = courseService.getAllCourses();
             LOGGER.info("Found " + courses.size() + " courses");
-            // Use the same action as request for proper response matching
+            // Sử dụng cùng action như request để khớp response đúng
             String responseAction = request.getAction();
             Message response = Message.createSuccessResponse(responseAction, "Lấy danh sách khóa học thành công");
             response.addData(Constants.KEY_COURSES, courses);
@@ -1070,7 +1073,7 @@ public class ClientHandler implements Runnable {
         }
     }
 
-    // Removed handleGetCourses - using handleGetAllCourses for both actions
+    // Đã xóa handleGetCourses - sử dụng handleGetAllCourses cho cả hai hành động
 
     /**
      * Xử lý lấy thông tin khóa học
@@ -1152,26 +1155,27 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, Constants.MSG_INVALID_DATA);
         }
 
-        // Lấy course để kiểm tra business rules trước
+        // Lấy khóa học để kiểm tra quy tắc nghiệp vụ trước
         com.university.sms.model.Course course = courseService.getCourseByCode(courseCode);
         if (course == null) {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE, "Không tìm thấy lớp học phần");
         }
 
-        // Kiểm tra business rules và trả về thông báo lỗi cụ thể
-        // Business Rule: Không cho hủy lớp đã hoàn thành (completed) - cần lưu lịch sử
+        // Kiểm tra quy tắc nghiệp vụ và trả về thông báo lỗi cụ thể
+        // Quy tắc nghiệp vụ: Không cho hủy lớp đã hoàn thành (completed) - cần lưu lịch
+        // sử
         if (course.getCourseStatus() == com.university.sms.model.Course.CourseStatus.COMPLETED) {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
                     "Không thể hủy lớp học phần đã hoàn thành. Lớp đã kết thúc và cần lưu lịch sử.");
         }
 
-        // Business Rule: Không cho hủy lớp đã bị hủy (cancelled)
+        // Quy tắc nghiệp vụ: Không cho hủy lớp đã bị hủy (cancelled)
         if (course.getCourseStatus() == com.university.sms.model.Course.CourseStatus.CANCELLED) {
             return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
                     "Lớp học phần đã bị hủy trước đó.");
         }
 
-        // Cập nhật timestamp nếu course có source CSV (trước khi xóa)
+        // Cập nhật timestamp nếu khóa học có nguồn CSV (trước khi xóa)
         if (course.getCourseId() > 0) {
             String existingSource = getDataOrigin("course", course.getCourseId());
             if ("CSV".equals(existingSource)) {
@@ -1243,7 +1247,7 @@ public class ClientHandler implements Runnable {
         try {
             com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
 
-            // Student: chỉ xem của chính mình
+            // Sinh viên: chỉ xem của chính mình
             if (currentUser.getRole() == User.UserRole.STUDENT) {
                 var me = studentService.findByUsername(currentUser.getUsername());
                 if (me == null) {
@@ -1278,7 +1282,7 @@ public class ClientHandler implements Runnable {
         try {
             com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
 
-            // ✅ REFACTORED: Use studentCode instead of studentId
+            // Sử dụng studentCode thay vì studentId
             String targetStudentCode;
             if (currentUser.getRole() == User.UserRole.STUDENT) {
                 var me = studentService.findByUsername(currentUser.getUsername());
@@ -1338,7 +1342,7 @@ public class ClientHandler implements Runnable {
                 e.setCourseCode(courseCode);
                 ok = enrollmentDAO.save(e);
                 if (ok) {
-                    // ✅ REFACTORED: Update current_students using courseCode
+                    // Cập nhật current_students sử dụng courseCode
                     courseService.incrementCurrentStudents(courseCode);
                     saveDataOrigin("enrollment", e.getEnrollmentId(), clientSource);
                     // Lấy enrollment đã được lưu để trả về cho client
@@ -2015,7 +2019,6 @@ public class ClientHandler implements Runnable {
                     faculty.setFacultyCode(rs.getString("faculty_code"));
                     faculty.setFacultyName(rs.getString("faculty_name"));
                     faculty.setDescription(rs.getString("description"));
-                    faculty.setHeadTeacherUsername(rs.getString("head_teacher_username"));
                     faculties.add(faculty);
                 }
             }
@@ -2356,6 +2359,19 @@ public class ClientHandler implements Runnable {
     }
 
     /**
+     * Helper method để tạo message thống nhất cho upload results
+     */
+    private String createUploadMessage(String entityName, int successCount, int failCount) {
+        if (failCount == 0) {
+            return String.format("Uploaded %d %s successfully", successCount, entityName);
+        } else if (successCount == 0) {
+            return String.format("Uploaded 0 %s successfully, %d failed", entityName, failCount);
+        } else {
+            return String.format("Uploaded %d %s successfully, %d failed", successCount, entityName, failCount);
+        }
+    }
+
+    /**
      * Xử lý upload students từ client
      */
     private Message handleUploadStudents(Message request) {
@@ -2386,19 +2402,19 @@ public class ClientHandler implements Runnable {
             com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
             for (com.university.sms.model.Student student : students) {
                 try {
-                    // ✅ REFACTORED: Ensure user exists based on username (code-based approach)
+                    // Đảm bảo user tồn tại dựa trên username
                     String username = student.getUsername();
                     boolean userOk = true;
                     if (username == null || username.isEmpty()) {
-                        // Fallback: use studentCode as username if not set
+                        // Dự phòng: sử dụng studentCode làm username nếu chưa được set
                         username = student.getStudentCode();
                         student.setUsername(username);
                     }
 
-                    // Check if user exists by username
+                    // Kiểm tra user có tồn tại theo username
                     com.university.sms.model.User existingUser = userDAO.findByUsername(username);
                     if (existingUser == null) {
-                        // Create a minimal user from student info
+                        // Tạo user tối thiểu từ thông tin sinh viên
                         com.university.sms.model.User u = new com.university.sms.model.User();
                         u.setUsername(username);
                         u.setPassword("password");
@@ -2413,7 +2429,7 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // ✅ REFACTORED: Ensure class exists (if specified)
+                    // Đảm bảo lớp tồn tại (nếu có)
                     String classCode = student.getClassCode();
                     boolean classOk = true;
                     if (classCode != null && !classCode.isEmpty()) {
@@ -2425,7 +2441,7 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // ✅ REFACTORED: Ensure faculty exists
+                    // Đảm bảo khoa tồn tại
                     String facultyCode = student.getFacultyCode();
                     boolean facultyOk = true;
                     if (facultyCode != null && !facultyCode.isEmpty()) {
@@ -2437,7 +2453,7 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè data từ source
+                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè dữ liệu từ nguồn
                     // khác)
                     com.university.sms.model.Student existing = studentDAO.findByStudentCode(student.getStudentCode());
                     if (existing == null) {
@@ -2462,9 +2478,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d students successfully, %d failed",
-                    successCount, failCount);
-
+            String message = createUploadMessage("students", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_STUDENTS, message);
 
         } catch (Exception e) {
@@ -2505,7 +2519,7 @@ public class ClientHandler implements Runnable {
             com.university.sms.dao.ClassDAO classDAO = new com.university.sms.dao.ClassDAO();
             for (com.university.sms.model.Course course : courses) {
                 try {
-                    // ✅ REFACTORED: Ensure subject exists
+                    // Đảm bảo môn học tồn tại
                     String subjectCode = course.getSubjectCode();
                     boolean subjectOk = true;
                     if (subjectCode != null && !subjectCode.isEmpty()) {
@@ -2517,7 +2531,7 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // ✅ REFACTORED: Ensure class exists (if specified)
+                    // Đảm bảo lớp tồn tại (nếu có)
                     String classCode = course.getClassCode();
                     boolean classOk = true;
                     if (classCode != null && !classCode.isEmpty()) {
@@ -2529,29 +2543,44 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // ✅ REFACTORED: Ensure teacher user exists based on username (code-based
-                    // approach)
+                    // Đảm bảo giáo viên tồn tại dựa trên username
                     String teacherUsername = course.getTeacherUsername();
                     boolean userOk = true;
                     if (teacherUsername != null && !teacherUsername.isEmpty()) {
-                        // Check if teacher user exists by username
+                        // Kiểm tra giáo viên có tồn tại theo username
                         com.university.sms.model.User existingUser = userDAO.findByUsername(teacherUsername);
                         if (existingUser == null) {
-                            // Create a minimal teacher user from course info
+                            // Tạo user giáo viên tối thiểu từ thông tin khóa học
+                            // Thử lấy faculty_code từ môn học nếu có
+                            String facultyCode = null;
+                            if (subjectCode != null && !subjectCode.isEmpty()) {
+                                com.university.sms.model.Subject subject = subjectDAO.findByCode(subjectCode);
+                                if (subject != null) {
+                                    facultyCode = subject.getFacultyCode();
+                                }
+                            }
+
                             com.university.sms.model.User u = new com.university.sms.model.User();
                             u.setUsername(teacherUsername);
                             u.setPassword("password");
                             u.setFullName(course.getTeacherName() != null ? course.getTeacherName() : teacherUsername);
-                            u.setEmail(teacherUsername + "@csv-teacher.edu.vn"); // Generate email from username
+                            u.setEmail(teacherUsername + "@csv-teacher.edu.vn"); // Tạo email từ username
                             u.setRole(com.university.sms.model.User.UserRole.TEACHER);
+                            u.setFacultyCode(facultyCode); // Đặt faculty_code nếu có
                             userOk = userDAO.addUser(u);
                             if (userOk) {
                                 saveDataOrigin("user", u.getUserId(), clientSource);
+                            } else {
+                                LOGGER.warning("Không thể tạo user giáo viên: " + teacherUsername +
+                                        " (có thể trùng email/phone)");
                             }
+                        } else {
+                            // User đã tồn tại, không sao
+                            LOGGER.info("User giáo viên đã tồn tại: " + teacherUsername);
                         }
                     }
 
-                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè data từ source
+                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè dữ liệu từ nguồn
                     // khác)
                     com.university.sms.model.Course existing = courseDAO.findByCourseCode(course.getCourseCode());
                     if (existing == null) {
@@ -2567,13 +2596,16 @@ public class ClientHandler implements Runnable {
                         } else {
                             failCount++;
                             LOGGER.warning("Failed to save course: " + course.getCourseCode() + " - "
-                                    + course.getCourseName());
+                                    + (course.getCourseName() != null ? course.getCourseName() : "") +
+                                    (subjectOk ? "" : " (subject not found)") +
+                                    (classOk ? "" : " (class not found)") +
+                                    (userOk ? "" : " (teacher user not found/created)"));
                         }
                     } else {
-                        // Đã tồn tại → SKIP (không update, không insert)
+                        // Đã tồn tại → Không đếm vào successCount hoặc failCount, chỉ log
                         LOGGER.info("Course already exists, skipping: " + course.getCourseCode() + " (source: "
                                 + clientSource + ")");
-                        // Không đếm vào successCount hoặc failCount, chỉ log
+                        // Không đếm vào successCount hoặc failCount
                     }
                 } catch (Exception ex) {
                     failCount++;
@@ -2582,9 +2614,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d courses successfully, %d failed",
-                    successCount, failCount);
-
+            String message = createUploadMessage("courses", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSES, message);
 
         } catch (Exception e) {
@@ -2619,10 +2649,41 @@ public class ClientHandler implements Runnable {
             int successCount = 0;
             int failCount = 0;
             com.university.sms.dao.EnrollmentDAO enrollmentDAO = new com.university.sms.dao.EnrollmentDAO();
+            com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
+            com.university.sms.dao.CourseDAO courseDAO = new com.university.sms.dao.CourseDAO();
 
             for (com.university.sms.model.Enrollment e : enrollments) {
                 try {
-                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh duplicate)
+                    // Validate FK student_code
+                    boolean studentOk = true;
+                    if (e.getStudentCode() != null && !e.getStudentCode().trim().isEmpty()) {
+                        com.university.sms.model.Student existingStudent = studentDAO
+                                .findByStudentCode(e.getStudentCode().trim());
+                        if (existingStudent == null) {
+                            studentOk = false;
+                            LOGGER.warning("Student code not found: " + e.getStudentCode() + " for enrollment");
+                        }
+                    }
+
+                    // Validate FK course_code
+                    boolean courseOk = true;
+                    if (e.getCourseCode() != null && !e.getCourseCode().trim().isEmpty()) {
+                        com.university.sms.model.Course existingCourse = courseDAO
+                                .findByCourseCode(e.getCourseCode().trim());
+                        if (existingCourse == null) {
+                            courseOk = false;
+                            LOGGER.warning("Course code not found: " + e.getCourseCode() + " for enrollment");
+                        }
+                    }
+
+                    if (!studentOk || !courseOk) {
+                        failCount++;
+                        LOGGER.warning("Failed to save enrollment: studentCode=" + e.getStudentCode() +
+                                ", courseCode=" + e.getCourseCode() + " (FK validation failed)");
+                        continue;
+                    }
+
+                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh trùng lặp)
                     // Check duplicate dựa trên student_code, course_code (có UNIQUE constraint)
                     boolean exists = false;
                     try {
@@ -2636,18 +2697,19 @@ public class ClientHandler implements Runnable {
                             try (java.sql.ResultSet rs = checkStmt.executeQuery()) {
                                 if (rs.next() && rs.getInt(1) > 0) {
                                     exists = true;
-                                    LOGGER.info("Enrollment already exists, skipping: student=" + e.getStudentCode() +
+                                    LOGGER.info("Enrollment already exists, using existing: student="
+                                            + e.getStudentCode() +
                                             ", course=" + e.getCourseCode() + " (source: " + clientSource + ")");
                                 }
                             }
                         }
                     } catch (Exception checkEx) {
                         LOGGER.warning("Error checking enrollment duplicate: " + checkEx.getMessage());
-                        // Nếu check lỗi, vẫn tiếp tục insert (không block)
+                        // Nếu kiểm tra lỗi, vẫn tiếp tục insert (không chặn)
                     }
 
                     if (!exists) {
-                        // Reset ID để database tự tăng, không giữ ID từ CSV
+                        // Đặt lại ID để database tự tăng, không giữ ID từ CSV
                         e.setEnrollmentId(0);
                         boolean ok = enrollmentDAO.save(e);
 
@@ -2659,8 +2721,10 @@ public class ClientHandler implements Runnable {
                             LOGGER.warning("Failed to save enrollment: studentCode=" + e.getStudentCode() +
                                     ", courseCode=" + e.getCourseCode());
                         }
+                    } else {
+                        // Đã tồn tại → Không đếm vào successCount hoặc failCount, chỉ log
+                        // Không đếm vào successCount hoặc failCount
                     }
-                    // Nếu đã tồn tại, không đếm vào successCount hoặc failCount, chỉ log
                 } catch (Exception ex) {
                     failCount++;
                     LOGGER.severe("Lỗi khi lưu đăng ký học phần: " + ex.getMessage());
@@ -2668,8 +2732,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d enrollments successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("enrollments", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_ENROLLMENTS, message);
 
         } catch (Exception e) {
@@ -2705,34 +2768,51 @@ public class ClientHandler implements Runnable {
             int successCount = 0;
             int failCount = 0;
             com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
+            com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
 
             for (com.university.sms.model.User u : users) {
                 try {
-                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè data từ source
+                    // Validate FK faculty_code nếu có
+                    boolean facultyOk = true;
+                    if (u.getFacultyCode() != null && !u.getFacultyCode().trim().isEmpty()) {
+                        com.university.sms.model.Faculty existingFaculty = facultyDAO
+                                .findByCode(u.getFacultyCode().trim());
+                        if (existingFaculty == null) {
+                            facultyOk = false;
+                            LOGGER.warning(
+                                    "Faculty code not found: " + u.getFacultyCode() + " for user " + u.getUsername());
+                        }
+                    }
+
+                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè dữ liệu từ nguồn
                     // khác)
                     com.university.sms.model.User existing = userDAO.findByUsername(u.getUsername());
                     if (existing == null) {
                         // Chưa tồn tại → INSERT mới
-                        u.setUserId(0); // Reset ID để database tự tăng
-                        if (userDAO.addUser(u)) {
+                        u.setUserId(0); // Đặt lại ID để database tự tăng
+                        if (facultyOk && userDAO.addUser(u)) {
                             saveDataOrigin("user", u.getUserId(), clientSource);
                             successCount++;
                         } else {
                             failCount++;
+                            LOGGER.warning("Failed to save user: " + u.getUsername() +
+                                    (facultyOk ? " (check email/phone uniqueness)" : " (faculty_code not found)"));
                         }
                     } else {
-                        // Đã tồn tại → SKIP (không update, không insert)
-                        LOGGER.info("User already exists, skipping: " + u.getUsername() + " (source: " + clientSource
-                                + ")");
-                        // Không đếm vào successCount hoặc failCount, chỉ log
+                        // Đã tồn tại → Không đếm vào successCount hoặc failCount, chỉ log
+                        LOGGER.info(
+                                "User already exists, skipping: " + u.getUsername() + " (source: " + clientSource
+                                        + ")");
+                        // Không đếm vào successCount hoặc failCount
                     }
                 } catch (Exception ex) {
                     failCount++;
+                    LOGGER.severe("Lỗi khi tải lên người dùng " + u.getUsername() + ": " + ex.getMessage());
+                    LOGGER.log(Level.SEVERE, "Chi tiết lỗi", ex);
                 }
             }
 
-            String message = String.format("Uploaded %d users successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("users", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_USERS, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên người dùng: " + e.getMessage());
@@ -2765,40 +2845,16 @@ public class ClientHandler implements Runnable {
             int successCount = 0;
             int failCount = 0;
             com.university.sms.dao.FacultyDAO facultyDAO = new com.university.sms.dao.FacultyDAO();
-            com.university.sms.dao.UserDAO userDAO = new com.university.sms.dao.UserDAO();
 
             for (com.university.sms.model.Faculty f : faculties) {
                 try {
-                    // ✅ REFACTORED: Ensure head teacher user exists based on username (code-based
-                    // approach)
-                    String headTeacherUsername = f.getHeadTeacherUsername();
-                    boolean userOk = true;
-                    if (headTeacherUsername != null && !headTeacherUsername.isEmpty()) {
-                        // Check if head teacher user exists by username
-                        com.university.sms.model.User existingUser = userDAO.findByUsername(headTeacherUsername);
-                        if (existingUser == null) {
-                            // Create a minimal teacher user from faculty info
-                            com.university.sms.model.User u = new com.university.sms.model.User();
-                            u.setUsername(headTeacherUsername);
-                            u.setPassword("password");
-                            u.setFullName(
-                                    f.getHeadTeacherName() != null ? f.getHeadTeacherName() : headTeacherUsername);
-                            u.setEmail(headTeacherUsername + "@csv-teacher.edu.vn"); // Generate email from username
-                            u.setRole(com.university.sms.model.User.UserRole.TEACHER);
-                            userOk = userDAO.addUser(u);
-                            if (userOk) {
-                                saveDataOrigin("user", u.getUserId(), clientSource);
-                            }
-                        }
-                    }
-
-                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè data từ source
+                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè dữ liệu từ nguồn
                     // khác)
                     com.university.sms.model.Faculty existing = facultyDAO.findByCode(f.getFacultyCode());
                     if (existing == null) {
                         // Chưa tồn tại → INSERT mới
-                        f.setFacultyId(0); // Reset ID để database tự tăng
-                        if (userOk && facultyDAO.addFaculty(f)) {
+                        f.setFacultyId(0); // Đặt lại ID để database tự tăng
+                        if (facultyDAO.addFaculty(f)) {
                             saveDataOrigin("faculty", f.getFacultyId(), clientSource);
                             successCount++;
                         } else {
@@ -2819,8 +2875,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d faculties successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("faculties", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_FACULTIES, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên khoa: " + e.getMessage());
@@ -2858,7 +2913,7 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.Class c : classes) {
                 try {
-                    // ✅ REFACTORED: Ensure faculty exists
+                    // Đảm bảo khoa tồn tại
                     String facultyCode = c.getFacultyCode();
                     boolean facultyOk = true;
                     if (facultyCode != null && !facultyCode.isEmpty()) {
@@ -2869,20 +2924,19 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // ✅ REFACTORED: Ensure teacher user exists based on username (code-based
-                    // approach)
+                    // Đảm bảo giáo viên tồn tại dựa trên username
                     String teacherUsername = c.getTeacherUsername();
                     boolean userOk = true;
                     if (teacherUsername != null && !teacherUsername.isEmpty()) {
-                        // Check if teacher user exists by username
+                        // Kiểm tra giáo viên có tồn tại theo username
                         com.university.sms.model.User existingUser = userDAO.findByUsername(teacherUsername);
                         if (existingUser == null) {
-                            // Create a minimal teacher user from class info
+                            // Tạo user giáo viên tối thiểu từ thông tin lớp
                             com.university.sms.model.User u = new com.university.sms.model.User();
                             u.setUsername(teacherUsername);
                             u.setPassword("password");
-                            u.setFullName(teacherUsername); // Class model doesn't have teacher name, use username
-                            u.setEmail(teacherUsername + "@csv-teacher.edu.vn"); // Generate email from username
+                            u.setFullName(teacherUsername); // Model Class không có tên giáo viên, sử dụng username
+                            u.setEmail(teacherUsername + "@csv-teacher.edu.vn"); // Tạo email từ username
                             u.setRole(com.university.sms.model.User.UserRole.TEACHER);
                             userOk = userDAO.addUser(u);
                             if (userOk) {
@@ -2891,12 +2945,12 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè data từ source
+                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè dữ liệu từ nguồn
                     // khác)
                     com.university.sms.model.Class existing = classDAO.findByCode(c.getClassCode());
                     if (existing == null) {
                         // Chưa tồn tại → INSERT mới
-                        c.setClassId(0); // Reset ID để database tự tăng
+                        c.setClassId(0); // Đặt lại ID để database tự tăng
                         if (facultyOk && userOk && classDAO.save(c)) {
                             saveDataOrigin("class", c.getClassId(), clientSource);
                             successCount++;
@@ -2917,8 +2971,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d classes successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("classes", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASSES, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên lớp: " + e.getMessage());
@@ -2955,7 +3008,7 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.Subject s : subjects) {
                 try {
-                    // ✅ REFACTORED: Ensure faculty exists
+                    // Đảm bảo khoa tồn tại
                     String facultyCode = s.getFacultyCode();
                     boolean facultyOk = true;
                     if (facultyCode != null && !facultyCode.isEmpty()) {
@@ -2967,7 +3020,7 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // ✅ REFACTORED: Ensure prerequisite subject exists (if specified)
+                    // Đảm bảo môn học tiên quyết tồn tại (nếu có)
                     String prerequisiteCode = s.getPrerequisiteSubjectCode();
                     boolean prerequisiteOk = true;
                     if (prerequisiteCode != null && !prerequisiteCode.isEmpty()) {
@@ -2979,12 +3032,12 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè data từ source
+                    // Chỉ INSERT mới, không UPDATE nếu đã tồn tại (tránh ghi đè dữ liệu từ nguồn
                     // khác)
                     com.university.sms.model.Subject existing = subjectDAO.findByCode(s.getSubjectCode());
                     if (existing == null) {
                         // Chưa tồn tại → INSERT mới
-                        s.setSubjectId(0); // Reset ID để database tự tăng
+                        s.setSubjectId(0); // Đặt lại ID để database tự tăng
                         if (facultyOk && prerequisiteOk && subjectDAO.save(s)) {
                             saveDataOrigin("subject", s.getSubjectId(), clientSource);
                             successCount++;
@@ -3006,8 +3059,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d subjects successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("subjects", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_SUBJECTS, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên môn học: " + e.getMessage());
@@ -3043,8 +3095,8 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.Grade g : grades) {
                 try {
-                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh duplicate)
-                    // Check duplicate dựa trên student_code, course_code, grade_type, grade_name
+                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh trùng lặp)
+                    // Kiểm tra trùng lặp dựa trên student_code, course_code, grade_type, grade_name
                     // (vì grades không có UNIQUE constraint)
                     boolean exists = false;
                     try {
@@ -3075,11 +3127,11 @@ public class ClientHandler implements Runnable {
                         }
                     } catch (Exception checkEx) {
                         LOGGER.warning("Error checking grade duplicate: " + checkEx.getMessage());
-                        // Nếu check lỗi, vẫn tiếp tục insert (không block)
+                        // Nếu kiểm tra lỗi, vẫn tiếp tục insert (không chặn)
                     }
 
                     if (!exists) {
-                        // Reset ID để database tự tăng, không giữ ID từ CSV
+                        // Đặt lại ID để database tự tăng, không giữ ID từ CSV
                         g.setGradeId(0);
                         if (gradeDAO.save(g)) {
                             saveDataOrigin("grade", g.getGradeId(), clientSource);
@@ -3096,8 +3148,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d grades successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("grades", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_GRADES, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên grades: " + e.getMessage());
@@ -3135,8 +3186,8 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.ClassOpeningRequest r : requests) {
                 try {
-                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh duplicate)
-                    // Check duplicate dựa trên teacher, subject, academic_year, semester,
+                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh trùng lặp)
+                    // Kiểm tra trùng lặp dựa trên teacher, subject, academic_year, semester,
                     // schedule_day, schedule_time
                     List<com.university.sms.model.ClassOpeningRequest> existingRequests = requestDAO
                             .findByTeacher(r.getTeacherUsername());
@@ -3162,7 +3213,7 @@ public class ClientHandler implements Runnable {
                     }
 
                     if (!exists) {
-                        // Reset ID để database tự tăng, không giữ ID từ CSV
+                        // Đặt lại ID để database tự tăng, không giữ ID từ CSV
                         r.setRequestId(0);
                         if (service.submitRequest(r)) {
                             saveDataOrigin("class_opening_request", r.getRequestId(), clientSource);
@@ -3178,8 +3229,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d class opening requests successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("class opening requests", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên class opening requests: " + e.getMessage());
@@ -3216,7 +3266,7 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.CourseRegistration r : registrations) {
                 try {
-                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh duplicate)
+                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh trùng lặp)
                     // Check duplicate dựa trên student_code, course_code (có UNIQUE constraint)
                     boolean exists = false;
                     try {
@@ -3238,11 +3288,11 @@ public class ClientHandler implements Runnable {
                         }
                     } catch (Exception checkEx) {
                         LOGGER.warning("Error checking course registration duplicate: " + checkEx.getMessage());
-                        // Nếu check lỗi, vẫn tiếp tục insert (không block)
+                        // Nếu kiểm tra lỗi, vẫn tiếp tục insert (không chặn)
                     }
 
                     if (!exists) {
-                        // Reset ID để database tự tăng, không giữ ID từ CSV
+                        // Đặt lại ID để database tự tăng, không giữ ID từ CSV
                         r.setRegistrationId(0);
                         if (dao.save(r)) {
                             saveDataOrigin("course_registration", r.getRegistrationId(), clientSource);
@@ -3258,8 +3308,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d course registrations successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("course registrations", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên course registrations: " + e.getMessage());
@@ -3297,22 +3346,20 @@ public class ClientHandler implements Runnable {
 
             for (com.university.sms.model.Notification n : notifications) {
                 try {
-                    // ✅ REFACTORED: Ensure sender user exists based on username (code-based
-                    // approach)
+                    // Đảm bảo người gửi tồn tại dựa trên username
                     String senderUsername = n.getSenderUsername();
                     boolean userOk = true;
                     if (senderUsername != null && !senderUsername.isEmpty()) {
-                        // Check if sender user exists by username
+                        // Kiểm tra người gửi có tồn tại theo username
                         com.university.sms.model.User existingUser = userDAO.findByUsername(senderUsername);
                         if (existingUser == null) {
-                            // Create a minimal user from notification info
+                            // Tạo user tối thiểu từ thông tin thông báo
                             com.university.sms.model.User u = new com.university.sms.model.User();
                             u.setUsername(senderUsername);
                             u.setPassword("password");
                             u.setFullName(n.getSenderName() != null ? n.getSenderName() : senderUsername);
-                            u.setEmail(senderUsername + "@csv-admin.edu.vn"); // Generate email from username
-                            u.setRole(com.university.sms.model.User.UserRole.ADMIN); // Default to ADMIN for
-                                                                                     // notifications
+                            u.setEmail(senderUsername + "@csv-admin.edu.vn"); // Tạo email từ username
+                            u.setRole(com.university.sms.model.User.UserRole.ADMIN); // Mặc định là ADMIN cho thông báo
                             userOk = userDAO.addUser(u);
                             if (userOk) {
                                 saveDataOrigin("user", u.getUserId(), clientSource);
@@ -3320,12 +3367,12 @@ public class ClientHandler implements Runnable {
                         }
                     }
 
-                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh duplicate)
-                    // Check duplicate dựa trên title, content, sender_username, target_type,
+                    // Chỉ INSERT mới, không INSERT nếu đã tồn tại (tránh trùng lặp)
+                    // Kiểm tra trùng lặp dựa trên title, content, sender_username, target_type,
                     // target_code
                     boolean exists = false;
                     try {
-                        // Query để check duplicate
+                        // Truy vấn để kiểm tra trùng lặp
                         String checkSql = "SELECT COUNT(*) FROM notifications WHERE " +
                                 "title = ? AND content = ? AND sender_username = ? AND target_type = ? " +
                                 "AND (target_code = ? OR (target_code IS NULL AND ? IS NULL))";
@@ -3353,11 +3400,11 @@ public class ClientHandler implements Runnable {
                         }
                     } catch (Exception checkEx) {
                         LOGGER.warning("Error checking notification duplicate: " + checkEx.getMessage());
-                        // Nếu check lỗi, vẫn tiếp tục insert (không block)
+                        // Nếu kiểm tra lỗi, vẫn tiếp tục insert (không chặn)
                     }
 
                     if (!exists && userOk) {
-                        // Reset ID để database tự tăng, không giữ ID từ CSV
+                        // Đặt lại ID để database tự tăng, không giữ ID từ CSV
                         n.setNotificationId(0);
                         if (service.createNotification(n)) {
                             saveDataOrigin("notification", n.getNotificationId(), clientSource);
@@ -3376,8 +3423,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            String message = String.format("Uploaded %d notifications successfully, %d failed",
-                    successCount, failCount);
+            String message = createUploadMessage("notifications", successCount, failCount);
             return Message.createSuccessResponse(Constants.ACTION_UPLOAD_NOTIFICATIONS, message);
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi xử lý tải lên notifications: " + e.getMessage());
@@ -4050,7 +4096,7 @@ public class ClientHandler implements Runnable {
                         "Mật khẩu phải có ít nhất 6 ký tự");
             }
 
-            // Validate email format (if provided)
+            // Kiểm tra định dạng email (nếu có)
             if (email != null && !email.trim().isEmpty()) {
                 if (!isValidEmailFormat(email.trim())) {
                     return Message.createErrorResponse(request.getAction(),
@@ -4075,7 +4121,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Normalize and validate phone format (if provided)
+            // Chuẩn hóa và kiểm tra định dạng số điện thoại (nếu có)
             String normalizedPhone = null;
             if (phone != null && !phone.trim().isEmpty()) {
                 normalizedPhone = normalizePhoneNumber(phone.trim());
@@ -4171,7 +4217,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Validate email format (if provided)
+            // Kiểm tra định dạng email (nếu có)
             if (email != null && !email.trim().isEmpty()) {
                 if (!isValidEmailFormat(email.trim())) {
                     return Message.createErrorResponse(request.getAction(),
@@ -4179,7 +4225,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Check if email already exists (if provided and different from current)
+            // Kiểm tra email đã tồn tại chưa (nếu có và khác với email hiện tại)
             if (email != null && !email.trim().isEmpty()) {
                 User existingUserByEmail = userDAO.findByEmail(email.trim());
                 if (existingUserByEmail != null && existingUserByEmail.getUserId() != teacher.getUserId()) {
@@ -4193,7 +4239,7 @@ public class ClientHandler implements Runnable {
                 normalizedPhone = normalizePhoneNumber(phone.trim());
             }
 
-            // Check if phone has changed (compare normalized versions)
+            // Kiểm tra số điện thoại có thay đổi không (so sánh phiên bản đã chuẩn hóa)
             String currentPhone = teacher.getPhone();
             String normalizedCurrentPhone = currentPhone != null ? normalizePhoneNumber(currentPhone) : null;
             boolean phoneChanged = normalizedPhone != null
@@ -4208,7 +4254,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            // Check if phone already exists (if provided and different from current)
+            // Kiểm tra số điện thoại đã tồn tại chưa (nếu có và khác với số hiện tại)
             if (normalizedPhone != null && !normalizedPhone.isEmpty() && phoneChanged) {
                 User existingUserByPhone = userDAO.findByPhone(normalizedPhone);
                 if (existingUserByPhone != null && existingUserByPhone.getUserId() != teacher.getUserId()) {
@@ -4520,7 +4566,7 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetCoursesByTeacher(Message request) {
         try {
-            // ✅ REFACTORED: Use teacherUsername instead of teacherId
+            // Sử dụng teacherUsername thay vì teacherId
             String teacherUsername = request.getData("teacherUsername", String.class);
             if (teacherUsername == null) {
                 return Message.createErrorResponse(request.getAction(), "Teacher Username is required");
@@ -4913,7 +4959,7 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetEnrollmentsByCourse(Message request) {
         try {
-            // ✅ REFACTORED: Use courseCode instead of courseId
+            // Sử dụng courseCode thay vì courseId
             String courseCode = request.getData("courseCode", String.class);
             if (courseCode == null || courseCode.isEmpty()) {
                 return Message.createErrorResponse(request.getAction(), "Course code is required");
@@ -5047,7 +5093,7 @@ public class ClientHandler implements Runnable {
 
     private Message handleGetGrades(Message request) {
         try {
-            // ✅ REFACTORED: Chỉ dùng codes
+            // Chỉ sử dụng codes
             String studentCode = request.getData(Constants.KEY_STUDENT_CODE, String.class);
             String courseCode = request.getData(Constants.KEY_COURSE_CODE, String.class);
             Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
@@ -5088,7 +5134,7 @@ public class ClientHandler implements Runnable {
 
     private Message handleCalculateFinalGrade(Message request) {
         try {
-            // ✅ REFACTORED: Dùng studentCode và courseCode, hoặc enrollmentId
+            // Sử dụng studentCode và courseCode, hoặc enrollmentId
             String studentCode = request.getData(Constants.KEY_STUDENT_CODE, String.class);
             String courseCode = request.getData(Constants.KEY_COURSE_CODE, String.class);
             Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);

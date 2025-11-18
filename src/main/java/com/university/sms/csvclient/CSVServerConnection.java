@@ -541,14 +541,15 @@ public class CSVServerConnection extends BaseServerConnection {
       LOGGER.info("Bắt đầu tải lên toàn bộ dữ liệu CSV lên server");
 
       // Upload theo thứ tự để đảm bảo foreign key constraints
-      Message usersResponse = uploadAllUsersFromCSV();
-      if (!usersResponse.isSuccess()) {
-        LOGGER.warning("Không thể tải lên người dùng: " + usersResponse.getMessage());
-      }
-
+      // Faculties trước vì users có FK đến faculties (faculty_code)
       Message facultiesResponse = uploadAllFacultiesFromCSV();
       if (!facultiesResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên khoa: " + facultiesResponse.getMessage());
+      }
+
+      Message usersResponse = uploadAllUsersFromCSV();
+      if (!usersResponse.isSuccess()) {
+        LOGGER.warning("Không thể tải lên người dùng: " + usersResponse.getMessage());
       }
 
       Message subjectsResponse = uploadAllSubjectsFromCSV();

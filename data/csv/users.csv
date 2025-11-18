@@ -1,5 +1,4 @@
 userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode
-101,admin,Admin@123,Quan Tri Vien,admin@university.edu.vn,0911111111,Da Nang,admin,true,2024-06-01 07:00:00,
 102,gv01,Teacher@123,Nguyen Minh Tuan,tuannm@university.edu.vn,0922222222,Da Nang,teacher,true,2024-06-01 07:00:00,DTVT
 103,gv02,Teacher@123,Le Thi Hong,hongle@university.edu.vn,0933333333,Da Nang,teacher,true,2024-06-01 07:00:00,QTKD
 104,gv03,Teacher@123,Pham Quoc Hung,hungpq@university.edu.vn,0944444444,Da Nang,teacher,true,2024-06-01 07:00:00,XDDD

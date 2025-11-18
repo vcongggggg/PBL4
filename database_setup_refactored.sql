@@ -16,9 +16,7 @@ CREATE TABLE faculties (
     faculty_code VARCHAR(10) UNIQUE NOT NULL,  -- ✅ DÙNG LÀM FK
     faculty_name VARCHAR(100) NOT NULL,
     description TEXT,
-    head_teacher_username VARCHAR(50),  -- ✅ CHANGED: username thay vì user_id (FK sẽ thêm sau)
     created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-    -- FOREIGN KEY (head_teacher_username) sẽ thêm sau khi tạo bảng users (xem dòng 43-46)
 );
 
 -- ===============================================
@@ -40,10 +38,6 @@ CREATE TABLE users (
     FOREIGN KEY (faculty_code) REFERENCES faculties(faculty_code) ON UPDATE CASCADE
 );
 
--- Thêm FOREIGN KEY từ faculties đến users (sau khi users đã được tạo)
-ALTER TABLE faculties
-ADD CONSTRAINT fk_faculties_head_teacher 
-FOREIGN KEY (head_teacher_username) REFERENCES users(username) ON UPDATE CASCADE;
 
 -- ===============================================
 -- 3. BẢNG LỚP HỌC (CLASSES)
@@ -119,7 +113,7 @@ CREATE TABLE courses (
     room VARCHAR(20),
     max_students INT DEFAULT 50,
     current_students INT DEFAULT 0,
-    registration_status ENUM('locked', 'open', 'closed') DEFAULT 'locked',
+    registration_status ENUM('locked', 'open', 'closed') DEFAULT 'locked',  
     course_status ENUM('planning', 'ongoing', 'completed', 'cancelled') DEFAULT 'planning',
     start_date DATE,
     end_date DATE,

@@ -1,4 +1,4 @@
-enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,attendanceRate,createdAt
+enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints,createdAt
 100,ST2022001,DTVT101-2425S1-01,2024-09-15 08:00:00,enrolled,0.00,,0.00,2024-09-15 08:00:00
 101,ST2022001,DTVT201-2425S1-01,2024-09-15 08:05:00,enrolled,0.00,,0.00,2024-09-15 08:05:00
 102,ST2022002,DTVT101-2425S1-01,2024-09-15 08:10:00,enrolled,0.00,,0.00,2024-09-15 08:10:00
