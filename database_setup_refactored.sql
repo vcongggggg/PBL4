@@ -402,7 +402,7 @@ BEGIN
         SELECT COUNT(*) 
         FROM enrollments 
         WHERE course_code = NEW.course_code
-        AND enrollment_status = 'enrolled'
+        AND enrollment_status IN ('enrolled', 'completed', 'failed')
     )
     WHERE course_code = NEW.course_code;
 END//
@@ -416,7 +416,7 @@ BEGIN
         SELECT COUNT(*) 
         FROM enrollments 
         WHERE course_code = NEW.course_code
-        AND enrollment_status = 'enrolled'
+        AND enrollment_status IN ('enrolled', 'completed', 'failed')
     )
     WHERE course_code = NEW.course_code;
 END//
@@ -430,7 +430,7 @@ BEGIN
         SELECT COUNT(*) 
         FROM enrollments 
         WHERE course_code = OLD.course_code
-        AND enrollment_status = 'enrolled'
+        AND enrollment_status IN ('enrolled', 'completed', 'failed')
     )
     WHERE course_code = OLD.course_code;
 END//
@@ -571,6 +571,9 @@ BEGIN
         grade_points = v_grade_points,
         enrollment_status = CASE WHEN v_final_score >= 5.0 THEN 'completed' ELSE 'failed' END
     WHERE student_code = p_student_code AND course_code = p_course_code;
+    
+    -- Tự động cập nhật GPA và tín chỉ của sinh viên sau khi tính điểm tổng kết
+    CALL CalculateStudentGPA(p_student_code);
 END//
 DELIMITER ;
 

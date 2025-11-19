@@ -452,7 +452,6 @@ public class TranscriptPanel extends JPanel {
             return;
         }
 
-        // TODO: Implement PDF export
         JOptionPane.showMessageDialog(this,
                 "Tính năng xuất PDF đang được phát triển...\n\n" +
                         "Thông tin sẽ xuất:\n" +

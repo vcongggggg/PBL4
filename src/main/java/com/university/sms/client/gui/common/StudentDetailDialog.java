@@ -80,9 +80,9 @@ public class StudentDetailDialog extends JDialog {
         emergencyContactField = new JTextField(20);
         emergencyPhoneField = new JTextField(20);
 
-        // Status combo box
+        // Status combo box - Vietnamese labels
         statusComboBox = new JComboBox<>(new String[] {
-                "ACTIVE", "SUSPENDED", "GRADUATED", "DROPPED"
+                "Đang học", "Tạm đình chỉ", "Đã tốt nghiệp", "Thôi học"
         });
 
         // Gender combo box
@@ -210,7 +210,12 @@ public class StudentDetailDialog extends JDialog {
         phoneField.setText(student.getPhone() != null ? student.getPhone() : "");
         facultyField.setText(student.getFacultyName() != null ? student.getFacultyName() : "N/A");
         classField.setText(student.getClassName() != null ? student.getClassName() : "N/A");
-        gpaField.setText(student.getGpa().toString());
+        // Display GPA - để trống nếu không có hoặc GPA = 0
+        if (student.getGpa() != null && student.getGpa().compareTo(java.math.BigDecimal.ZERO) != 0) {
+            gpaField.setText(student.getGpa().toString());
+        } else {
+            gpaField.setText(""); // Để trống nếu không có GPA hoặc GPA = 0
+        }
         creditsField.setText(String.valueOf(student.getTotalCredits()));
         admissionYearField.setText(String.valueOf(student.getAdmissionYear()));
         citizenIdField.setText(student.getCitizenId() != null ? student.getCitizenId() : "");
@@ -218,7 +223,7 @@ public class StudentDetailDialog extends JDialog {
         emergencyPhoneField.setText(student.getEmergencyPhone() != null ? student.getEmergencyPhone() : "");
 
         if (student.getStudentStatus() != null) {
-            statusComboBox.setSelectedItem(student.getStudentStatus().toString());
+            statusComboBox.setSelectedItem(getStatusDisplay(student.getStudentStatus()));
         }
 
         if (student.getGender() != null) {
@@ -272,7 +277,7 @@ public class StudentDetailDialog extends JDialog {
 
         String statusStr = (String) statusComboBox.getSelectedItem();
         if (statusStr != null) {
-            updatedStudent.setStudentStatus(Student.StudentStatus.valueOf(statusStr));
+            updatedStudent.setStudentStatus(getStatusFromDisplay(statusStr));
         }
 
         String genderStr = (String) genderComboBox.getSelectedItem();
@@ -380,5 +385,42 @@ public class StudentDetailDialog extends JDialog {
         student.setAdmissionYear(updatedStudent.getAdmissionYear());
         student.setStudentStatus(updatedStudent.getStudentStatus());
         student.setGender(updatedStudent.getGender());
+    }
+
+    // Helper methods for status display conversion
+    private String getStatusDisplay(Student.StudentStatus status) {
+        if (status == null) {
+            return "Đang học";
+        }
+        switch (status) {
+            case ACTIVE:
+                return "Đang học";
+            case SUSPENDED:
+                return "Tạm đình chỉ";
+            case GRADUATED:
+                return "Đã tốt nghiệp";
+            case DROPPED:
+                return "Thôi học";
+            default:
+                return "Đang học";
+        }
+    }
+
+    private Student.StudentStatus getStatusFromDisplay(String displayText) {
+        if (displayText == null) {
+            return Student.StudentStatus.ACTIVE;
+        }
+        switch (displayText) {
+            case "Đang học":
+                return Student.StudentStatus.ACTIVE;
+            case "Tạm đình chỉ":
+                return Student.StudentStatus.SUSPENDED;
+            case "Đã tốt nghiệp":
+                return Student.StudentStatus.GRADUATED;
+            case "Thôi học":
+                return Student.StudentStatus.DROPPED;
+            default:
+                return Student.StudentStatus.ACTIVE;
+        }
     }
 }

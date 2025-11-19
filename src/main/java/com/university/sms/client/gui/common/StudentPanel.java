@@ -324,9 +324,9 @@ public class StudentPanel extends JPanel {
                 student.getEmail(),
                 student.getFacultyName() != null ? student.getFacultyName() : "N/A",
                 student.getClassName() != null ? student.getClassName() : "N/A",
-                student.getGpa(),
+                getGpaDisplay(student.getGpa()),
                 student.getTotalCredits(),
-                student.getStudentStatus(),
+                getStatusDisplay(student.getStudentStatus()),
                 "Xem/Sửa" // Button text
         };
         tableModel.addRow(rowData);
@@ -420,7 +420,8 @@ public class StudentPanel extends JPanel {
         boolean includeInactive = showInactiveCheckbox.isSelected();
 
         for (Student student : students) {
-            // Nếu không bao gồm inactive: chỉ hiển thị sinh viên có is_active = true VÀ student_status = ACTIVE
+            // Nếu không bao gồm inactive: chỉ hiển thị sinh viên có is_active = true VÀ
+            // student_status = ACTIVE
             if (!includeInactive) {
                 // Kiểm tra cả is_active và student_status
                 if (!student.isActive() || student.getStudentStatus() != Student.StudentStatus.ACTIVE) {
@@ -428,22 +429,23 @@ public class StudentPanel extends JPanel {
                 }
             }
             // Nếu includeInactive = true: hiển thị tất cả (không lọc)
-            
+
             Object[] rowData = {
                     student.getStudentCode(),
                     student.getFullName(),
                     student.getEmail(),
                     student.getFacultyName() != null ? student.getFacultyName() : "N/A",
                     student.getClassName() != null ? student.getClassName() : "N/A",
-                    student.getGpa(),
+                    getGpaDisplay(student.getGpa()),
                     student.getTotalCredits(),
-                    student.getStudentStatus(),
+                    getStatusDisplay(student.getStudentStatus()),
                     "Xem/Sửa" // Button text
             };
             tableModel.addRow(rowData);
         }
         addLog("Đã tải " + tableModel.getRowCount() + " sinh viên"
-                + (includeInactive ? " (bao gồm tài khoản và trạng thái không hoạt động)" : " (chỉ hiển thị tài khoản và trạng thái đang hoạt động)"));
+                + (includeInactive ? " (bao gồm tài khoản và trạng thái không hoạt động)"
+                        : " (chỉ hiển thị tài khoản và trạng thái đang hoạt động)"));
     }
 
     private void showAddStudentDialog() {
@@ -923,6 +925,32 @@ public class StudentPanel extends JPanel {
         };
 
         worker.execute();
+    }
+
+    // Helper methods for display formatting
+    private String getStatusDisplay(Student.StudentStatus status) {
+        if (status == null) {
+            return "N/A";
+        }
+        switch (status) {
+            case ACTIVE:
+                return "Đang học";
+            case SUSPENDED:
+                return "Tạm đình chỉ";
+            case GRADUATED:
+                return "Đã tốt nghiệp";
+            case DROPPED:
+                return "Thôi học";
+            default:
+                return status.toString();
+        }
+    }
+
+    private Object getGpaDisplay(java.math.BigDecimal gpa) {
+        if (gpa == null || gpa.compareTo(java.math.BigDecimal.ZERO) == 0) {
+            return ""; // Để trống nếu không có GPA hoặc GPA = 0
+        }
+        return gpa;
     }
 
     // Helper classes for ComboBox items

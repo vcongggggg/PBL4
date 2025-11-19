@@ -31,7 +31,6 @@ public class TeacherMainFrame extends JFrame {
     private GradePanel gradePanel;
     private TimetablePanel timetablePanel;
     private MyClassRequestsPanel classRequestsPanel;
-    private ReportPanel reportPanel;
     private NotificationPanel notificationPanel;
 
     public TeacherMainFrame(User user, IServerConnection serverConnection) {
@@ -99,10 +98,6 @@ public class TeacherMainFrame extends JFrame {
         classRequestsPanel.setServerConnection(serverConnection);
         classRequestsPanel.setCurrentUser(currentUser);
         modernDashboard.addNavItem("📝", "Yêu Cầu Mở Lớp", "classRequests", classRequestsPanel);
-
-        // Báo cáo
-        reportPanel = new ReportPanel(currentUser, serverConnection);
-        modernDashboard.addNavItem("📈", "Báo cáo", "report", reportPanel);
 
         // Thông báo (với badge)
         notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
@@ -284,8 +279,6 @@ public class TeacherMainFrame extends JFrame {
             timetablePanel.refreshData();
         if (classRequestsPanel != null)
             classRequestsPanel.refreshData();
-        if (reportPanel != null)
-            reportPanel.refreshData();
         if (notificationPanel != null)
             notificationPanel.refreshData();
         updateConnectionStatus();

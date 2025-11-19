@@ -17,11 +17,14 @@ import java.awt.event.ComponentEvent;
 import java.text.SimpleDateFormat;
 import java.util.List;
 import java.util.ArrayList;
+import java.util.logging.Logger;
 
 /**
  * Panel for teachers to manage their class opening requests
  */
 public class MyClassRequestsPanel extends JPanel {
+    private static final Logger LOGGER = Logger.getLogger(MyClassRequestsPanel.class.getName());
+
     private IServerConnection serverConnection;
     private User currentUser;
 
@@ -36,6 +39,8 @@ public class MyClassRequestsPanel extends JPanel {
 
     private JComboBox<String> statusFilter;
     private JLabel statsLabel;
+
+    private List<ClassOpeningRequest> currentRequests = new ArrayList<>();
 
     private boolean isRefreshing = false;
     private boolean isInitialized = false;
@@ -203,10 +208,7 @@ public class MyClassRequestsPanel extends JPanel {
                     updateTable(requests);
                     updateStats(requests);
                 } catch (Exception e) {
-                    e.printStackTrace();
-                    // Don't show error dialog during initial load
-                    // Just log the error
-                    System.err.println("Error loading class requests: " + e.getMessage());
+                    LOGGER.severe("Lỗi khi tải yêu cầu mở lớp: " + e.getMessage());
                 } finally {
                     isRefreshing = false;
                 }
@@ -217,6 +219,7 @@ public class MyClassRequestsPanel extends JPanel {
     }
 
     private void updateTable(List<ClassOpeningRequest> requests) {
+        this.currentRequests = requests != null ? new ArrayList<>(requests) : new ArrayList<>();
         tableModel.setRowCount(0);
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy");
 
@@ -313,7 +316,7 @@ public class MyClassRequestsPanel extends JPanel {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi tạo yêu cầu mới: " + e.getMessage());
             JOptionPane.showMessageDialog(this,
                     "Lỗi: " + e.getMessage(),
                     "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -376,7 +379,7 @@ public class MyClassRequestsPanel extends JPanel {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi tạo yêu cầu mới: " + e.getMessage());
             JOptionPane.showMessageDialog(this,
                     "Lỗi: " + e.getMessage(),
                     "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -392,6 +395,7 @@ public class MyClassRequestsPanel extends JPanel {
         int requestId = (Integer) tableModel.getValueAt(modelRow, 0);
         String status = (String) tableModel.getValueAt(modelRow, 8);
 
+        // Chỉ cho phép hủy yêu cầu đang chờ duyệt (PENDING)
         if (!"Chờ duyệt".equals(status)) {
             JOptionPane.showMessageDialog(this,
                     "Chỉ có thể hủy yêu cầu đang chờ duyệt!",
@@ -399,8 +403,10 @@ public class MyClassRequestsPanel extends JPanel {
             return;
         }
 
+        String confirmMessage = "Bạn có chắc muốn hủy yêu cầu này?";
+
         int confirm = JOptionPane.showConfirmDialog(this,
-                "Bạn có chắc muốn hủy yêu cầu này?",
+                confirmMessage,
                 "Xác nhận", JOptionPane.YES_NO_OPTION);
 
         if (confirm == JOptionPane.YES_OPTION) {
@@ -424,7 +430,7 @@ public class MyClassRequestsPanel extends JPanel {
                 }
 
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.severe("Lỗi khi hủy yêu cầu: " + e.getMessage());
                 JOptionPane.showMessageDialog(this,
                         "Lỗi: " + e.getMessage(),
                         "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -441,7 +447,10 @@ public class MyClassRequestsPanel extends JPanel {
             String status = (String) tableModel.getValueAt(modelRow, 8);
             boolean isPending = "Chờ duyệt".equals(status);
 
+            // Chỉnh sửa chỉ cho phép với PENDING
             editRequestBtn.setEnabled(isPending);
+
+            // Hủy chỉ cho phép với PENDING (chờ duyệt)
             cancelRequestBtn.setEnabled(isPending);
         } else {
             editRequestBtn.setEnabled(false);
@@ -469,11 +478,33 @@ public class MyClassRequestsPanel extends JPanel {
 
             if (response != null && response.isSuccess()) {
                 @SuppressWarnings("unchecked")
-                List<Subject> subjects = (List<Subject>) response.getData(Constants.KEY_SUBJECTS);
-                return subjects != null ? subjects : new ArrayList<>();
+                List<Subject> allSubjects = (List<Subject>) response.getData(Constants.KEY_SUBJECTS);
+
+                if (allSubjects == null || allSubjects.isEmpty()) {
+                    return new ArrayList<>();
+                }
+
+                // Lọc chỉ lấy các môn học thuộc khoa của giảng viên
+                if (currentUser != null && currentUser.getFacultyCode() != null
+                        && !currentUser.getFacultyCode().trim().isEmpty()) {
+                    String teacherFacultyCode = currentUser.getFacultyCode();
+                    List<Subject> filteredSubjects = new ArrayList<>();
+
+                    for (Subject subject : allSubjects) {
+                        if (subject.getFacultyCode() != null
+                                && subject.getFacultyCode().equals(teacherFacultyCode)) {
+                            filteredSubjects.add(subject);
+                        }
+                    }
+
+                    return filteredSubjects;
+                } else {
+                    // Nếu giảng viên chưa có khoa, trả về tất cả (sẽ bị reject ở server)
+                    return allSubjects;
+                }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi lấy danh sách môn học: " + e.getMessage());
         }
         return new ArrayList<>();
     }
@@ -489,7 +520,7 @@ public class MyClassRequestsPanel extends JPanel {
                 return (ClassOpeningRequest) response.getData(Constants.KEY_CLASS_REQUEST);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi lấy yêu cầu theo ID: " + e.getMessage());
         }
         return null;
     }

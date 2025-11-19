@@ -19,49 +19,28 @@ public class EnrollmentDAO {
     private static final Logger LOGGER = Logger.getLogger(EnrollmentDAO.class.getName());
 
     /**
-     * ✅ REFACTORED: Lưu enrollment (insert nếu chưa có ID, update nếu đã có ID)
+     * Lưu enrollment (insert nếu chưa có ID, update nếu đã có ID)
      */
     public boolean save(Enrollment enrollment) {
-        LOGGER.info("DEBUG DAO: save() called with enrollmentId=" + enrollment.getEnrollmentId() +
-                ", student_code=" + enrollment.getStudentCode() + ", course_code=" + enrollment.getCourseCode());
-
         if (enrollment.getEnrollmentId() > 0) {
-            // Check if exists by ID
-            LOGGER.info("DEBUG DAO: Checking if enrollment ID " + enrollment.getEnrollmentId() + " exists...");
             Enrollment existing = findById(enrollment.getEnrollmentId());
             if (existing != null) {
-                // Already exists, skip or could update
-                LOGGER.info(
-                        "DEBUG DAO: Enrollment already exists by ID: " + enrollment.getEnrollmentId() + ", skipping");
-                return true; // Skip, consider it success
-            } else {
-                LOGGER.info("DEBUG DAO: Enrollment ID " + enrollment.getEnrollmentId() + " not found in DB");
+                return true;
             }
         }
 
-        // Check if exists by student_code + course_code (UNIQUE constraint)
-        LOGGER.info("DEBUG DAO: Checking if enrollment exists by keys (student_code=" + enrollment.getStudentCode() +
-                ", course_code=" + enrollment.getCourseCode() + ")...");
         Integer existingId = findEnrollmentIdByKeys(enrollment.getStudentCode(), enrollment.getCourseCode());
         if (existingId != null) {
-            // Already exists, return the existing ID
             enrollment.setEnrollmentId(existingId);
-            LOGGER.info("DEBUG DAO: Enrollment already exists by keys: student_code=" + enrollment.getStudentCode() +
-                    ", course_code=" + enrollment.getCourseCode() + ", existing ID=" + existingId);
             return true;
-        } else {
-            LOGGER.info("DEBUG DAO: No existing enrollment found, will insert new");
         }
 
-        // Insert new enrollment (có thể với ID từ CSV)
         boolean result = addEnrollmentWithId(enrollment);
-        LOGGER.info("DEBUG DAO: addEnrollmentWithId() returned " + result + ", enrollmentId after insert="
-                + enrollment.getEnrollmentId());
         return result;
     }
 
     /**
-     * ✅ REFACTORED: Tìm enrollment ID by codes (không join) - for duplicate check
+     * Tìm enrollment ID by codes (không join) - for duplicate check
      */
     private Integer findEnrollmentIdByKeys(String studentCode, String courseCode) {
         String sql = "SELECT enrollment_id FROM enrollments WHERE student_code = ? AND course_code = ?";
@@ -88,7 +67,7 @@ public class EnrollmentDAO {
     }
 
     /**
-     * ✅ REFACTORED: Thêm enrollment mới với ID cụ thể (cho CSV import)
+     * Thêm enrollment mới với ID cụ thể (cho CSV import)
      */
     private boolean addEnrollmentWithId(Enrollment enrollment) {
         String sql = enrollment.getEnrollmentId() > 0
@@ -147,7 +126,7 @@ public class EnrollmentDAO {
     }
 
     /**
-     * ✅ DEPRECATED: Thêm đăng ký mới (chỉ student_id, course_id)
+     * @deprecated Thêm đăng ký mới (chỉ student_id, course_id)
      */
     @Deprecated
     public boolean addEnrollment(Enrollment enrollment) {
@@ -428,7 +407,10 @@ public class EnrollmentDAO {
     }
 
     public int countByCourse(String courseCode) {
-        String sql = "SELECT COUNT(*) AS total FROM enrollments WHERE course_code = ?";
+        // Đếm các enrollment có status 'enrolled', 'completed', 'failed' (không đếm
+        // 'dropped')
+        String sql = "SELECT COUNT(*) AS total FROM enrollments WHERE course_code = ? " +
+                "AND enrollment_status IN ('enrolled', 'completed', 'failed')";
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {

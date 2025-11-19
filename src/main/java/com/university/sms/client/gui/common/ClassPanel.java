@@ -413,9 +413,9 @@ public class ClassPanel extends JPanel {
             student.getEmail(),
             student.getPhone(),
             student.getFacultyName() != null ? student.getFacultyName() : student.getFacultyCode(),
-            student.getGpa(),
+            getGpaDisplay(student.getGpa()),
             student.getTotalCredits(),
-            student.getStudentStatus()
+            getStatusDisplay(student.getStudentStatus())
         };
         model.addRow(row);
       }
@@ -452,6 +452,32 @@ public class ClassPanel extends JPanel {
 
   private void showErrorMessage(String message) {
     JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
+  }
+
+  // Helper methods for display formatting
+  private String getStatusDisplay(com.university.sms.model.Student.StudentStatus status) {
+    if (status == null) {
+      return "N/A";
+    }
+    switch (status) {
+      case ACTIVE:
+        return "Đang học";
+      case SUSPENDED:
+        return "Tạm đình chỉ";
+      case GRADUATED:
+        return "Đã tốt nghiệp";
+      case DROPPED:
+        return "Thôi học";
+      default:
+        return status.toString();
+    }
+  }
+
+  private Object getGpaDisplay(java.math.BigDecimal gpa) {
+    if (gpa == null || gpa.compareTo(java.math.BigDecimal.ZERO) == 0) {
+      return ""; // Để trống nếu không có GPA hoặc GPA = 0
+    }
+    return gpa;
   }
 
   // Inner class: Class Edit Dialog

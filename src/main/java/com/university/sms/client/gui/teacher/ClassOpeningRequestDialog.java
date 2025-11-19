@@ -94,6 +94,10 @@ public class ClassOpeningRequestDialog extends JDialog {
         gbc.weightx = 0.7;
         academicYearField = new JTextField();
         academicYearField.setToolTipText("Ví dụ: 2024-2025");
+        // Đặt năm học mặc định là 2024-2025
+        if (request == null) {
+            academicYearField.setText("2024-2025");
+        }
         formPanel.add(academicYearField, gbc);
 
         // Row 2: Semester
@@ -104,7 +108,8 @@ public class ClassOpeningRequestDialog extends JDialog {
 
         gbc.gridx = 1;
         gbc.weightx = 0.7;
-        semesterCombo = new JComboBox<>(new Integer[] { 1, 2, 3 });
+        // Chỉ có 2 học kỳ: 1 và 2
+        semesterCombo = new JComboBox<>(new Integer[] { 1, 2 });
         formPanel.add(semesterCombo, gbc);
 
         // Row 3: Schedule Day

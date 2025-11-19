@@ -204,16 +204,23 @@ public class TeacherPanel extends JPanel {
               updateTeacherTable(teachers);
               addLog("Đã tải " + teachers.size() + " giảng viên");
             } else {
+              // Nếu không có dữ liệu, hiển thị bảng trống
+              updateTeacherTable(new java.util.ArrayList<>());
               addLog("Không có dữ liệu giảng viên");
             }
           } else {
             String errorMsg = response != null ? response.getMessage() : "Không nhận được phản hồi";
             showErrorMessage("Không thể tải danh sách giảng viên: " + errorMsg);
             addLog("Lỗi: " + errorMsg);
+            // Hiển thị bảng trống khi có lỗi
+            updateTeacherTable(new java.util.ArrayList<>());
           }
         } catch (Exception e) {
           showErrorMessage("Lỗi khi tải danh sách giảng viên: " + e.getMessage());
           addLog("Lỗi: " + e.getMessage());
+          e.printStackTrace();
+          // Hiển thị bảng trống khi có exception
+          updateTeacherTable(new java.util.ArrayList<>());
         } finally {
           isRefreshing = false;
         }
@@ -349,8 +356,12 @@ public class TeacherPanel extends JPanel {
   }
 
   private void updateTeacherTable(List<User> teachers) {
+    if (teachers == null) {
+      teachers = new java.util.ArrayList<>();
+    }
+
+    // Server đã lọc theo trạng thái inactive rồi, không cần lọc lại
     this.currentTeachers = teachers;
-    tableModel.setRowCount(0);
 
     // Load faculty names for display
     java.util.Map<String, String> facultyMap = new java.util.HashMap<>();
@@ -378,38 +389,26 @@ public class TeacherPanel extends JPanel {
       protected void done() {
         try {
           facultyMap.putAll(get());
-          // Update table with faculty names
-          tableModel.setRowCount(0);
-          for (User teacher : currentTeachers) {
-            String facultyName = teacher.getFacultyCode() != null
-                ? facultyMap.getOrDefault(teacher.getFacultyCode(), teacher.getFacultyCode())
-                : "N/A";
-            Object[] row = {
-                teacher.getUsername(),
-                teacher.getFullName(),
-                teacher.getEmail(),
-                teacher.getPhone(),
-                teacher.getAddress(),
-                facultyName,
-                teacher.isActive() ? "Hoạt động" : "Khóa"
-            };
-            tableModel.addRow(row);
-          }
         } catch (Exception e) {
-          // If loading fails, show without faculty
-          for (User teacher : currentTeachers) {
-            String facultyName = teacher.getFacultyCode() != null ? teacher.getFacultyCode() : "N/A";
-            Object[] row = {
-                teacher.getUsername(),
-                teacher.getFullName(),
-                teacher.getEmail(),
-                teacher.getPhone(),
-                teacher.getAddress(),
-                facultyName,
-                teacher.isActive() ? "Hoạt động" : "Khóa"
-            };
-            tableModel.addRow(row);
-          }
+          // Ignore, use empty map
+        }
+
+        // Update table with faculty names
+        tableModel.setRowCount(0);
+        for (User teacher : currentTeachers) {
+          String facultyName = teacher.getFacultyCode() != null
+              ? facultyMap.getOrDefault(teacher.getFacultyCode(), teacher.getFacultyCode())
+              : "N/A";
+          Object[] row = {
+              teacher.getUsername(),
+              teacher.getFullName(),
+              teacher.getEmail() != null ? teacher.getEmail() : "",
+              teacher.getPhone() != null ? teacher.getPhone() : "",
+              teacher.getAddress() != null ? teacher.getAddress() : "",
+              facultyName,
+              teacher.isActive() ? "Hoạt động" : "Khóa"
+          };
+          tableModel.addRow(row);
         }
       }
     };

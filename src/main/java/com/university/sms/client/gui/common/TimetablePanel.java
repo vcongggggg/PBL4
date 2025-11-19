@@ -14,12 +14,14 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 
 /**
  * Panel hiển thị thời khóa biểu dạng lịch tuần
  */
 public class TimetablePanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(TimetablePanel.class.getName());
 
     private IServerConnection serverConnection;
     private User currentUser;
@@ -291,14 +293,14 @@ public class TimetablePanel extends JPanel {
                 try {
                     List<TimetableEntry> entries = get();
                     if (entries == null) {
-                        System.out.println("TimetablePanel: Received null entries from server");
+                        LOGGER.warning("Nhận được danh sách null từ server");
                         entries = new ArrayList<>();
                     } else {
-                        System.out.println("TimetablePanel: Received " + entries.size() + " entries from server");
+                        LOGGER.fine("Nhận được " + entries.size() + " mục từ server");
                     }
                     displayTimetable(entries);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải thời khóa biểu: " + e.getMessage());
                     JOptionPane.showMessageDialog(TimetablePanel.this,
                             "Không thể tải thời khóa biểu: " + e.getMessage(),
                             "Lỗi", JOptionPane.ERROR_MESSAGE);
@@ -313,11 +315,11 @@ public class TimetablePanel extends JPanel {
 
     private void displayTimetable(List<TimetableEntry> entries) {
         if (entries == null || entries.isEmpty()) {
-            System.out.println("TimetablePanel: No entries to display");
+            LOGGER.fine("Không có mục nào để hiển thị");
             return;
         }
 
-        System.out.println("TimetablePanel: Displaying " + entries.size() + " entries");
+        LOGGER.fine("Hiển thị " + entries.size() + " mục");
 
         // Clear all cells first
         for (int period = 0; period < MAX_PERIODS; period++) {
@@ -335,45 +337,45 @@ public class TimetablePanel extends JPanel {
         int placedCount = 0;
         for (TimetableEntry entry : entries) {
             if (entry == null) {
-                System.out.println("TimetablePanel: Entry is null, skipping");
+                LOGGER.warning("Mục null, bỏ qua");
                 continue;
             }
 
             if (entry.getDayOfWeek() == null) {
-                System.out.println("TimetablePanel: Entry has null dayOfWeek: " + entry.getSubjectName());
+                LOGGER.warning("Mục có dayOfWeek null: " + entry.getSubjectName());
                 continue;
             }
 
             int dayIndex = getDayIndex(entry.getDayOfWeek());
             if (dayIndex < 0 || dayIndex >= 7) {
-                System.out.println("TimetablePanel: Invalid dayIndex: " + dayIndex + " for " + entry.getSubjectName());
+                LOGGER.warning("dayIndex không hợp lệ: " + dayIndex + " cho " + entry.getSubjectName());
                 continue;
             }
 
             int startPeriod = entry.getStartPeriod();
             int endPeriod = entry.getEndPeriod();
 
-            System.out.println("TimetablePanel: Processing entry: " + entry.getSubjectName() +
-                    ", Day: " + entry.getDayOfWeek() + " (index: " + dayIndex + ")" +
-                    ", Period: " + startPeriod + "-" + endPeriod);
+            LOGGER.fine("Xử lý mục: " + entry.getSubjectName() +
+                    ", Ngày: " + entry.getDayOfWeek() + " (index: " + dayIndex + ")" +
+                    ", Tiết: " + startPeriod + "-" + endPeriod);
 
             if (startPeriod < 1 || startPeriod > MAX_PERIODS) {
-                System.out.println("TimetablePanel: Invalid startPeriod: " + startPeriod);
+                LOGGER.warning("startPeriod không hợp lệ: " + startPeriod);
                 continue;
             }
 
             // Place in first period
             int periodIndex = startPeriod - 1;
             if (periodIndex >= MAX_PERIODS) {
-                System.out.println("TimetablePanel: periodIndex out of bounds: " + periodIndex);
+                LOGGER.warning("periodIndex vượt quá giới hạn: " + periodIndex);
                 continue;
             }
 
             // Check if cell is already occupied
             if (cellPanels[periodIndex][dayIndex] != null &&
                     cellPanels[periodIndex][dayIndex].getComponentCount() > 0) {
-                System.out.println("TimetablePanel: WARNING - Cell already occupied at period " +
-                        startPeriod + ", day " + dayIndex + ". This may cause overlap!");
+                LOGGER.warning("Cảnh báo - Ô đã bị chiếm tại tiết " +
+                        startPeriod + ", ngày " + dayIndex + ". Có thể gây trùng lịch!");
             }
 
             JPanel coursePanel = createCourseCell(entry);
@@ -390,7 +392,7 @@ public class TimetablePanel extends JPanel {
             int gridHeight = 1;
             if (endPeriod > startPeriod && endPeriod <= MAX_PERIODS) {
                 gridHeight = endPeriod - startPeriod + 1;
-                System.out.println("  -> Course spans " + gridHeight + " periods");
+                LOGGER.fine("  -> Lớp học kéo dài " + gridHeight + " tiết");
 
                 // Remove all cells that will be spanned
                 for (int p = periodIndex; p < periodIndex + gridHeight && p < MAX_PERIODS; p++) {
@@ -417,10 +419,10 @@ public class TimetablePanel extends JPanel {
             }
 
             placedCount++;
-            System.out.println("  -> Placed successfully");
+            LOGGER.fine("  -> Đã đặt thành công");
         }
 
-        System.out.println("TimetablePanel: Placed " + placedCount + " entries in grid");
+        LOGGER.fine("Đã đặt " + placedCount + " mục vào lưới");
 
         calendarPanel.revalidate();
         calendarPanel.repaint();

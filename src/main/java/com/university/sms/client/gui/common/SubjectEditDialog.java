@@ -233,17 +233,25 @@ public class SubjectEditDialog extends JDialog {
         try {
           List<Subject> subjects = get();
           if (subjects != null && !subjects.isEmpty()) {
+            // Sắp xếp danh sách môn học theo mã môn học để dễ tìm
+            subjects.sort((s1, s2) -> {
+              String code1 = s1.getSubjectCode() != null ? s1.getSubjectCode() : "";
+              String code2 = s2.getSubjectCode() != null ? s2.getSubjectCode() : "";
+              return code1.compareToIgnoreCase(code2);
+            });
+
+            // Thêm các môn học vào combo box (loại trừ môn học hiện tại nếu đang edit)
             for (Subject subj : subjects) {
-              // Don't include current subject if editing
+              // Không bao gồm môn học hiện tại khi đang sửa (tránh circular prerequisite)
               if (subject == null
                   || (subj.getSubjectCode() != null && !subj.getSubjectCode().equals(subject.getSubjectCode()))) {
-                prerequisiteCombo.addItem(
-                    new SubjectItem(subj.getSubjectCode(), subj.getSubjectCode() + " - " + subj.getSubjectName()));
+                String displayText = subj.getSubjectCode() + " - " + subj.getSubjectName();
+                prerequisiteCombo.addItem(new SubjectItem(subj.getSubjectCode(), displayText));
               }
             }
           }
 
-          // Set selection if editing (after loading all subjects)
+          // Set selection nếu đang edit và có môn tiên quyết
           if (subject != null && subject.getPrerequisiteSubjectCode() != null) {
             boolean found = false;
             for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
@@ -254,15 +262,15 @@ public class SubjectEditDialog extends JDialog {
                 break;
               }
             }
-            // If prerequisite subject not found in list (might have been deleted),
-            // add it to the combo for display purposes
+            // Nếu môn tiên quyết không tìm thấy trong danh sách (có thể đã bị xóa),
+            // thêm vào combo để hiển thị
             if (!found) {
               prerequisiteCombo.addItem(new SubjectItem(subject.getPrerequisiteSubjectCode(),
                   subject.getPrerequisiteSubjectCode() + " - (Đã bị xóa hoặc không tồn tại)"));
               prerequisiteCombo.setSelectedIndex(prerequisiteCombo.getItemCount() - 1);
             }
           } else if (subject == null) {
-            // When adding new subject, default to "-- Không có --"
+            // Khi thêm môn học mới, mặc định chọn "-- Không có --"
             prerequisiteCombo.setSelectedIndex(0);
           }
         } catch (Exception e) {

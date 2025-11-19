@@ -41,8 +41,7 @@ public class ClassOpeningRequestDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding all requests: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi tìm tất cả yêu cầu: " + e.getMessage());
         }
 
         return requests;
@@ -73,8 +72,7 @@ public class ClassOpeningRequestDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding request by ID: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi tìm yêu cầu theo ID: " + e.getMessage());
         }
 
         return null;
@@ -107,11 +105,53 @@ public class ClassOpeningRequestDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding requests by teacher: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi tìm yêu cầu theo giáo viên: " + e.getMessage());
         }
 
         return requests;
+    }
+
+    /**
+     * Find request by approved course code
+     */
+    public ClassOpeningRequest findByApprovedCourseCode(String courseCode) {
+        if (courseCode == null || courseCode.trim().isEmpty()) {
+            LOGGER.warning("findByApprovedCourseCode: courseCode là null hoặc rỗng");
+            return null;
+        }
+
+        String sql = "SELECT cor.*, " +
+                "u.full_name as teacher_name, " +
+                "s.subject_name, s.subject_code, s.credits, " +
+                "u2.full_name as approver_name " +
+                "FROM class_opening_requests cor " +
+                "JOIN users u ON cor.teacher_username = u.username " +
+                "JOIN subjects s ON cor.subject_code = s.subject_code " +
+                "LEFT JOIN users u2 ON cor.approved_by_username = u2.username " +
+                "WHERE cor.approved_course_code = ? " +
+                "LIMIT 1";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, courseCode.trim());
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                ClassOpeningRequest request = extractRequestFromResultSet(rs);
+                LOGGER.info("Tìm thấy request: requestId=" + request.getRequestId() +
+                        ", approvedCourseCode=" + request.getApprovedCourseCode() +
+                        ", status=" + request.getRequestStatus());
+                return request;
+            } else {
+                LOGGER.info("Không tìm thấy request với approved_course_code = '" + courseCode + "'");
+            }
+
+        } catch (SQLException e) {
+            LOGGER.severe("Lỗi khi tìm request theo approved_course_code: " + e.getMessage());
+        }
+
+        return null;
     }
 
     /**
@@ -141,8 +181,7 @@ public class ClassOpeningRequestDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding requests by status: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi tìm yêu cầu theo trạng thái: " + e.getMessage());
         }
 
         return requests;
@@ -182,8 +221,7 @@ public class ClassOpeningRequestDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error inserting request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi thêm yêu cầu: " + e.getMessage());
         }
 
         return false;
@@ -233,8 +271,7 @@ public class ClassOpeningRequestDAO {
             return pstmt.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            LOGGER.severe("Error updating request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi cập nhật yêu cầu: " + e.getMessage());
         }
 
         return false;
@@ -263,8 +300,7 @@ public class ClassOpeningRequestDAO {
             return pstmt.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            LOGGER.severe("Error approving request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi duyệt yêu cầu: " + e.getMessage());
         }
 
         return false;
@@ -272,27 +308,61 @@ public class ClassOpeningRequestDAO {
 
     /**
      * ✅ REFACTORED: Reject request
+     * Nếu request đã được APPROVED (có approved_course_code), vẫn giữ lại
+     * approved_course_code
+     * để tracking course đã được tạo, nhưng chuyển status thành REJECTED
+     * 
+     * @param approverUsername Nếu là "SYSTEM" hoặc null, sẽ không update
+     *                         approved_by_username
+     *                         (giữ nguyên giá trị hiện tại để tránh foreign key
+     *                         constraint)
      */
     public boolean reject(int requestId, String approverUsername, String reason) {
-        String sql = "UPDATE class_opening_requests SET " +
-                "request_status = 'REJECTED', " +
-                "admin_note = ?, " +
-                "approved_by_username = ?, " +
-                "decision_date = NOW() " +
-                "WHERE request_id = ?";
+        // Nếu approverUsername là "SYSTEM" hoặc null, không update approved_by_username
+        // (giữ nguyên giá trị hiện tại để tránh foreign key constraint)
+        boolean updateApprover = approverUsername != null &&
+                !approverUsername.trim().equalsIgnoreCase("SYSTEM") &&
+                !approverUsername.trim().isEmpty();
+
+        String sql;
+        if (updateApprover) {
+            sql = "UPDATE class_opening_requests SET " +
+                    "request_status = 'REJECTED', " +
+                    "admin_note = ?, " +
+                    "approved_by_username = ?, " +
+                    "decision_date = NOW() " +
+                    "WHERE request_id = ?";
+        } else {
+            sql = "UPDATE class_opening_requests SET " +
+                    "request_status = 'REJECTED', " +
+                    "admin_note = ?, " +
+                    "decision_date = NOW() " +
+                    "WHERE request_id = ?";
+        }
 
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement pstmt = conn.prepareStatement(sql)) {
 
             pstmt.setString(1, reason);
-            pstmt.setString(2, approverUsername);
-            pstmt.setInt(3, requestId);
+            if (updateApprover) {
+                pstmt.setString(2, approverUsername);
+                pstmt.setInt(3, requestId);
+            } else {
+                pstmt.setInt(2, requestId);
+            }
 
-            return pstmt.executeUpdate() > 0;
+            int rowsUpdated = pstmt.executeUpdate();
+            if (rowsUpdated > 0) {
+                LOGGER.info("Đã reject yêu cầu mở lớp: requestId=" + requestId +
+                        (updateApprover ? ", approver=" + approverUsername : ", tự động reject (SYSTEM)"));
+                return true;
+            } else {
+                LOGGER.warning("Không tìm thấy yêu cầu để reject: requestId=" + requestId);
+                return false;
+            }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error rejecting request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi reject yêu cầu: " + e.getMessage());
         }
 
         return false;
@@ -311,8 +381,7 @@ public class ClassOpeningRequestDAO {
             return pstmt.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            LOGGER.severe("Error deleting request: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi xóa yêu cầu: " + e.getMessage());
         }
 
         return false;

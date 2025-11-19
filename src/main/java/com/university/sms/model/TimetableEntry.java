@@ -1,6 +1,7 @@
 package com.university.sms.model;
 
 import java.io.Serializable;
+import java.util.logging.Logger;
 
 /**
  * Model cho một entry trong thời khóa biểu
@@ -8,6 +9,7 @@ import java.io.Serializable;
  */
 public class TimetableEntry implements Serializable {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(TimetableEntry.class.getName());
 
     private int courseId;
     private String courseCode;
@@ -106,8 +108,7 @@ public class TimetableEntry implements Serializable {
         // Parse day
         this.dayOfWeek = DayOfWeek.fromString(scheduleDay);
 
-        // Debug logging
-        System.out.println("TimetableEntry: Parsing scheduleTime = \"" + scheduleTime + "\"");
+        LOGGER.fine("Phân tích scheduleTime = \"" + scheduleTime + "\"");
 
         // Parse time and periods
         if (scheduleTime != null && !scheduleTime.isEmpty()) {
@@ -125,9 +126,9 @@ public class TimetableEntry implements Serializable {
                             this.startPeriod = Integer.parseInt(periods[0].trim());
                             this.endPeriod = Integer.parseInt(periods[1].trim());
                             periodsParsed = true;
-                            System.out.println("  -> Parsed from 'Tiết X-Y' format: " + startPeriod + "-" + endPeriod);
+                            LOGGER.fine("  -> Đã phân tích từ định dạng 'Tiết X-Y': " + startPeriod + "-" + endPeriod);
                         } catch (NumberFormatException e) {
-                            System.out.println("  -> Failed to parse 'Tiết' format: " + e.getMessage());
+                            LOGGER.warning("  -> Không thể phân tích định dạng 'Tiết': " + e.getMessage());
                         }
                     }
                 }
@@ -143,10 +144,10 @@ public class TimetableEntry implements Serializable {
                         this.startPeriod = first;
                         this.endPeriod = second;
                         periodsParsed = true;
-                        System.out.println("  -> Parsed from 'X-Y' format: " + startPeriod + "-" + endPeriod);
+                        LOGGER.fine("  -> Đã phân tích từ định dạng 'X-Y': " + startPeriod + "-" + endPeriod);
                     }
                 } catch (NumberFormatException e) {
-                    System.out.println("  -> Failed to parse 'X-Y' format: " + e.getMessage());
+                    LOGGER.warning("  -> Không thể phân tích định dạng 'X-Y': " + e.getMessage());
                 }
             }
 
@@ -171,11 +172,11 @@ public class TimetableEntry implements Serializable {
                         this.endPeriod = Math.max(1, endHour - 6 + (endMinute > 0 ? 0 : -1));
 
                         periodsParsed = true;
-                        System.out.println("  -> Parsed from time format: " + timeOnly + " -> periods " + startPeriod
+                        LOGGER.fine("  -> Đã phân tích từ định dạng thời gian: " + timeOnly + " -> tiết " + startPeriod
                                 + "-" + endPeriod);
                     }
                 } catch (Exception e) {
-                    System.out.println("  -> Failed to parse time format: " + e.getMessage());
+                    LOGGER.warning("  -> Không thể phân tích định dạng thời gian: " + e.getMessage());
                 }
             }
 
@@ -191,12 +192,12 @@ public class TimetableEntry implements Serializable {
             }
 
             if (!periodsParsed) {
-                System.out.println(
-                        "  -> WARNING: Could not parse periods, using defaults: " + startPeriod + "-" + endPeriod);
+                LOGGER.warning(
+                        "  -> Cảnh báo: Không thể phân tích tiết, sử dụng mặc định: " + startPeriod + "-" + endPeriod);
             }
         }
 
-        System.out.println("  -> Final result: Day=" + dayOfWeek + ", Periods=" + startPeriod + "-" + endPeriod);
+        LOGGER.fine("  -> Kết quả cuối cùng: Ngày=" + dayOfWeek + ", Tiết=" + startPeriod + "-" + endPeriod);
     }
 
     /**

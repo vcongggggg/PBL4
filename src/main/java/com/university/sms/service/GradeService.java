@@ -43,6 +43,7 @@ public class GradeService {
 
         if (result) {
             LOGGER.info("Added grade successfully: " + grade.getGradeName());
+            checkAndAutoFinalizeGrade(grade.getStudentCode(), grade.getCourseCode());
         }
 
         return result;
@@ -56,7 +57,13 @@ public class GradeService {
             throw new IllegalArgumentException("Grade không tồn tại");
         }
 
-        return gradeDAO.updateGrade(grade);
+        boolean result = gradeDAO.updateGrade(grade);
+
+        if (result) {
+            checkAndAutoFinalizeGrade(grade.getStudentCode(), grade.getCourseCode());
+        }
+
+        return result;
     }
 
     public boolean deleteGrade(int gradeId) throws Exception {
@@ -228,6 +235,47 @@ public class GradeService {
         return stats;
     }
 
+    /**
+     * Kiểm tra xem đã có đủ 3 loại điểm (ASSIGNMENT, MIDTERM, FINAL) chưa
+     */
+    private void checkAndAutoFinalizeGrade(String studentCode, String courseCode) {
+        try {
+            List<Grade> grades = gradeDAO.getGradesByStudentAndCourse(studentCode, courseCode);
+
+            boolean hasAssignment = false;
+            boolean hasMidterm = false;
+            boolean hasFinal = false;
+
+            for (Grade grade : grades) {
+                if (grade.getGradeType() == GradeType.ASSIGNMENT) {
+                    hasAssignment = true;
+                } else if (grade.getGradeType() == GradeType.MIDTERM) {
+                    hasMidterm = true;
+                } else if (grade.getGradeType() == GradeType.FINAL) {
+                    hasFinal = true;
+                }
+            }
+
+            if (hasAssignment && hasMidterm && hasFinal) {
+                Enrollment enrollment = enrollmentDAO.findByStudentAndCourse(studentCode, courseCode);
+                if (enrollment != null && enrollment.getEnrollmentStatus() != Enrollment.EnrollmentStatus.COMPLETED
+                        && enrollment.getEnrollmentStatus() != Enrollment.EnrollmentStatus.FAILED) {
+                    try {
+                        finalizeCourseGrade(studentCode, courseCode);
+                        LOGGER.info("Auto-finalized grade for student_code: " + studentCode + ", course_code: "
+                                + courseCode);
+                    } catch (Exception e) {
+                        LOGGER.log(Level.WARNING, "Failed to auto-finalize grade for student_code: " +
+                                studentCode + ", course_code: " + courseCode, e);
+                    }
+                }
+            }
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Error checking and auto-finalizing grade for student_code: " +
+                    studentCode + ", course_code: " + courseCode, e);
+        }
+    }
+
     private void validateGrade(Grade grade) throws IllegalArgumentException {
         if (grade.getStudentCode() == null || grade.getStudentCode().trim().isEmpty()) {
             throw new IllegalArgumentException("Student code không được để trống");
@@ -254,7 +302,17 @@ public class GradeService {
         }
 
         if (grade.getScore().compareTo(BigDecimal.ZERO) < 0) {
-            throw new IllegalArgumentException("Điểm không được âm");
+            throw new IllegalArgumentException("Điểm không được âm (phải >= 0)");
+        }
+
+        // Validate điểm phải <= 10 (thang điểm 10)
+        if (grade.getScore().compareTo(new BigDecimal("10")) > 0) {
+            throw new IllegalArgumentException("Điểm không được vượt quá 10");
+        }
+
+        // Validate maxScore phải <= 10
+        if (grade.getMaxScore().compareTo(new BigDecimal("10")) > 0) {
+            throw new IllegalArgumentException("Điểm tối đa không được vượt quá 10");
         }
 
         if (grade.getScore().compareTo(grade.getMaxScore()) > 0) {

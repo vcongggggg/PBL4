@@ -20,6 +20,7 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -29,6 +30,7 @@ import java.util.stream.Collectors;
  */
 public class GradePanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(GradePanel.class.getName());
 
     private User currentUser;
     private IServerConnection serverConnection;
@@ -64,7 +66,6 @@ public class GradePanel extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Table
         String[] columnNames;
         if (currentUser.getRole() == User.UserRole.STUDENT) {
             columnNames = new String[] { "Mã môn học", "Tên môn học", "Tín chỉ", "Điểm BT", "Điểm GK", "Điểm CK",
@@ -94,17 +95,15 @@ public class GradePanel extends JPanel {
                 @Override
                 public void mouseClicked(MouseEvent e) {
                     if (e.getClickCount() == 2) {
-                        addGrade(); // Open grade input dialog
+                        addGrade();
                     }
                 }
             });
         }
 
-        // Buttons
         addGradeButton = new JButton("Nhập điểm");
         refreshButton = new JButton("Làm mới");
 
-        // Search
         searchField = new JTextField(20);
         searchField.setToolTipText("Tìm kiếm theo mã lớp hoặc tên môn");
 
@@ -407,7 +406,7 @@ public class GradePanel extends JPanel {
                     List<Map<String, Object>> grades = get();
                     updateTable(grades);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải dữ liệu điểm: " + e.getMessage());
                     JOptionPane.showMessageDialog(GradePanel.this,
                             "Lỗi khi tải dữ liệu điểm: " + e.getMessage(),
                             "Lỗi",
@@ -499,7 +498,7 @@ public class GradePanel extends JPanel {
                                 JOptionPane.INFORMATION_MESSAGE);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải danh sách khóa học: " + e.getMessage());
                     JOptionPane.showMessageDialog(GradePanel.this,
                             "Lỗi khi tải danh sách khóa học: " + e.getMessage(),
                             "Lỗi",
@@ -587,7 +586,6 @@ public class GradePanel extends JPanel {
             return;
         }
 
-        // TODO: Get grade data from selected row and show edit dialog
         JOptionPane.showMessageDialog(this,
                 "Chức năng sửa điểm đang được phát triển",
                 "Thông báo",
@@ -610,7 +608,6 @@ public class GradePanel extends JPanel {
                 JOptionPane.YES_NO_OPTION);
 
         if (confirm == JOptionPane.YES_OPTION) {
-            // TODO: Implement delete functionality
             JOptionPane.showMessageDialog(this,
                     "Chức năng xóa điểm đang được phát triển",
                     "Thông báo",
@@ -645,7 +642,6 @@ public class GradePanel extends JPanel {
     }
 
     private void showGradeStatistics() {
-        // TODO: Show statistics dialog
         JOptionPane.showMessageDialog(this,
                 "Thống kê điểm:\n" +
                         "- Điểm TB tích lũy: Đang tính...\n" +
@@ -755,7 +751,7 @@ public class GradePanel extends JPanel {
                     }
                 }
             } catch (Exception e) {
-                e.printStackTrace();
+                LOGGER.warning("Lỗi khi lấy điểm cho sinh viên " + enrollment.getStudentCode() + ": " + e.getMessage());
             }
 
             Object[] row = {
@@ -774,11 +770,11 @@ public class GradePanel extends JPanel {
         gradeInputTable.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
 
         // Set column widths
-        gradeInputTable.getColumnModel().getColumn(0).setPreferredWidth(80); // MSSV
-        gradeInputTable.getColumnModel().getColumn(1).setPreferredWidth(200); // Name
-        gradeInputTable.getColumnModel().getColumn(2).setPreferredWidth(80); // BT
-        gradeInputTable.getColumnModel().getColumn(3).setPreferredWidth(80); // GK
-        gradeInputTable.getColumnModel().getColumn(4).setPreferredWidth(80); // CK
+        gradeInputTable.getColumnModel().getColumn(0).setPreferredWidth(80);
+        gradeInputTable.getColumnModel().getColumn(1).setPreferredWidth(200);
+        gradeInputTable.getColumnModel().getColumn(2).setPreferredWidth(80);
+        gradeInputTable.getColumnModel().getColumn(3).setPreferredWidth(80);
+        gradeInputTable.getColumnModel().getColumn(4).setPreferredWidth(80);
 
         JScrollPane scrollPane = new JScrollPane(gradeInputTable);
 
@@ -792,7 +788,6 @@ public class GradePanel extends JPanel {
         infoPanel.add(new JLabel("Số sinh viên:"));
         infoPanel.add(new JLabel(String.valueOf(enrollments.size())));
 
-        // Buttons
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         JButton saveButton = new JButton("Lưu tất cả");
         JButton cancelButton = new JButton("Hủy");
@@ -842,50 +837,57 @@ public class GradePanel extends JPanel {
                 String midtermStr = midtermObj != null ? midtermObj.toString().trim() : "";
                 String finalStr = finalObj != null ? finalObj.toString().trim() : "";
 
-                System.out.println("DEBUG: Row " + i + " - MSSV: " + enrollment.getStudentCode());
-                System.out.println("  Assignment: '" + assignmentStr + "'");
-                System.out.println("  Midterm: '" + midtermStr + "'");
-                System.out.println("  Final: '" + finalStr + "'");
+                LOGGER.fine("Xử lý dòng " + i + " - MSSV: " + enrollment.getStudentCode() +
+                        " - BT: '" + assignmentStr + "', GK: '" + midtermStr + "', CK: '" + finalStr + "'");
 
                 // Save each grade type separately (or delete if empty)
                 int changesCount = 0;
+                StringBuilder rowErrors = new StringBuilder();
 
                 // Assignment grade - save or delete
-                boolean result1 = saveOrDeleteGrade(enrollment.getStudentCode(), enrollment.getCourseCode(),
+                String error1 = saveOrDeleteGradeWithError(enrollment.getStudentCode(), enrollment.getCourseCode(),
                         Grade.GradeType.ASSIGNMENT, assignmentStr);
-                System.out.println("  Result Assignment: " + result1);
-                if (result1)
+                if (error1 == null) {
                     changesCount++;
+                } else if (!assignmentStr.isEmpty()) {
+                    rowErrors.append("Điểm BT: ").append(error1).append("; ");
+                }
 
                 // Midterm grade - save or delete
-                boolean result2 = saveOrDeleteGrade(enrollment.getStudentCode(), enrollment.getCourseCode(),
+                String error2 = saveOrDeleteGradeWithError(enrollment.getStudentCode(), enrollment.getCourseCode(),
                         Grade.GradeType.MIDTERM, midtermStr);
-                System.out.println("  Result Midterm: " + result2);
-                if (result2)
+                if (error2 == null) {
                     changesCount++;
+                } else if (!midtermStr.isEmpty()) {
+                    rowErrors.append("Điểm GK: ").append(error2).append("; ");
+                }
 
                 // Final grade - save or delete
-                boolean result3 = saveOrDeleteGrade(enrollment.getStudentCode(), enrollment.getCourseCode(),
+                String error3 = saveOrDeleteGradeWithError(enrollment.getStudentCode(), enrollment.getCourseCode(),
                         Grade.GradeType.FINAL, finalStr);
-                System.out.println("  Result Final: " + result3);
-                if (result3)
+                if (error3 == null) {
                     changesCount++;
+                } else if (!finalStr.isEmpty()) {
+                    rowErrors.append("Điểm CK: ").append(error3).append("; ");
+                }
 
-                if (changesCount > 0) {
+                if (changesCount > 0 && rowErrors.length() == 0) {
                     successCount++;
+                } else if (rowErrors.length() > 0) {
+                    errorCount++;
+                    errors.append("Dòng ").append(i + 1).append(" (").append(enrollment.getStudentCode())
+                            .append("): ").append(rowErrors.toString()).append("\n");
                 }
 
             } catch (NumberFormatException e) {
                 errorCount++;
                 String errorMsg = "Điểm không hợp lệ: " + e.getMessage();
                 errors.append("Dòng ").append(i + 1).append(": ").append(errorMsg).append("\n");
-                System.err.println("ERROR Row " + i + ": " + errorMsg);
-                e.printStackTrace();
+                LOGGER.warning("Lỗi định dạng điểm ở dòng " + (i + 1) + ": " + errorMsg);
             } catch (Exception e) {
                 errorCount++;
                 errors.append("Dòng ").append(i + 1).append(": ").append(e.getMessage()).append("\n");
-                System.err.println("ERROR Row " + i + ": " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.severe("Lỗi khi lưu điểm ở dòng " + (i + 1) + ": " + e.getMessage());
             }
         }
 
@@ -924,6 +926,22 @@ public class GradePanel extends JPanel {
     }
 
     /**
+     * Lưu hoặc xóa điểm và trả về error message nếu có lỗi
+     * 
+     * @return null nếu thành công, error message nếu có lỗi
+     */
+    private String saveOrDeleteGradeWithError(String studentCode, String courseCode, Grade.GradeType gradeType,
+            String scoreStr) {
+        // If empty, send null score to delete the grade
+        if (scoreStr == null || scoreStr.trim().isEmpty()) {
+            boolean success = deleteGradeBySettingNull(studentCode, courseCode, gradeType);
+            return success ? null : "Không thể xóa điểm";
+        }
+        // Otherwise, save/update the grade
+        return saveGradeByTypeWithError(studentCode, courseCode, gradeType, scoreStr.trim());
+    }
+
+    /**
      * Xóa điểm bằng cách gọi DELETE_GRADE
      */
     private boolean deleteGradeBySettingNull(String studentCode, String courseCode, Grade.GradeType gradeType) {
@@ -952,7 +970,7 @@ public class GradePanel extends JPanel {
             }
             return true; // No grade to delete is also success
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.severe("Lỗi khi xóa điểm: " + e.getMessage());
             return false;
         }
     }
@@ -963,7 +981,8 @@ public class GradePanel extends JPanel {
     private boolean saveGradeByType(String studentCode, String courseCode, Grade.GradeType gradeType, String scoreStr) {
         try {
             BigDecimal score = new BigDecimal(scoreStr);
-            System.out.println("DEBUG saveGradeByType: score parsed = " + score);
+            LOGGER.fine("Lưu điểm - MSSV: " + studentCode + ", Mã lớp: " + courseCode + ", Loại: " + gradeType
+                    + ", Điểm: " + score);
 
             // Kiểm tra xem điểm đã tồn tại chưa
             Message getRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
@@ -976,13 +995,13 @@ public class GradePanel extends JPanel {
                 @SuppressWarnings("unchecked")
                 List<Grade> grades = (List<Grade>) getResponse.getData(Constants.KEY_GRADES);
 
-                System.out.println("DEBUG: Found " + (grades != null ? grades.size() : 0) + " existing grades");
+                LOGGER.fine("Tìm thấy " + (grades != null ? grades.size() : 0) + " điểm hiện có");
 
                 if (grades != null) {
                     for (Grade g : grades) {
                         if (g.getGradeType() == gradeType) {
                             existingGrade = g;
-                            System.out.println("DEBUG: Found existing grade ID: " + g.getGradeId());
+                            LOGGER.fine("Tìm thấy điểm hiện có với ID: " + g.getGradeId());
                             break;
                         }
                     }
@@ -1012,7 +1031,7 @@ public class GradePanel extends JPanel {
                     grade.setGradeName("Điểm cuối kỳ");
                     break;
                 default:
-                    System.err.println("ERROR: Unknown grade type: " + gradeType);
+                    LOGGER.warning("Loại điểm không hợp lệ: " + gradeType);
                     return false;
             }
 
@@ -1020,7 +1039,7 @@ public class GradePanel extends JPanel {
 
             // Send to server - ADD or UPDATE
             String action = existingGrade != null ? Constants.ACTION_UPDATE_GRADE : Constants.ACTION_ADD_GRADE;
-            System.out.println("DEBUG: Sending " + action + " request for grade type " + gradeType);
+            LOGGER.fine("Gửi yêu cầu " + action + " cho loại điểm " + gradeType);
 
             Message request = Message.createRequest(action);
             request.addData(Constants.KEY_GRADE, grade);
@@ -1028,15 +1047,112 @@ public class GradePanel extends JPanel {
 
             boolean success = response != null && response.isSuccess();
             if (!success && response != null) {
-                System.err.println("ERROR: Server response failed: " + response.getMessage());
+                LOGGER.warning("Phản hồi từ server thất bại: " + response.getMessage());
+                return false;
             }
 
             return success;
 
         } catch (Exception e) {
-            System.err.println("ERROR in saveGradeByType: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.severe("Lỗi trong saveGradeByType: " + e.getMessage());
             return false;
+        }
+    }
+
+    /**
+     * Lưu điểm theo loại và trả về error message nếu có lỗi
+     * 
+     * @return null nếu thành công, error message nếu có lỗi
+     */
+    private String saveGradeByTypeWithError(String studentCode, String courseCode, Grade.GradeType gradeType,
+            String scoreStr) {
+        try {
+            BigDecimal score = new BigDecimal(scoreStr);
+            LOGGER.fine("Lưu điểm (có kiểm tra lỗi) - MSSV: " + studentCode + ", Mã lớp: " + courseCode + ", Loại: "
+                    + gradeType + ", Điểm: " + score);
+
+            // Kiểm tra xem điểm đã tồn tại chưa
+            Message getRequest = Message.createRequest(Constants.ACTION_GET_GRADES);
+            getRequest.addData(Constants.KEY_STUDENT_CODE, studentCode);
+            getRequest.addData(Constants.KEY_COURSE_CODE, courseCode);
+            Message getResponse = serverConnection.sendRequest(getRequest);
+
+            Grade existingGrade = null;
+            if (getResponse != null && getResponse.isSuccess()) {
+                @SuppressWarnings("unchecked")
+                List<Grade> grades = (List<Grade>) getResponse.getData(Constants.KEY_GRADES);
+
+                LOGGER.fine("Tìm thấy " + (grades != null ? grades.size() : 0) + " điểm hiện có");
+
+                if (grades != null) {
+                    for (Grade g : grades) {
+                        if (g.getGradeType() == gradeType) {
+                            existingGrade = g;
+                            LOGGER.fine("Tìm thấy điểm hiện có với ID: " + g.getGradeId());
+                            break;
+                        }
+                    }
+                }
+            }
+
+            // Create/Update grade object
+            Grade grade = existingGrade != null ? existingGrade : new Grade();
+            grade.setStudentCode(studentCode);
+            grade.setCourseCode(courseCode);
+            grade.setGradeType(gradeType);
+            grade.setScore(score);
+            grade.setMaxScore(new BigDecimal("10.0"));
+
+            // Set weight and name based on type
+            switch (gradeType) {
+                case ASSIGNMENT:
+                    grade.setWeight(new BigDecimal("0.2")); // 20%
+                    grade.setGradeName("Điểm bài tập");
+                    break;
+                case MIDTERM:
+                    grade.setWeight(new BigDecimal("0.3")); // 30%
+                    grade.setGradeName("Điểm giữa kỳ");
+                    break;
+                case FINAL:
+                    grade.setWeight(new BigDecimal("0.5")); // 50%
+                    grade.setGradeName("Điểm cuối kỳ");
+                    break;
+                default:
+                    return "Loại điểm không hợp lệ: " + gradeType;
+            }
+
+            grade.setGradeDate(new java.sql.Date(System.currentTimeMillis()));
+
+            // Send to server - ADD or UPDATE
+            String action = existingGrade != null ? Constants.ACTION_UPDATE_GRADE : Constants.ACTION_ADD_GRADE;
+            LOGGER.fine("Gửi yêu cầu " + action + " cho loại điểm " + gradeType);
+
+            Message request = Message.createRequest(action);
+            request.addData(Constants.KEY_GRADE, grade);
+            Message response = serverConnection.sendRequest(request);
+
+            if (response == null) {
+                LOGGER.warning("Không nhận được phản hồi từ server");
+                return "Không nhận được phản hồi từ server";
+            }
+
+            if (!response.isSuccess()) {
+                String errorMsg = response.getMessage();
+                if (errorMsg == null || errorMsg.trim().isEmpty()) {
+                    errorMsg = "Lỗi không xác định";
+                }
+                LOGGER.warning("Phản hồi từ server thất bại: " + errorMsg);
+                return errorMsg;
+            }
+
+            return null;
+
+        } catch (NumberFormatException e) {
+            LOGGER.warning("Điểm không hợp lệ: " + e.getMessage());
+            return "Điểm không hợp lệ: " + e.getMessage();
+        } catch (Exception e) {
+            LOGGER.severe("Lỗi trong saveGradeByTypeWithError: " + e.getMessage());
+            return "Lỗi: " + e.getMessage();
         }
     }
 }

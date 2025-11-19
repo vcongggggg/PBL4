@@ -9,13 +9,14 @@ import com.university.sms.model.ClassOpeningRequest;
 import javax.swing.*;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.text.SimpleDateFormat;
 import java.util.List;
 
 public class AdminPanel extends JPanel {
     private static final long serialVersionUID = 1L;
 
-    private User currentUser;
     private IServerConnection serverConnection;
 
     private JTable requestTable;
@@ -23,13 +24,31 @@ public class AdminPanel extends JPanel {
     private JButton approveButton;
     private JButton rejectButton;
     private JButton refreshRequestButton;
+    private boolean isInitialized = false;
+    private boolean isRefreshing = false;
 
     public AdminPanel(User currentUser, IServerConnection serverConnection) {
-        this.currentUser = currentUser;
+        // currentUser không được sử dụng trong panel này, nhưng giữ lại để nhất quán
+        // với các panel khác
         this.serverConnection = serverConnection;
 
         initializeComponents();
-        loadInitialData();
+        setupEventListeners();
+        isInitialized = true;
+        // ComponentListener sẽ tự động gọi refreshData() khi panel được hiển thị
+    }
+
+    private void setupEventListeners() {
+        // Auto-refresh khi panel được hiển thị (chỉ sau khi đã khởi tạo xong)
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                // Chỉ refresh nếu panel đã được khởi tạo hoàn toàn
+                if (isInitialized && !isRefreshing) {
+                    refreshData();
+                }
+            }
+        });
     }
 
     private void initializeComponents() {
@@ -75,7 +94,7 @@ public class AdminPanel extends JPanel {
 
         approveButton.addActionListener(e -> approveRequest());
         rejectButton.addActionListener(e -> rejectRequest());
-        refreshRequestButton.addActionListener(e -> refreshRequests());
+        refreshRequestButton.addActionListener(e -> refreshData());
 
         buttonPanel.add(viewDetailsBtn);
         buttonPanel.add(approveButton);
@@ -92,15 +111,17 @@ public class AdminPanel extends JPanel {
         add(buttonPanel, BorderLayout.SOUTH);
     }
 
-    private void loadInitialData() {
-        refreshRequests();
-    }
-
     public void refreshData() {
         refreshRequests();
     }
 
     private void refreshRequests() {
+        // Prevent multiple simultaneous refreshes
+        if (isRefreshing) {
+            return;
+        }
+
+        isRefreshing = true;
         requestTableModel.setRowCount(0);
 
         SwingWorker<List<ClassOpeningRequest>, Void> worker = new SwingWorker<>() {
@@ -129,6 +150,8 @@ public class AdminPanel extends JPanel {
                             "Lỗi: " + e.getMessage(),
                             "Lỗi",
                             JOptionPane.ERROR_MESSAGE);
+                } finally {
+                    isRefreshing = false;
                 }
             }
         };
@@ -287,7 +310,7 @@ public class AdminPanel extends JPanel {
                         "Đã duyệt yêu cầu thành công",
                         "Thành công",
                         JOptionPane.INFORMATION_MESSAGE);
-                refreshRequests();
+                refreshData();
             } else {
                 String errorMsg = response != null ? response.getMessage() : "Không có phản hồi";
                 JOptionPane.showMessageDialog(this,
@@ -346,7 +369,7 @@ public class AdminPanel extends JPanel {
                         "Đã từ chối yêu cầu",
                         "Thành công",
                         JOptionPane.INFORMATION_MESSAGE);
-                refreshRequests();
+                refreshData();
             } else {
                 String errorMsg = response != null ? response.getMessage() : "Không có phản hồi";
                 JOptionPane.showMessageDialog(this,
