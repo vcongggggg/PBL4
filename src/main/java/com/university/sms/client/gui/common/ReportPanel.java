@@ -26,7 +26,6 @@ public class ReportPanel extends JPanel {
 
     private JTabbedPane tabbedPane;
     private AnalyticsDashboard analyticsDashboard;
-    private AnalyticsDashboard chartsDashboard;
     private JComboBox<String> reportTypeCombo;
     private JComboBox<String> semesterCombo;
     private JButton generateButton;
@@ -78,12 +77,6 @@ public class ReportPanel extends JPanel {
         // Tab 2: Detailed Reports
         JPanel detailReportPanel = createDetailReportPanel();
         tabbedPane.addTab("Báo cáo Chi tiết", detailReportPanel);
-
-        // Tab 3: Charts (for Admin/Teacher)
-        if (currentUser.getRole() != User.UserRole.STUDENT) {
-            chartsDashboard = new AnalyticsDashboard(serverConnection, currentUser, false, true);
-            tabbedPane.addTab("Biểu đồ", chartsDashboard);
-        }
     }
 
     private JPanel createStatisticsPanel() {
@@ -389,9 +382,6 @@ public class ReportPanel extends JPanel {
                 loadInitialData();
                 if (analyticsDashboard != null) {
                     analyticsDashboard.refreshData();
-                }
-                if (chartsDashboard != null && chartsDashboard != analyticsDashboard) {
-                    chartsDashboard.refreshData();
                 }
             } finally {
                 isRefreshing = false;

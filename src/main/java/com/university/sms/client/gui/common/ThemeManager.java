@@ -140,13 +140,13 @@ public class ThemeManager {
         return currentTheme;
     }
 
-    public boolean isDarkMode() {
-        return currentTheme == Theme.DARK_THEME;
-    }
+    // public boolean isDarkMode() {
+    //     return currentTheme == Theme.DARK_THEME;
+    // }
 
-    public void toggleTheme() {
-        applyTheme(isDarkMode() ? ThemeType.LIGHT : ThemeType.DARK);
-    }
+    // public void toggleTheme() {
+    //     applyTheme(isDarkMode() ? ThemeType.LIGHT : ThemeType.DARK);
+    // }
 
     /**
      * Theme data class

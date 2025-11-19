@@ -40,7 +40,7 @@ public class TranscriptService {
             // Get student info
             Student student = studentDAO.findByStudentCode(studentCode);
             if (student == null) {
-                LOGGER.warning("Student not found: " + student.getStudentCode());
+                LOGGER.warning("Student not found: " + studentCode);
                 return null;
             }
 
@@ -200,18 +200,30 @@ public class TranscriptService {
         List<Transcript> honorStudents = new ArrayList<>();
 
         try {
-            List<Student> students = studentDAO.findByFacultyCode(facultyCode);
+            List<Student> students;
+            // If facultyCode is null or empty, get all students
+            if (facultyCode == null || facultyCode.isEmpty()) {
+                students = studentDAO.findAll();
+            } else {
+                students = studentDAO.findByFacultyCode(facultyCode);
+            }
 
             for (Student student : students) {
                 Transcript transcript = generateTranscript(student.getStudentCode());
                 if (transcript != null
+                        && transcript.getCumulativeGPA() != null
                         && transcript.getCumulativeGPA().doubleValue() >= 3.6) {
                     honorStudents.add(transcript);
                 }
             }
 
             // Sort by GPA descending
-            honorStudents.sort((t1, t2) -> t2.getCumulativeGPA().compareTo(t1.getCumulativeGPA()));
+            honorStudents.sort((t1, t2) -> {
+                if (t1.getCumulativeGPA() == null && t2.getCumulativeGPA() == null) return 0;
+                if (t1.getCumulativeGPA() == null) return 1;
+                if (t2.getCumulativeGPA() == null) return -1;
+                return t2.getCumulativeGPA().compareTo(t1.getCumulativeGPA());
+            });
 
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Error getting honor students", e);

@@ -260,20 +260,22 @@ public class AnalyticsDashboard extends JPanel {
                         }
                     }
                     
-                    // Get top honor students
-                    if (facultyCode != null && !facultyCode.isEmpty()) {
-                        Message honorRequest = new Message();
-                        honorRequest.setAction(Constants.ACTION_GET_HONOR_STUDENTS);
-                        Map<String, Object> reqData = new HashMap<>();
-                        reqData.put(Constants.KEY_FACULTY_CODE, facultyCode);
-                        honorRequest.setData(reqData);
-                        
-                        Message honorResponse = serverConnection.sendRequest(honorRequest);
-                        if (honorResponse != null && honorResponse.isSuccess()) {
-                            List<?> honorStudents = (List<?>) honorResponse.getData(Constants.KEY_HONOR_STUDENTS);
-                            data.honorStudents = honorStudents;
-                        }
+                    // Get top honor students (for all faculties if admin, or specific faculty)
+                    Message honorRequest = new Message();
+                    honorRequest.setAction(Constants.ACTION_GET_HONOR_STUDENTS);
+                    Map<String, Object> reqData = new HashMap<>();
+                    // If admin viewing all, pass null to get top students from all faculties
+                    reqData.put(Constants.KEY_FACULTY_CODE, facultyCode);
+                    honorRequest.setData(reqData);
+                    
+                    Message honorResponse = serverConnection.sendRequest(honorRequest);
+                    if (honorResponse != null && honorResponse.isSuccess()) {
+                        List<?> honorStudents = (List<?>) honorResponse.getData(Constants.KEY_HONOR_STUDENTS);
+                        data.honorStudents = honorStudents;
                     }
+                    
+                    // Get GPA trend by semester (for all students or specific faculty)
+                    data.gpaTrendData = getGPATrendBySemester(facultyCode);
                     
                     return data;
                 } catch (Exception e) {
@@ -303,6 +305,94 @@ public class AnalyticsDashboard extends JPanel {
         List<Faculty> allFaculties;
         Map<String, Map<String, Object>> facultyStatsMap;
         List<?> honorStudents;
+        Map<String, Double> gpaTrendData; // Key: "academicYear-semester", Value: average GPA
+    }
+    
+    /**
+     * Lấy dữ liệu GPA trend theo học kỳ
+     */
+    private Map<String, Double> getGPATrendBySemester(String facultyCode) {
+        Map<String, Double> trendData = new HashMap<>();
+        try {
+            // Get all students first to filter by faculty if needed
+            Message studentsRequest = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
+            Message studentsResponse = serverConnection.sendRequest(studentsRequest);
+            
+            java.util.Set<String> studentCodes = new java.util.HashSet<>();
+            if (studentsResponse != null && studentsResponse.isSuccess()) {
+                @SuppressWarnings("unchecked")
+                List<com.university.sms.model.Student> students = 
+                    (List<com.university.sms.model.Student>) studentsResponse.getData("students");
+                if (students != null) {
+                    for (com.university.sms.model.Student student : students) {
+                        if (facultyCode == null || facultyCode.isEmpty() || 
+                            facultyCode.equals(student.getFacultyCode())) {
+                            studentCodes.add(student.getStudentCode());
+                        }
+                    }
+                }
+            }
+            
+            if (studentCodes.isEmpty()) {
+                return trendData;
+            }
+            
+            // Get all courses to map course_code to academic_year and semester
+            Message coursesRequest = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
+            Message coursesResponse = serverConnection.sendRequest(coursesRequest);
+            
+            Map<String, com.university.sms.model.Course> courseMap = new HashMap<>();
+            if (coursesResponse != null && coursesResponse.isSuccess()) {
+                @SuppressWarnings("unchecked")
+                List<com.university.sms.model.Course> courses = 
+                    (List<com.university.sms.model.Course>) coursesResponse.getData("courses");
+                if (courses != null) {
+                    for (com.university.sms.model.Course course : courses) {
+                        courseMap.put(course.getCourseCode(), course);
+                    }
+                }
+            }
+            
+            // Get enrollments for each student
+            Map<String, List<Double>> semesterGPAs = new HashMap<>();
+            
+            for (String studentCode : studentCodes) {
+                Message enrollRequest = Message.createRequest(Constants.ACTION_GET_STUDENT_GRADES);
+                enrollRequest.addData("studentCode", studentCode);
+                Message enrollResponse = serverConnection.sendRequest(enrollRequest);
+                
+                if (enrollResponse != null && enrollResponse.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    List<com.university.sms.model.Enrollment> enrollments = 
+                        (List<com.university.sms.model.Enrollment>) enrollResponse.getData("enrollments");
+                    
+                    if (enrollments != null) {
+                        for (com.university.sms.model.Enrollment enrollment : enrollments) {
+                            if (enrollment.getEnrollmentStatus() == com.university.sms.model.Enrollment.EnrollmentStatus.COMPLETED
+                                && enrollment.getGradePoints() != null) {
+                                
+                                com.university.sms.model.Course course = courseMap.get(enrollment.getCourseCode());
+                                if (course != null) {
+                                    String semesterKey = course.getAcademicYear() + "-" + course.getSemester();
+                                    semesterGPAs.computeIfAbsent(semesterKey, k -> new java.util.ArrayList<>())
+                                        .add(enrollment.getGradePoints().doubleValue());
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+            
+            // Calculate average GPA for each semester
+            for (Map.Entry<String, List<Double>> entry : semesterGPAs.entrySet()) {
+                List<Double> gpas = entry.getValue();
+                double avgGPA = gpas.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
+                trendData.put(entry.getKey(), avgGPA);
+            }
+        } catch (Exception e) {
+            e.printStackTrace();
+        }
+        return trendData;
     }
 
     /**
@@ -460,8 +550,47 @@ public class AnalyticsDashboard extends JPanel {
         }
         
         // Update top performers chart
-        if (data.honorStudents != null) {
+        if (data.honorStudents != null && !data.honorStudents.isEmpty()) {
             updateTopPerformersChart(data.honorStudents);
+        }
+        
+        // Update GPA trend chart
+        if (data.gpaTrendData != null && !data.gpaTrendData.isEmpty()) {
+            updateGPATrendChart(data.gpaTrendData);
+        }
+    }
+    
+    private void updateGPATrendChart(Map<String, Double> trendData) {
+        if (gpaTrendChart == null || trendData == null || trendData.isEmpty()) return;
+        
+        gpaTrendChart.clearBars();
+        
+        // Sort semesters chronologically
+        List<String> sortedSemesters = new java.util.ArrayList<>(trendData.keySet());
+        sortedSemesters.sort((s1, s2) -> {
+            String[] parts1 = s1.split("-");
+            String[] parts2 = s2.split("-");
+            int yearCompare = parts1[0].compareTo(parts2[0]);
+            if (yearCompare != 0) return yearCompare;
+            return Integer.compare(Integer.parseInt(parts1[1]), Integer.parseInt(parts2[1]));
+        });
+        
+        Color[] colors = {
+            Color.decode("#3498db"), Color.decode("#2ecc71"), 
+            Color.decode("#f39c12"), Color.decode("#e74c3c"),
+            Color.decode("#9b59b6"), Color.decode("#1abc9c")
+        };
+        
+        int colorIndex = 0;
+        for (String semesterKey : sortedSemesters) {
+            Double gpa = trendData.get(semesterKey);
+            if (gpa != null) {
+                String[] parts = semesterKey.split("-");
+                String label = "HK" + parts[1] + " " + parts[0];
+                // Convert GPA (0-4 scale) to percentage (0-100) for display
+                gpaTrendChart.addBar(label, gpa * 25, colors[colorIndex % colors.length]);
+                colorIndex++;
+            }
         }
     }
 
