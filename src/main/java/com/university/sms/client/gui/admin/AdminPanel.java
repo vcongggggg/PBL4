@@ -13,9 +13,12 @@ import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.text.SimpleDateFormat;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 public class AdminPanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(AdminPanel.class.getName());
 
     private IServerConnection serverConnection;
 
@@ -145,7 +148,7 @@ public class AdminPanel extends JPanel {
                     List<ClassOpeningRequest> requests = get();
                     updateRequestTable(requests);
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách yêu cầu mở lớp", e);
                     JOptionPane.showMessageDialog(AdminPanel.this,
                             "Lỗi: " + e.getMessage(),
                             "Lỗi",
@@ -212,7 +215,7 @@ public class AdminPanel extends JPanel {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi xem chi tiết yêu cầu", e);
             JOptionPane.showMessageDialog(this,
                     "Lỗi: " + e.getMessage(),
                     "Lỗi",
@@ -320,7 +323,7 @@ public class AdminPanel extends JPanel {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi duyệt yêu cầu mở lớp", e);
             JOptionPane.showMessageDialog(this,
                     "Lỗi: " + e.getMessage(),
                     "Lỗi",
@@ -379,7 +382,7 @@ public class AdminPanel extends JPanel {
             }
 
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi từ chối yêu cầu mở lớp", e);
             JOptionPane.showMessageDialog(this,
                     "Lỗi: " + e.getMessage(),
                     "Lỗi",

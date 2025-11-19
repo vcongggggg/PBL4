@@ -14,12 +14,15 @@ import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.math.BigDecimal;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Panel hiển thị học bạ/bảng điểm tổng hợp
  */
 public class TranscriptPanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(TranscriptPanel.class.getName());
 
     private IServerConnection serverConnection;
     private User currentUser;
@@ -205,7 +208,7 @@ public class TranscriptPanel extends JPanel {
                         return response.getData(Constants.KEY_TRANSCRIPT, Transcript.class);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải học bạ", e);
                 }
                 return null;
             }

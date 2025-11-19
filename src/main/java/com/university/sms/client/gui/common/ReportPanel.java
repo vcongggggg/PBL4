@@ -11,6 +11,8 @@ import java.awt.*;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Panel báo cáo và thống kê
@@ -20,6 +22,7 @@ import java.util.List;
  */
 public class ReportPanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(ReportPanel.class.getName());
 
     private User currentUser;
     private IServerConnection serverConnection;
@@ -125,7 +128,8 @@ public class ReportPanel extends JPanel {
         return panel;
     }
 
-    private void loadStatisticsData(JPanel card1, JPanel card2, JPanel card3, JPanel card4, DefaultTableModel tableModel) {
+    private void loadStatisticsData(JPanel card1, JPanel card2, JPanel card3, JPanel card4,
+            DefaultTableModel tableModel) {
         SwingWorker<Void, Void> worker = new SwingWorker<Void, Void>() {
             @Override
             protected Void doInBackground() {
@@ -133,50 +137,57 @@ public class ReportPanel extends JPanel {
                     if (currentUser.getRole() == User.UserRole.ADMIN) {
                         Message studentsRequest = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
                         Message studentsResponse = serverConnection.sendRequest(studentsRequest);
-                        
+
                         Message teachersRequest = Message.createRequest(Constants.ACTION_GET_ALL_TEACHERS);
                         Message teachersResponse = serverConnection.sendRequest(teachersRequest);
-                        
+
                         Message subjectsRequest = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
                         Message subjectsResponse = serverConnection.sendRequest(subjectsRequest);
-                        
+
                         Message classesRequest = Message.createRequest(Constants.ACTION_GET_CLASSES);
                         Message classesResponse = serverConnection.sendRequest(classesRequest);
-                        
+
                         Message facultiesRequest = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
                         Message facultiesResponse = serverConnection.sendRequest(facultiesRequest);
 
                         @SuppressWarnings("unchecked")
-                        List<com.university.sms.model.Student> students = 
-                            studentsResponse != null && studentsResponse.isSuccess() ? 
-                            (List<com.university.sms.model.Student>) studentsResponse.getData("students") : null;
-                        
+                        List<com.university.sms.model.Student> students = studentsResponse != null
+                                && studentsResponse.isSuccess()
+                                        ? (List<com.university.sms.model.Student>) studentsResponse.getData("students")
+                                        : null;
+
                         @SuppressWarnings("unchecked")
-                        List<com.university.sms.model.User> teachers = 
-                            teachersResponse != null && teachersResponse.isSuccess() ? 
-                            (List<com.university.sms.model.User>) teachersResponse.getData("teachers") : null;
-                        
+                        List<com.university.sms.model.User> teachers = teachersResponse != null
+                                && teachersResponse.isSuccess()
+                                        ? (List<com.university.sms.model.User>) teachersResponse.getData("teachers")
+                                        : null;
+
                         @SuppressWarnings("unchecked")
-                        List<com.university.sms.model.Subject> subjects = 
-                            subjectsResponse != null && subjectsResponse.isSuccess() ? 
-                            (List<com.university.sms.model.Subject>) subjectsResponse.getData(Constants.KEY_SUBJECTS) : null;
-                        
+                        List<com.university.sms.model.Subject> subjects = subjectsResponse != null
+                                && subjectsResponse.isSuccess()
+                                        ? (List<com.university.sms.model.Subject>) subjectsResponse
+                                                .getData(Constants.KEY_SUBJECTS)
+                                        : null;
+
                         @SuppressWarnings("unchecked")
-                        List<com.university.sms.model.Class> classes = 
-                            classesResponse != null && classesResponse.isSuccess() ? 
-                            (List<com.university.sms.model.Class>) classesResponse.getData("classes") : null;
-                        
+                        List<com.university.sms.model.Class> classes = classesResponse != null
+                                && classesResponse.isSuccess()
+                                        ? (List<com.university.sms.model.Class>) classesResponse.getData("classes")
+                                        : null;
+
                         @SuppressWarnings("unchecked")
-                        List<com.university.sms.model.Faculty> faculties = 
-                            facultiesResponse != null && facultiesResponse.isSuccess() ? 
-                            (List<com.university.sms.model.Faculty>) facultiesResponse.getData("faculties") : null;
+                        List<com.university.sms.model.Faculty> faculties = facultiesResponse != null
+                                && facultiesResponse.isSuccess()
+                                        ? (List<com.university.sms.model.Faculty>) facultiesResponse
+                                                .getData("faculties")
+                                        : null;
 
                         SwingUtilities.invokeLater(() -> {
                             updateStatCard(card1, String.valueOf(students != null ? students.size() : 0));
                             updateStatCard(card2, String.valueOf(teachers != null ? teachers.size() : 0));
                             updateStatCard(card3, String.valueOf(subjects != null ? subjects.size() : 0));
                             updateStatCard(card4, String.valueOf(classes != null ? classes.size() : 0));
-                            
+
                             // Update table
                             if (faculties != null) {
                                 tableModel.setColumnIdentifiers(new Object[] { "Khoa", "Số SV", "Số GV", "GPA TB" });
@@ -189,11 +200,11 @@ public class ReportPanel extends JPanel {
                                             }
                                         }
                                     }
-                                    tableModel.addRow(new Object[] { 
-                                        fac.getFacultyName(), 
-                                        studentCount, 
-                                        "N/A", 
-                                        "N/A" 
+                                    tableModel.addRow(new Object[] {
+                                            fac.getFacultyName(),
+                                            studentCount,
+                                            "N/A",
+                                            "N/A"
                                     });
                                 }
                             }
@@ -201,27 +212,29 @@ public class ReportPanel extends JPanel {
                     } else if (currentUser.getRole() == User.UserRole.TEACHER) {
                         Message coursesRequest = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
                         Message coursesResponse = serverConnection.sendRequest(coursesRequest);
-                        
+
                         @SuppressWarnings("unchecked")
-                        List<com.university.sms.model.Course> courses = 
-                            coursesResponse != null && coursesResponse.isSuccess() ? 
-                            (List<com.university.sms.model.Course>) coursesResponse.getData("courses") : null;
+                        List<com.university.sms.model.Course> courses = coursesResponse != null
+                                && coursesResponse.isSuccess()
+                                        ? (List<com.university.sms.model.Course>) coursesResponse.getData("courses")
+                                        : null;
 
                         int totalStudents = 0;
                         double totalGrade = 0;
                         int totalGrades = 0;
                         int passedCount = 0;
-                        
+
                         if (courses != null) {
                             for (com.university.sms.model.Course course : courses) {
-                                Message enrollRequest = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
+                                Message enrollRequest = Message
+                                        .createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
                                 enrollRequest.addData(Constants.KEY_COURSE_ID, course.getCourseId());
                                 Message enrollResponse = serverConnection.sendRequest(enrollRequest);
-                                
+
                                 if (enrollResponse != null && enrollResponse.isSuccess()) {
                                     @SuppressWarnings("unchecked")
-                                    List<com.university.sms.model.Enrollment> enrollments = 
-                                        (List<com.university.sms.model.Enrollment>) enrollResponse.getData("enrollments");
+                                    List<com.university.sms.model.Enrollment> enrollments = (List<com.university.sms.model.Enrollment>) enrollResponse
+                                            .getData("enrollments");
                                     if (enrollments != null) {
                                         totalStudents += enrollments.size();
                                         for (com.university.sms.model.Enrollment e : enrollments) {
@@ -237,34 +250,36 @@ public class ReportPanel extends JPanel {
                                 }
                             }
                         }
-                        
+
                         final int finalCourses = courses != null ? courses.size() : 0;
                         final int finalStudents = totalStudents;
                         final double avgGrade = totalGrades > 0 ? totalGrade / totalGrades : 0;
                         final double passRate = totalStudents > 0 ? (passedCount * 100.0 / totalStudents) : 0;
-                        
+
                         SwingUtilities.invokeLater(() -> {
                             updateStatCard(card1, String.valueOf(finalCourses));
                             updateStatCard(card2, String.valueOf(finalStudents));
                             updateStatCard(card3, String.format("%.1f", avgGrade));
                             updateStatCard(card4, String.format("%.1f%%", passRate));
-                            
+
                             // Update table
                             if (courses != null) {
-                                tableModel.setColumnIdentifiers(new Object[] { "Môn học", "Số SV", "Điểm TB", "Tỷ lệ đậu" });
+                                tableModel.setColumnIdentifiers(
+                                        new Object[] { "Môn học", "Số SV", "Điểm TB", "Tỷ lệ đậu" });
                                 for (com.university.sms.model.Course course : courses) {
-                                    tableModel.addRow(new Object[] { 
-                                        course.getSubjectName() != null ? course.getSubjectName() : course.getSubjectCode(),
-                                        "N/A", 
-                                        "N/A", 
-                                        "N/A" 
+                                    tableModel.addRow(new Object[] {
+                                            course.getSubjectName() != null ? course.getSubjectName()
+                                                    : course.getSubjectCode(),
+                                            "N/A",
+                                            "N/A",
+                                            "N/A"
                                     });
                                 }
                             }
                         });
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải báo cáo tổng hợp", e);
                 }
                 return null;
             }
@@ -406,7 +421,8 @@ public class ReportPanel extends JPanel {
                     report.append("         ").append(reportType.toUpperCase()).append("\n");
                     report.append("===================================================\n\n");
                     report.append("Học kỳ: ").append(semester).append("\n");
-                    report.append("Ngày tạo: ").append(new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date())).append("\n");
+                    report.append("Ngày tạo: ").append(new SimpleDateFormat("dd/MM/yyyy HH:mm").format(new Date()))
+                            .append("\n");
                     report.append("Người tạo: ").append(currentUser.getFullName()).append("\n\n");
                     report.append("---------------------------------------------------\n\n");
 
@@ -448,43 +464,44 @@ public class ReportPanel extends JPanel {
             // Get all data
             Message studentsRequest = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
             Message studentsResponse = serverConnection.sendRequest(studentsRequest);
-            
+
             Message teachersRequest = Message.createRequest(Constants.ACTION_GET_ALL_TEACHERS);
             Message teachersResponse = serverConnection.sendRequest(teachersRequest);
-            
+
             Message subjectsRequest = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
             Message subjectsResponse = serverConnection.sendRequest(subjectsRequest);
-            
+
             Message classesRequest = Message.createRequest(Constants.ACTION_GET_CLASSES);
             Message classesResponse = serverConnection.sendRequest(classesRequest);
-            
+
             Message facultiesRequest = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
             Message facultiesResponse = serverConnection.sendRequest(facultiesRequest);
 
             @SuppressWarnings("unchecked")
-            List<com.university.sms.model.Student> students = 
-                studentsResponse != null && studentsResponse.isSuccess() ? 
-                (List<com.university.sms.model.Student>) studentsResponse.getData("students") : null;
-            
+            List<com.university.sms.model.Student> students = studentsResponse != null && studentsResponse.isSuccess()
+                    ? (List<com.university.sms.model.Student>) studentsResponse.getData("students")
+                    : null;
+
             @SuppressWarnings("unchecked")
-            List<com.university.sms.model.User> teachers = 
-                teachersResponse != null && teachersResponse.isSuccess() ? 
-                (List<com.university.sms.model.User>) teachersResponse.getData("teachers") : null;
-            
+            List<com.university.sms.model.User> teachers = teachersResponse != null && teachersResponse.isSuccess()
+                    ? (List<com.university.sms.model.User>) teachersResponse.getData("teachers")
+                    : null;
+
             @SuppressWarnings("unchecked")
-            List<com.university.sms.model.Subject> subjects = 
-                subjectsResponse != null && subjectsResponse.isSuccess() ? 
-                (List<com.university.sms.model.Subject>) subjectsResponse.getData(Constants.KEY_SUBJECTS) : null;
-            
+            List<com.university.sms.model.Subject> subjects = subjectsResponse != null && subjectsResponse.isSuccess()
+                    ? (List<com.university.sms.model.Subject>) subjectsResponse.getData(Constants.KEY_SUBJECTS)
+                    : null;
+
             @SuppressWarnings("unchecked")
-            List<com.university.sms.model.Class> classes = 
-                classesResponse != null && classesResponse.isSuccess() ? 
-                (List<com.university.sms.model.Class>) classesResponse.getData("classes") : null;
-            
+            List<com.university.sms.model.Class> classes = classesResponse != null && classesResponse.isSuccess()
+                    ? (List<com.university.sms.model.Class>) classesResponse.getData("classes")
+                    : null;
+
             @SuppressWarnings("unchecked")
-            List<com.university.sms.model.Faculty> faculties = 
-                facultiesResponse != null && facultiesResponse.isSuccess() ? 
-                (List<com.university.sms.model.Faculty>) facultiesResponse.getData("faculties") : null;
+            List<com.university.sms.model.Faculty> faculties = facultiesResponse != null
+                    && facultiesResponse.isSuccess()
+                            ? (List<com.university.sms.model.Faculty>) facultiesResponse.getData("faculties")
+                            : null;
 
             if (reportType.contains("Tổng hợp") || reportType.contains("tổng hợp")) {
                 report.append("I. TỔNG QUAN\n\n");
@@ -495,13 +512,14 @@ public class ReportPanel extends JPanel {
 
                 if (faculties != null) {
                     report.append("II. THỐNG KÊ THEO KHOA\n\n");
-                    report.append(String.format("   %-30s %10s %10s %10s\n", "Khoa", "Sinh viên", "Giảng viên", "GPA TB"));
+                    report.append(
+                            String.format("   %-30s %10s %10s %10s\n", "Khoa", "Sinh viên", "Giảng viên", "GPA TB"));
                     report.append("   " + "-".repeat(70) + "\n");
-                    
+
                     for (com.university.sms.model.Faculty fac : faculties) {
                         int studentCount = 0;
                         int teacherCount = 0;
-                        
+
                         if (students != null) {
                             for (com.university.sms.model.Student s : students) {
                                 if (fac.getFacultyCode().equals(s.getFacultyCode())) {
@@ -509,7 +527,7 @@ public class ReportPanel extends JPanel {
                                 }
                             }
                         }
-                        
+
                         if (teachers != null) {
                             // Count teachers by checking their subjects
                             for (com.university.sms.model.User t : teachers) {
@@ -526,7 +544,7 @@ public class ReportPanel extends JPanel {
                                 }
                             }
                         }
-                        
+
                         // Get faculty statistics for GPA
                         Message statRequest = new Message();
                         statRequest.setAction(Constants.ACTION_GET_FACULTY_STATISTICS);
@@ -534,23 +552,24 @@ public class ReportPanel extends JPanel {
                         reqData.put("facultyCode", fac.getFacultyCode());
                         statRequest.setData(reqData);
                         Message statResponse = serverConnection.sendRequest(statRequest);
-                        
+
                         String gpaStr = "N/A";
                         if (statResponse != null && statResponse.isSuccess()) {
                             @SuppressWarnings("unchecked")
-                            java.util.Map<String, Object> stats = 
-                                (java.util.Map<String, Object>) statResponse.getData(Constants.KEY_STATISTICS);
+                            java.util.Map<String, Object> stats = (java.util.Map<String, Object>) statResponse
+                                    .getData(Constants.KEY_STATISTICS);
                             if (stats != null && stats.get("averageGPA") != null) {
                                 double gpa = ((Number) stats.get("averageGPA")).doubleValue();
                                 gpaStr = String.format("%.2f", gpa);
                             }
                         }
-                        
+
                         String facName = fac.getFacultyName();
                         if (facName.length() > 30) {
                             facName = facName.substring(0, 27) + "...";
                         }
-                        report.append(String.format("   %-30s %10d %10d %10s\n", facName, studentCount, teacherCount, gpaStr));
+                        report.append(String.format("   %-30s %10d %10d %10s\n", facName, studentCount, teacherCount,
+                                gpaStr));
                     }
                     report.append("\n");
                 }
@@ -560,11 +579,15 @@ public class ReportPanel extends JPanel {
                     report.append(String.format("   %-15s %-30s %-20s %-15s\n", "Mã SV", "Họ tên", "Khoa", "Lớp"));
                     report.append("   " + "-".repeat(80) + "\n");
                     for (com.university.sms.model.Student s : students) {
-                        report.append(String.format("   %-15s %-30s %-20s %-15s\n", 
-                            s.getStudentCode(), 
-                            s.getFullName() != null && s.getFullName().length() > 30 ? s.getFullName().substring(0, 27) + "..." : s.getFullName(),
-                            s.getFacultyName() != null && s.getFacultyName().length() > 20 ? s.getFacultyName().substring(0, 17) + "..." : s.getFacultyName(),
-                            s.getClassName() != null ? s.getClassName() : ""));
+                        report.append(String.format("   %-15s %-30s %-20s %-15s\n",
+                                s.getStudentCode(),
+                                s.getFullName() != null && s.getFullName().length() > 30
+                                        ? s.getFullName().substring(0, 27) + "..."
+                                        : s.getFullName(),
+                                s.getFacultyName() != null && s.getFacultyName().length() > 20
+                                        ? s.getFacultyName().substring(0, 17) + "..."
+                                        : s.getFacultyName(),
+                                s.getClassName() != null ? s.getClassName() : ""));
                     }
                     report.append("\n");
                 }
@@ -575,10 +598,12 @@ public class ReportPanel extends JPanel {
                     report.append("   " + "-".repeat(80) + "\n");
                     for (com.university.sms.model.User t : teachers) {
                         if (t.getRole() == User.UserRole.TEACHER) {
-                            report.append(String.format("   %-20s %-30s %-30s\n", 
-                                t.getUsername(),
-                                t.getFullName() != null && t.getFullName().length() > 30 ? t.getFullName().substring(0, 27) + "..." : t.getFullName(),
-                                t.getEmail() != null ? t.getEmail() : ""));
+                            report.append(String.format("   %-20s %-30s %-30s\n",
+                                    t.getUsername(),
+                                    t.getFullName() != null && t.getFullName().length() > 30
+                                            ? t.getFullName().substring(0, 27) + "..."
+                                            : t.getFullName(),
+                                    t.getEmail() != null ? t.getEmail() : ""));
                         }
                     }
                     report.append("\n");
@@ -602,21 +627,21 @@ public class ReportPanel extends JPanel {
             // Get teacher's courses
             Message coursesRequest = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
             Message coursesResponse = serverConnection.sendRequest(coursesRequest);
-            
+
             @SuppressWarnings("unchecked")
-            List<com.university.sms.model.Course> courses = 
-                coursesResponse != null && coursesResponse.isSuccess() ? 
-                (List<com.university.sms.model.Course>) coursesResponse.getData("courses") : null;
+            List<com.university.sms.model.Course> courses = coursesResponse != null && coursesResponse.isSuccess()
+                    ? (List<com.university.sms.model.Course>) coursesResponse.getData("courses")
+                    : null;
 
             if (courses != null) {
                 report.append("   Số lớp đang dạy: ").append(courses.size()).append("\n\n");
-                
+
                 int totalStudents = 0;
                 for (com.university.sms.model.Course course : courses) {
                     Message enrollRequest = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
                     enrollRequest.addData(Constants.KEY_COURSE_ID, course.getCourseId());
                     Message enrollResponse = serverConnection.sendRequest(enrollRequest);
-                    
+
                     if (enrollResponse != null && enrollResponse.isSuccess()) {
                         List<?> enrollments = (List<?>) enrollResponse.getData("enrollments");
                         if (enrollments != null) {
@@ -628,22 +653,23 @@ public class ReportPanel extends JPanel {
 
                 if (reportType.contains("Kết quả") || reportType.contains("kết quả")) {
                     report.append("II. KẾT QUẢ DẠY HỌC\n\n");
-                    report.append(String.format("   %-25s %10s %10s %12s\n", "Môn học", "Số SV", "Điểm TB", "Tỷ lệ đậu"));
+                    report.append(
+                            String.format("   %-25s %10s %10s %12s\n", "Môn học", "Số SV", "Điểm TB", "Tỷ lệ đậu"));
                     report.append("   " + "-".repeat(60) + "\n");
-                    
+
                     for (com.university.sms.model.Course course : courses) {
                         Message enrollRequest = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS_BY_COURSE);
                         enrollRequest.addData(Constants.KEY_COURSE_ID, course.getCourseId());
                         Message enrollResponse = serverConnection.sendRequest(enrollRequest);
-                        
+
                         int studentCount = 0;
                         double totalGrade = 0;
                         int passedCount = 0;
-                        
+
                         if (enrollResponse != null && enrollResponse.isSuccess()) {
                             @SuppressWarnings("unchecked")
-                            List<com.university.sms.model.Enrollment> enrollments = 
-                                (List<com.university.sms.model.Enrollment>) enrollResponse.getData("enrollments");
+                            List<com.university.sms.model.Enrollment> enrollments = (List<com.university.sms.model.Enrollment>) enrollResponse
+                                    .getData("enrollments");
                             if (enrollments != null) {
                                 studentCount = enrollments.size();
                                 for (com.university.sms.model.Enrollment e : enrollments) {
@@ -656,18 +682,18 @@ public class ReportPanel extends JPanel {
                                 }
                             }
                         }
-                        
+
                         double avgGrade = studentCount > 0 ? totalGrade / studentCount : 0;
                         double passRate = studentCount > 0 ? (passedCount * 100.0 / studentCount) : 0;
-                        
+
                         String subjectName = course.getSubjectName();
                         if (subjectName != null && subjectName.length() > 25) {
                             subjectName = subjectName.substring(0, 22) + "...";
                         }
-                        
-                        report.append(String.format("   %-25s %10d %10.2f %11.1f%%\n", 
-                            subjectName != null ? subjectName : course.getSubjectCode(),
-                            studentCount, avgGrade, passRate));
+
+                        report.append(String.format("   %-25s %10d %10.2f %11.1f%%\n",
+                                subjectName != null ? subjectName : course.getSubjectCode(),
+                                studentCount, avgGrade, passRate));
                     }
                     report.append("\n");
                 }

@@ -283,7 +283,7 @@ public class TimetablePanel extends JPanel {
                         return entries;
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.severe("Lỗi khi tải dữ liệu thời khóa biểu: " + e.getMessage());
                 }
                 return new ArrayList<>();
             }

@@ -17,6 +17,7 @@ import com.university.sms.model.User;
 import java.util.List;
 import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -351,8 +352,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu người dùng vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu người dùng: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu người dùng", e);
           }
         }
         if (faculties != null) {
@@ -366,8 +366,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu khoa vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu khoa: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu khoa", e);
           }
         }
         if (subjects != null) {
@@ -381,8 +380,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu môn học vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu môn học: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu môn học", e);
           }
         }
         if (classes != null) {
@@ -396,8 +394,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu lớp vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu lớp: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu lớp", e);
           }
         }
         if (courses != null) {
@@ -411,8 +408,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu khóa học vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu khóa học: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu khóa học", e);
           }
         }
         if (students != null) {
@@ -426,8 +422,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu sinh viên vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu sinh viên: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu sinh viên", e);
           }
         }
         if (enrollments != null) {
@@ -441,8 +436,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu đăng ký học phần vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu đăng ký học phần: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu đăng ký học phần", e);
           }
         }
         if (grades != null) {
@@ -456,8 +450,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu điểm vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu điểm: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu điểm", e);
           }
         }
         if (notifications != null) {
@@ -471,8 +464,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu thông báo vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu thông báo: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu thông báo", e);
           }
         }
         if (classOpeningRequests != null) {
@@ -486,8 +478,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu yêu cầu mở lớp vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu yêu cầu mở lớp: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu yêu cầu mở lớp", e);
           }
         }
         if (courseRegistrations != null) {
@@ -501,8 +492,7 @@ public class CSVServerConnection extends BaseServerConnection {
               LOGGER.warning("Không thể lưu đăng ký khóa học vào CSV");
             }
           } catch (Exception e) {
-            LOGGER.severe("Lỗi khi lưu đăng ký khóa học: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lưu đăng ký khóa học", e);
           }
         }
       } finally {

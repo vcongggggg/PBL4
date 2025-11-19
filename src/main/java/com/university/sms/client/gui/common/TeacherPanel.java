@@ -12,12 +12,15 @@ import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Panel quản lý giảng viên (dành cho Admin)
  */
 public class TeacherPanel extends JPanel {
   private static final long serialVersionUID = 1L;
+  private static final Logger LOGGER = Logger.getLogger(TeacherPanel.class.getName());
 
   private User currentUser;
   private IServerConnection serverConnection;
@@ -218,7 +221,7 @@ public class TeacherPanel extends JPanel {
         } catch (Exception e) {
           showErrorMessage("Lỗi khi tải danh sách giảng viên: " + e.getMessage());
           addLog("Lỗi: " + e.getMessage());
-          e.printStackTrace();
+          LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách giảng viên", e);
           // Hiển thị bảng trống khi có exception
           updateTeacherTable(new java.util.ArrayList<>());
         } finally {

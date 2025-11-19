@@ -6,6 +6,7 @@ import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.PreparedStatement;
 import java.util.Scanner;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -41,8 +42,7 @@ public class ServerMain {
             try {
                 server.start();
             } catch (Exception e) {
-                LOGGER.severe("Server error: " + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE, "Server error", e);
             }
         });
 

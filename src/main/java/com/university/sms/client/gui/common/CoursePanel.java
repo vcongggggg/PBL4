@@ -18,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.List;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 import java.util.stream.Collectors;
 
 /**
@@ -28,6 +30,7 @@ import java.util.stream.Collectors;
  */
 public class CoursePanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(CoursePanel.class.getName());
 
     private User currentUser;
     private IServerConnection serverConnection;
@@ -304,7 +307,7 @@ public class CoursePanel extends JPanel {
                 }
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy danh sách lớp học đã đăng ký", e);
         }
         return new ArrayList<>();
     }
@@ -706,7 +709,10 @@ public class CoursePanel extends JPanel {
                         }
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.WARNING,
+                            "Lỗi khi lấy điểm của sinh viên " + en.getStudentCode() + " trong lớp "
+                                    + en.getCourseCode(),
+                            e);
                 }
 
                 // Tính điểm tổng kết và xếp loại chỉ khi có đủ 3 điểm

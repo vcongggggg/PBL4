@@ -60,12 +60,10 @@ public abstract class BaseServerConnection implements IServerConnection {
       return false;
     } catch (IOException e) {
       LOGGER.log(Level.SEVERE, "Error connecting to server " + serverHost + ":" + serverPort, e);
-      e.printStackTrace();
       connected = false;
       return false;
     } catch (Exception e) {
       LOGGER.log(Level.SEVERE, "Unexpected error during connection: " + e.getMessage(), e);
-      e.printStackTrace();
       connected = false;
       return false;
     }

@@ -11,6 +11,7 @@ import com.university.sms.model.CourseRegistration;
 import com.university.sms.model.Enrollment;
 
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -322,8 +323,7 @@ public class CourseService {
                 return success;
             }
         } catch (Exception e) {
-            LOGGER.severe("Lỗi khi xóa/hủy khóa học: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi xóa/hủy khóa học: " + e.getMessage(), e);
             return false;
         }
     }
@@ -601,9 +601,9 @@ public class CourseService {
                 }
             } catch (Exception e) {
                 // Log error nhưng không throw để không ảnh hưởng đến flow chính
-                LOGGER.severe("Lỗi khi tự động hủy yêu cầu mở lớp cho lớp " + course.getCourseCode() + ": "
-                        + e.getMessage());
-                e.printStackTrace();
+                LOGGER.log(Level.SEVERE,
+                        "Lỗi khi tự động hủy yêu cầu mở lớp cho lớp " + course.getCourseCode() + ": " + e.getMessage(),
+                        e);
             }
 
             return new RegistrationClosureResult(false,

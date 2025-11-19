@@ -7,6 +7,7 @@ import com.university.sms.util.DatabaseConnection;
 import java.sql.*;
 import java.util.ArrayList;
 import java.util.List;
+import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
@@ -43,8 +44,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding all registrations: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy danh sách đăng ký học phần", e);
         }
 
         return registrations;
@@ -78,8 +78,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding registration by ID: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm đăng ký theo ID", e);
         }
 
         return null;
@@ -115,8 +114,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding registrations by student: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm đăng ký theo sinh viên", e);
         }
 
         return registrations;
@@ -152,8 +150,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding registrations by course: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm đăng ký theo lớp học phần", e);
         }
 
         return registrations;
@@ -189,8 +186,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error finding registrations by status: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm đăng ký theo trạng thái", e);
         }
 
         return registrations;
@@ -246,13 +242,12 @@ public class CourseRegistrationDAO {
                 }
             }
 
-            LOGGER.info("Registration processed: Student " + registration.getStudentCode() +
-                    " -> Course " + registration.getCourseCode() + " (inserted=" + (affectedRows > 0) + ")");
+            LOGGER.info("Đã xử lý đăng ký: SV " + registration.getStudentCode() +
+                    " -> Lớp " + registration.getCourseCode() + " (đã chèn=" + (affectedRows > 0) + ")");
             return true; // Always return true for INSERT IGNORE
 
         } catch (SQLException e) {
-            LOGGER.severe("Error inserting registration: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi chèn đăng ký học phần", e);
             return false;
         }
     }
@@ -284,8 +279,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error inserting registration: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi tạo đăng ký học phần", e);
         }
 
         return false;
@@ -312,8 +306,7 @@ public class CourseRegistrationDAO {
             return pstmt.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            LOGGER.severe("Error updating registration: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật đăng ký học phần", e);
         }
 
         return false;
@@ -335,8 +328,7 @@ public class CourseRegistrationDAO {
             return pstmt.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            LOGGER.severe("Error cancelling registration: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi hủy đăng ký học phần", e);
         }
 
         return false;
@@ -355,8 +347,7 @@ public class CourseRegistrationDAO {
             return pstmt.executeUpdate() > 0;
 
         } catch (SQLException e) {
-            LOGGER.severe("Error deleting registration: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi xóa đăng ký học phần", e);
         }
 
         return false;
@@ -382,8 +373,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error checking registration: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi kiểm tra đăng ký trùng", e);
         }
 
         return false;
@@ -414,8 +404,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error checking schedule conflict: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi kiểm tra xung đột lịch học phần", e);
         }
 
         return false;
@@ -447,8 +436,7 @@ public class CourseRegistrationDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.severe("Error getting total credits: " + e.getMessage());
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy tổng tín chỉ đã đăng ký", e);
         }
 
         return 0;

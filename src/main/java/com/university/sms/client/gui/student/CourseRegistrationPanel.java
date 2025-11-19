@@ -15,6 +15,8 @@ import java.util.ArrayList;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Panel đăng ký tín chỉ cho sinh viên
@@ -22,6 +24,7 @@ import java.util.Map;
  */
 public class CourseRegistrationPanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(CourseRegistrationPanel.class.getName());
 
     private IServerConnection serverConnection;
     private User currentUser;
@@ -256,7 +259,7 @@ public class CourseRegistrationPanel extends JPanel {
                     registeredCourseCodes = get();
                     loadAvailableCourses(); // Load available courses AFTER registered courses are loaded
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách môn đã đăng ký", e);
                     SwingUtilities.invokeLater(() -> {
                         JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
                                 "Không thể tải danh sách môn đã đăng ký: " + e.getMessage(),
@@ -290,7 +293,7 @@ public class CourseRegistrationPanel extends JPanel {
                     availableCourses = get();
                     updateAvailableTable();
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách môn học khả dụng", e);
                     JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
                             "Lỗi khi tải danh sách môn học: " + e.getMessage(),
                             "Lỗi",
@@ -534,7 +537,7 @@ public class CourseRegistrationPanel extends JPanel {
                     loadRegisteredCourses();
 
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi xử lý đăng ký môn học", e);
                     JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
                             "Lỗi khi đăng ký: " + e.getMessage(),
                             "Lỗi",

@@ -12,12 +12,15 @@ import com.university.sms.model.User;
 import javax.swing.*;
 import javax.swing.border.EmptyBorder;
 import java.awt.*;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Panel hiển thị thông tin cá nhân của sinh viên đang đăng nhập
  */
 public class StudentProfilePanel extends JPanel {
   private static final long serialVersionUID = 1L;
+  private static final Logger LOGGER = Logger.getLogger(StudentProfilePanel.class.getName());
 
   private User currentUser;
   private IServerConnection serverConnection;
@@ -380,7 +383,7 @@ public class StudentProfilePanel extends JPanel {
             return response.getData(Constants.KEY_STUDENT, Student.class);
           }
         } catch (Exception e) {
-          e.printStackTrace();
+          LOGGER.log(Level.SEVERE, "Lỗi khi tải thông tin sinh viên", e);
         }
         return null;
       }
@@ -395,7 +398,7 @@ public class StudentProfilePanel extends JPanel {
             ToastNotification.showError(StudentProfilePanel.this, "Không thể tải thông tin sinh viên");
           }
         } catch (Exception e) {
-          e.printStackTrace();
+          LOGGER.log(Level.SEVERE, "Lỗi khi xử lý dữ liệu sinh viên", e);
           ToastNotification.showError(StudentProfilePanel.this, "Lỗi: " + e.getMessage());
         }
       }

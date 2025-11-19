@@ -12,12 +12,15 @@ import java.awt.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Dashboard hiển thị thống kê và phân tích nâng cao
  */
 public class AnalyticsDashboard extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final Logger LOGGER = Logger.getLogger(AnalyticsDashboard.class.getName());
 
     private IServerConnection serverConnection;
     private User currentUser;
@@ -74,7 +77,7 @@ public class AnalyticsDashboard extends JPanel {
         // Control panel
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         controlPanel.setOpaque(false);
-        
+
         // Faculty selector for admin
         if (currentUser != null && currentUser.getRole() == User.UserRole.ADMIN) {
             controlPanel.add(new JLabel("Khoa:"));
@@ -213,7 +216,7 @@ public class AnalyticsDashboard extends JPanel {
                 try {
                     String facultyCode = getCurrentUserFacultyCode();
                     StatisticsData data = new StatisticsData();
-                    
+
                     // Get faculty statistics if faculty is selected
                     if (facultyCode != null && !facultyCode.isEmpty()) {
                         Message request = new Message();
@@ -225,11 +228,12 @@ public class AnalyticsDashboard extends JPanel {
                         Message response = serverConnection.sendRequest(request);
                         if (response != null && response.isSuccess()) {
                             @SuppressWarnings("unchecked")
-                            Map<String, Object> stats = (Map<String, Object>) response.getData(Constants.KEY_STATISTICS);
+                            Map<String, Object> stats = (Map<String, Object>) response
+                                    .getData(Constants.KEY_STATISTICS);
                             data.facultyStats = stats;
                         }
                     }
-                    
+
                     // For admin: get all faculties statistics for comparison
                     if (currentUser.getRole() == User.UserRole.ADMIN) {
                         Message facRequest = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
@@ -238,7 +242,7 @@ public class AnalyticsDashboard extends JPanel {
                             @SuppressWarnings("unchecked")
                             List<Faculty> faculties = (List<Faculty>) facResponse.getData("faculties");
                             data.allFaculties = faculties;
-                            
+
                             // Get statistics for each faculty
                             if (faculties != null) {
                                 data.facultyStatsMap = new HashMap<>();
@@ -248,18 +252,19 @@ public class AnalyticsDashboard extends JPanel {
                                     Map<String, Object> reqData = new HashMap<>();
                                     reqData.put("facultyCode", fac.getFacultyCode());
                                     statRequest.setData(reqData);
-                                    
+
                                     Message statResponse = serverConnection.sendRequest(statRequest);
                                     if (statResponse != null && statResponse.isSuccess()) {
                                         @SuppressWarnings("unchecked")
-                                        Map<String, Object> stats = (Map<String, Object>) statResponse.getData(Constants.KEY_STATISTICS);
+                                        Map<String, Object> stats = (Map<String, Object>) statResponse
+                                                .getData(Constants.KEY_STATISTICS);
                                         data.facultyStatsMap.put(fac.getFacultyCode(), stats);
                                     }
                                 }
                             }
                         }
                     }
-                    
+
                     // Get top honor students (for all faculties if admin, or specific faculty)
                     Message honorRequest = new Message();
                     honorRequest.setAction(Constants.ACTION_GET_HONOR_STUDENTS);
@@ -267,19 +272,19 @@ public class AnalyticsDashboard extends JPanel {
                     // If admin viewing all, pass null to get top students from all faculties
                     reqData.put(Constants.KEY_FACULTY_CODE, facultyCode);
                     honorRequest.setData(reqData);
-                    
+
                     Message honorResponse = serverConnection.sendRequest(honorRequest);
                     if (honorResponse != null && honorResponse.isSuccess()) {
                         List<?> honorStudents = (List<?>) honorResponse.getData(Constants.KEY_HONOR_STUDENTS);
                         data.honorStudents = honorStudents;
                     }
-                    
+
                     // Get GPA trend by semester (for all students or specific faculty)
                     data.gpaTrendData = getGPATrendBySemester(facultyCode);
-                    
+
                     return data;
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải dữ liệu phân tích", e);
                 }
                 return null;
             }
@@ -292,14 +297,14 @@ public class AnalyticsDashboard extends JPanel {
                         updateStatistics(data);
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật thống kê phân tích", e);
                 }
             }
         };
 
         worker.execute();
     }
-    
+
     private static class StatisticsData {
         Map<String, Object> facultyStats;
         List<Faculty> allFaculties;
@@ -307,7 +312,7 @@ public class AnalyticsDashboard extends JPanel {
         List<?> honorStudents;
         Map<String, Double> gpaTrendData; // Key: "academicYear-semester", Value: average GPA
     }
-    
+
     /**
      * Lấy dữ liệu GPA trend theo học kỳ
      */
@@ -317,72 +322,73 @@ public class AnalyticsDashboard extends JPanel {
             // Get all students first to filter by faculty if needed
             Message studentsRequest = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
             Message studentsResponse = serverConnection.sendRequest(studentsRequest);
-            
+
             java.util.Set<String> studentCodes = new java.util.HashSet<>();
             if (studentsResponse != null && studentsResponse.isSuccess()) {
                 @SuppressWarnings("unchecked")
-                List<com.university.sms.model.Student> students = 
-                    (List<com.university.sms.model.Student>) studentsResponse.getData("students");
+                List<com.university.sms.model.Student> students = (List<com.university.sms.model.Student>) studentsResponse
+                        .getData("students");
                 if (students != null) {
                     for (com.university.sms.model.Student student : students) {
-                        if (facultyCode == null || facultyCode.isEmpty() || 
-                            facultyCode.equals(student.getFacultyCode())) {
+                        if (facultyCode == null || facultyCode.isEmpty() ||
+                                facultyCode.equals(student.getFacultyCode())) {
                             studentCodes.add(student.getStudentCode());
                         }
                     }
                 }
             }
-            
+
             if (studentCodes.isEmpty()) {
                 return trendData;
             }
-            
+
             // Get all courses to map course_code to academic_year and semester
             Message coursesRequest = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
             Message coursesResponse = serverConnection.sendRequest(coursesRequest);
-            
+
             Map<String, com.university.sms.model.Course> courseMap = new HashMap<>();
             if (coursesResponse != null && coursesResponse.isSuccess()) {
                 @SuppressWarnings("unchecked")
-                List<com.university.sms.model.Course> courses = 
-                    (List<com.university.sms.model.Course>) coursesResponse.getData("courses");
+                List<com.university.sms.model.Course> courses = (List<com.university.sms.model.Course>) coursesResponse
+                        .getData("courses");
                 if (courses != null) {
                     for (com.university.sms.model.Course course : courses) {
                         courseMap.put(course.getCourseCode(), course);
                     }
                 }
             }
-            
+
             // Get enrollments for each student
             Map<String, List<Double>> semesterGPAs = new HashMap<>();
-            
+
             for (String studentCode : studentCodes) {
                 Message enrollRequest = Message.createRequest(Constants.ACTION_GET_STUDENT_GRADES);
                 enrollRequest.addData("studentCode", studentCode);
                 Message enrollResponse = serverConnection.sendRequest(enrollRequest);
-                
+
                 if (enrollResponse != null && enrollResponse.isSuccess()) {
                     @SuppressWarnings("unchecked")
-                    List<com.university.sms.model.Enrollment> enrollments = 
-                        (List<com.university.sms.model.Enrollment>) enrollResponse.getData("enrollments");
-                    
+                    List<com.university.sms.model.Enrollment> enrollments = (List<com.university.sms.model.Enrollment>) enrollResponse
+                            .getData("enrollments");
+
                     if (enrollments != null) {
                         for (com.university.sms.model.Enrollment enrollment : enrollments) {
-                            if (enrollment.getEnrollmentStatus() == com.university.sms.model.Enrollment.EnrollmentStatus.COMPLETED
-                                && enrollment.getGradePoints() != null) {
-                                
+                            if (enrollment
+                                    .getEnrollmentStatus() == com.university.sms.model.Enrollment.EnrollmentStatus.COMPLETED
+                                    && enrollment.getGradePoints() != null) {
+
                                 com.university.sms.model.Course course = courseMap.get(enrollment.getCourseCode());
                                 if (course != null) {
                                     String semesterKey = course.getAcademicYear() + "-" + course.getSemester();
                                     semesterGPAs.computeIfAbsent(semesterKey, k -> new java.util.ArrayList<>())
-                                        .add(enrollment.getGradePoints().doubleValue());
+                                            .add(enrollment.getGradePoints().doubleValue());
                                 }
                             }
                         }
                     }
                 }
             }
-            
+
             // Calculate average GPA for each semester
             for (Map.Entry<String, List<Double>> entry : semesterGPAs.entrySet()) {
                 List<Double> gpas = entry.getValue();
@@ -390,7 +396,7 @@ public class AnalyticsDashboard extends JPanel {
                 trendData.put(entry.getKey(), avgGPA);
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi tính toán xu hướng GPA theo học kỳ", e);
         }
         return trendData;
     }
@@ -422,11 +428,11 @@ public class AnalyticsDashboard extends JPanel {
                 // Get teacher's courses to determine faculty
                 Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
                 Message response = serverConnection.sendRequest(request);
-                
+
                 if (response != null && response.isSuccess()) {
                     @SuppressWarnings("unchecked")
-                    List<com.university.sms.model.Course> courses = 
-                        (List<com.university.sms.model.Course>) response.getData("courses");
+                    List<com.university.sms.model.Course> courses = (List<com.university.sms.model.Course>) response
+                            .getData("courses");
                     if (courses != null && !courses.isEmpty()) {
                         // Get faculty from first course's subject
                         String subjectCode = courses.get(0).getSubjectCode();
@@ -435,8 +441,8 @@ public class AnalyticsDashboard extends JPanel {
                         Message subResponse = serverConnection.sendRequest(subRequest);
                         if (subResponse != null && subResponse.isSuccess()) {
                             @SuppressWarnings("unchecked")
-                            List<com.university.sms.model.Subject> subjects = 
-                                (List<com.university.sms.model.Subject>) subResponse.getData(Constants.KEY_SUBJECTS);
+                            List<com.university.sms.model.Subject> subjects = (List<com.university.sms.model.Subject>) subResponse
+                                    .getData(Constants.KEY_SUBJECTS);
                             if (subjects != null) {
                                 for (com.university.sms.model.Subject subject : subjects) {
                                     if (subjectCode.equals(subject.getSubjectCode())) {
@@ -457,7 +463,7 @@ public class AnalyticsDashboard extends JPanel {
                 return null; // All faculties
             }
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Lỗi khi xác định khoa của người dùng hiện tại", e);
         }
 
         return null; // Default fallback
@@ -487,7 +493,7 @@ public class AnalyticsDashboard extends JPanel {
                         }
                     }
                 } catch (Exception e) {
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách khoa", e);
                 }
             }
         };
@@ -515,7 +521,7 @@ public class AnalyticsDashboard extends JPanel {
             if (failingStudentsCard != null) {
                 failingStudentsCard.setValue(stats.get("poorCount").toString());
             }
-            
+
             // Update grade distribution chart
             updateGradeDistributionChart(stats);
         } else {
@@ -543,44 +549,46 @@ public class AnalyticsDashboard extends JPanel {
                 updateGradeDistributionChart(aggregatedStats);
             }
         }
-        
+
         // Update faculty comparison chart (for admin)
         if (currentUser.getRole() == User.UserRole.ADMIN && data.facultyStatsMap != null) {
             updateFacultyComparisonChart(data.facultyStatsMap, data.allFaculties);
         }
-        
+
         // Update top performers chart
         if (data.honorStudents != null && !data.honorStudents.isEmpty()) {
             updateTopPerformersChart(data.honorStudents);
         }
-        
+
         // Update GPA trend chart
         if (data.gpaTrendData != null && !data.gpaTrendData.isEmpty()) {
             updateGPATrendChart(data.gpaTrendData);
         }
     }
-    
+
     private void updateGPATrendChart(Map<String, Double> trendData) {
-        if (gpaTrendChart == null || trendData == null || trendData.isEmpty()) return;
-        
+        if (gpaTrendChart == null || trendData == null || trendData.isEmpty())
+            return;
+
         gpaTrendChart.clearBars();
-        
+
         // Sort semesters chronologically
         List<String> sortedSemesters = new java.util.ArrayList<>(trendData.keySet());
         sortedSemesters.sort((s1, s2) -> {
             String[] parts1 = s1.split("-");
             String[] parts2 = s2.split("-");
             int yearCompare = parts1[0].compareTo(parts2[0]);
-            if (yearCompare != 0) return yearCompare;
+            if (yearCompare != 0)
+                return yearCompare;
             return Integer.compare(Integer.parseInt(parts1[1]), Integer.parseInt(parts2[1]));
         });
-        
+
         Color[] colors = {
-            Color.decode("#3498db"), Color.decode("#2ecc71"), 
-            Color.decode("#f39c12"), Color.decode("#e74c3c"),
-            Color.decode("#9b59b6"), Color.decode("#1abc9c")
+                Color.decode("#3498db"), Color.decode("#2ecc71"),
+                Color.decode("#f39c12"), Color.decode("#e74c3c"),
+                Color.decode("#9b59b6"), Color.decode("#1abc9c")
         };
-        
+
         int colorIndex = 0;
         for (String semesterKey : sortedSemesters) {
             Double gpa = trendData.get(semesterKey);
@@ -595,35 +603,38 @@ public class AnalyticsDashboard extends JPanel {
     }
 
     private void updateGradeDistributionChart(Map<String, Object> stats) {
-        if (gradeDistChart == null || stats == null) return;
-        
+        if (gradeDistChart == null || stats == null)
+            return;
+
         gradeDistChart.clearBars();
-        
+
         // Get percentages from stats
         int excellentPercent = ((Number) stats.getOrDefault("excellentPercent", 0)).intValue();
         int goodPercent = ((Number) stats.getOrDefault("goodPercent", 0)).intValue();
         int fairPercent = ((Number) stats.getOrDefault("fairPercent", 0)).intValue();
         int averagePercent = ((Number) stats.getOrDefault("averagePercent", 0)).intValue();
         int poorPercent = ((Number) stats.getOrDefault("poorPercent", 0)).intValue();
-        
+
         gradeDistChart.addBar("A (Xuất sắc)", excellentPercent, Color.decode("#27ae60"));
         gradeDistChart.addBar("B (Giỏi)", goodPercent, Color.decode("#3498db"));
         gradeDistChart.addBar("C (Khá)", fairPercent, Color.decode("#f39c12"));
         gradeDistChart.addBar("D (Trung bình)", averagePercent, Color.decode("#e67e22"));
         gradeDistChart.addBar("F (Yếu)", poorPercent, Color.decode("#e74c3c"));
     }
-    
-    private void updateFacultyComparisonChart(Map<String, Map<String, Object>> facultyStatsMap, List<Faculty> faculties) {
-        if (facultyChart == null || facultyStatsMap == null || faculties == null) return;
-        
+
+    private void updateFacultyComparisonChart(Map<String, Map<String, Object>> facultyStatsMap,
+            List<Faculty> faculties) {
+        if (facultyChart == null || facultyStatsMap == null || faculties == null)
+            return;
+
         facultyChart.clearBars();
-        
+
         Color[] colors = {
-            Color.decode("#9b59b6"), Color.decode("#e74c3c"), 
-            Color.decode("#f39c12"), Color.decode("#1abc9c"),
-            Color.decode("#3498db"), Color.decode("#e67e22")
+                Color.decode("#9b59b6"), Color.decode("#e74c3c"),
+                Color.decode("#f39c12"), Color.decode("#1abc9c"),
+                Color.decode("#3498db"), Color.decode("#e67e22")
         };
-        
+
         int colorIndex = 0;
         for (Faculty fac : faculties) {
             Map<String, Object> stats = facultyStatsMap.get(fac.getFacultyCode());
@@ -641,18 +652,19 @@ public class AnalyticsDashboard extends JPanel {
             }
         }
     }
-    
+
     private void updateTopPerformersChart(List<?> honorStudents) {
-        if (topPerformersChart == null || honorStudents == null) return;
-        
+        if (topPerformersChart == null || honorStudents == null)
+            return;
+
         topPerformersChart.clearBars();
-        
+
         Color[] colors = {
-            Color.decode("#f1c40f"), Color.decode("#95a5a6"), 
-            Color.decode("#cd7f32"), Color.decode("#3498db"), 
-            Color.decode("#9b59b6")
+                Color.decode("#f1c40f"), Color.decode("#95a5a6"),
+                Color.decode("#cd7f32"), Color.decode("#3498db"),
+                Color.decode("#9b59b6")
         };
-        
+
         int count = Math.min(5, honorStudents.size());
         for (int i = 0; i < count; i++) {
             Object studentObj = honorStudents.get(i);
@@ -787,7 +799,7 @@ public class AnalyticsDashboard extends JPanel {
             bars.add(new BarData(label, value, color));
             repaint();
         }
-        
+
         public void clearBars() {
             bars.clear();
             repaint();
@@ -872,19 +884,19 @@ public class AnalyticsDashboard extends JPanel {
             }
         }
     }
-    
+
     /**
      * Helper class for faculty combo box items
      */
     private static class FacultyItem {
         String code;
         String name;
-        
+
         FacultyItem(String code, String name) {
             this.code = code;
             this.name = name;
         }
-        
+
         @Override
         public String toString() {
             return name;

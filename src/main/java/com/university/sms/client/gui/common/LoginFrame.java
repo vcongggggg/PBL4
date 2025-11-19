@@ -17,11 +17,15 @@ import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.io.InputStream;
 import java.util.Map;
+import java.util.logging.Level;
+import java.util.logging.Logger;
 
 /**
  * Modern Dark Theme Login Frame - giữ structure cũ
  */
 public class LoginFrame extends JFrame {
+    private static final Logger LOGGER = Logger.getLogger(LoginFrame.class.getName());
+
     // Factory pattern
     public interface ConnectionFactory {
         IServerConnection create(String host, int port);
@@ -94,7 +98,7 @@ public class LoginFrame extends JFrame {
             UIManager.put("Component.arc", 8);
             UIManager.put("TextComponent.arc", 6);
         } catch (Exception e) {
-            e.printStackTrace();
+            LOGGER.log(Level.SEVERE, "Không thể khởi tạo giao diện FlatLaf", e);
         }
     }
 
@@ -970,7 +974,7 @@ public class LoginFrame extends JFrame {
                             "Lỗi khi upload CSV: " + e.getMessage(),
                             "Lỗi",
                             JOptionPane.ERROR_MESSAGE);
-                    e.printStackTrace();
+                    LOGGER.log(Level.SEVERE, "Lỗi khi upload dữ liệu CSV", e);
                 }
             }
         };
