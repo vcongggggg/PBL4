@@ -669,8 +669,12 @@ public class CoursePanel extends JPanel {
     }
 
     private void displayStudentsDialog(JDialog dialog, List<Enrollment> enrollments, Course course) {
-        String[] columnNames = { "MSSV", "Họ tên", "Điểm BT", "Điểm GK", "Điểm CK", "Điểm TK", "Xếp loại",
-                "Tình trạng" };
+        boolean isStudentView = currentUser.getRole() == User.UserRole.STUDENT;
+        String[] columnNames = isStudentView
+                ? new String[] { "MSSV", "Họ tên", "Số điện thoại", "Lớp sinh hoạt" }
+                : new String[] { "MSSV", "Họ tên", "Số điện thoại", "Lớp sinh hoạt", "Điểm BT", "Điểm GK",
+                        "Điểm CK", "Điểm TK", "Xếp loại",
+                        "Tình trạng" };
         DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -680,7 +684,26 @@ public class CoursePanel extends JPanel {
 
         if (enrollments != null) {
             for (Enrollment en : enrollments) {
-                // Get grades from grades table
+                String phone = en.getStudentPhone() != null ? en.getStudentPhone() : "";
+                String className = en.getStudentClassName();
+                if ((className == null || className.trim().isEmpty()) && en.getStudentClassCode() != null) {
+                    className = en.getStudentClassCode();
+                }
+                if (className == null || className.trim().isEmpty()) {
+                    className = "N/A";
+                }
+
+                if (isStudentView) {
+                    model.addRow(new Object[] {
+                            en.getStudentCode() != null ? en.getStudentCode() : "N/A",
+                            en.getStudentName() != null ? en.getStudentName() : "N/A",
+                            phone,
+                            className
+                    });
+                    continue;
+                }
+
+                // Get grades from grades table (Admin/Teacher view)
                 BigDecimal assignmentGrade = null;
                 BigDecimal midtermGrade = null;
                 BigDecimal finalExamGrade = null;
@@ -753,6 +776,8 @@ public class CoursePanel extends JPanel {
                 Object[] row = {
                         en.getStudentCode() != null ? en.getStudentCode() : "N/A",
                         en.getStudentName() != null ? en.getStudentName() : "N/A",
+                        phone,
+                        className,
                         assignmentGrade != null ? String.format("%.2f", assignmentGrade) : "",
                         midtermGrade != null ? String.format("%.2f", midtermGrade) : "",
                         finalExamGrade != null ? String.format("%.2f", finalExamGrade) : "",
@@ -772,9 +797,15 @@ public class CoursePanel extends JPanel {
         // Center align columns
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
-        for (int i = 0; i < columnNames.length; i++) {
-            if (i != 1) { // Don't center student name
+        if (isStudentView) {
+            for (int i = 0; i < columnNames.length; i++) {
                 table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+            }
+        } else {
+            for (int i = 0; i < columnNames.length; i++) {
+                if (i != 1) { // Don't center student name
+                    table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+                }
             }
         }
 

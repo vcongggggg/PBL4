@@ -21,6 +21,7 @@ public class Constants {
     public static final String ACTION_GET_STUDENT_INFO = "GET_STUDENT_INFO";
     public static final String ACTION_UPDATE_STUDENT = "UPDATE_STUDENT";
     public static final String ACTION_GET_ALL_STUDENTS = "GET_ALL_STUDENTS";
+    public static final String ACTION_GET_STUDENTS_PAGED = "GET_STUDENTS_PAGED";
     public static final String ACTION_SEARCH_STUDENTS = "SEARCH_STUDENTS";
     public static final String ACTION_GET_STUDENTS_BY_CLASS = "GET_STUDENTS_BY_CLASS";
     public static final String ACTION_ADD_STUDENT = "ADD_STUDENT";
@@ -160,6 +161,7 @@ public class Constants {
     public static final String KEY_STUDENT_CODE = "studentCode";
     public static final String KEY_COURSE_CODE = "courseCode";
     public static final String KEY_FACULTY_CODE = "facultyCode";
+    public static final String KEY_INCLUDE_INACTIVE = "includeInactive";
     public static final String KEY_SEARCH_KEYWORD = "searchKeyword";
     public static final String KEY_CLASS_ID = "classId";
     public static final String KEY_CLASS_CODE = "classCode";
@@ -168,6 +170,9 @@ public class Constants {
     public static final String KEY_SEMESTER = "semester";
     public static final String KEY_REQUEST_ID = "requestId";
     public static final String KEY_REGISTRATION_ID = "registrationId";
+    public static final String KEY_PAGE = "page";
+    public static final String KEY_PAGE_SIZE = "pageSize";
+    public static final String KEY_TOTAL = "total";
     public static final String KEY_TEACHER_ID = "teacherId";
     public static final String KEY_SUBJECT_ID = "subjectId";
     public static final String KEY_ADMIN_ID = "adminId";

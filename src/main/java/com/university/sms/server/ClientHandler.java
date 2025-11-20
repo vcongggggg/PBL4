@@ -157,6 +157,8 @@ public class ClientHandler implements Runnable {
                     return handleGetAllTeachersIncludeInactive(request);
                 case Constants.ACTION_GET_ALL_STUDENTS_INCLUDE_INACTIVE:
                     return handleGetAllStudentsIncludeInactive(request);
+                case Constants.ACTION_GET_STUDENTS_PAGED:
+                    return handleGetStudentsPaged(request);
 
                 // Hành động sinh viên
                 case Constants.ACTION_GET_STUDENT_INFO:
@@ -511,6 +513,41 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy danh sách tất cả sinh viên (bao gồm không hoạt động): " + e.getMessage());
             LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi server: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetStudentsPaged(Message request) {
+        if (currentUser.getRole() != User.UserRole.ADMIN && currentUser.getRole() != User.UserRole.TEACHER) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+        }
+
+        try {
+            Integer page = request.getData(Constants.KEY_PAGE, Integer.class);
+            Integer pageSize = request.getData(Constants.KEY_PAGE_SIZE, Integer.class);
+            Boolean includeInactive = request.getData(Constants.KEY_INCLUDE_INACTIVE, Boolean.class);
+
+            if (page == null || page < 1) {
+                page = 1;
+            }
+            if (pageSize == null || pageSize <= 0) {
+                pageSize = 200;
+            }
+
+            boolean includeInactiveFlag = includeInactive != null && includeInactive;
+
+            StudentService.StudentPageResult result = studentService.getStudentsPaged(page, pageSize,
+                    includeInactiveFlag);
+
+            Message response = Message.createSuccessResponse(request.getAction(), Constants.MSG_SUCCESS);
+            response.addData(Constants.KEY_STUDENTS, result.getStudents());
+            response.addData(Constants.KEY_TOTAL, result.getTotal());
+            response.addData(Constants.KEY_PAGE, result.getPage());
+            response.addData(Constants.KEY_PAGE_SIZE, result.getPageSize());
+            response.addData(Constants.KEY_INCLUDE_INACTIVE, result.isIncludeInactive());
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách sinh viên phân trang", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi server: " + e.getMessage());
         }
     }

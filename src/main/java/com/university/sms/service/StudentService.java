@@ -132,6 +132,19 @@ public class StudentService {
         return studentDAO.findAll();
     }
 
+    public StudentPageResult getStudentsPaged(int page, int pageSize, boolean includeInactive) {
+        if (page < 1) {
+            page = 1;
+        }
+        if (pageSize <= 0) {
+            pageSize = 200;
+        }
+        int offset = (page - 1) * pageSize;
+        List<Student> students = studentDAO.findPaged(includeInactive, offset, pageSize);
+        int total = studentDAO.countAll(includeInactive);
+        return new StudentPageResult(students, total, page, pageSize, includeInactive);
+    }
+
     /**
      * Tìm kiếm sinh viên theo từ khóa
      */
@@ -403,6 +416,43 @@ public class StudentService {
         } catch (Exception e) {
             LOGGER.severe("Error getting total student count: " + e.getMessage());
             return 0;
+        }
+    }
+
+    public static class StudentPageResult {
+        private final List<Student> students;
+        private final int total;
+        private final int page;
+        private final int pageSize;
+        private final boolean includeInactive;
+
+        public StudentPageResult(List<Student> students, int total, int page, int pageSize,
+                boolean includeInactive) {
+            this.students = students;
+            this.total = total;
+            this.page = page;
+            this.pageSize = pageSize;
+            this.includeInactive = includeInactive;
+        }
+
+        public List<Student> getStudents() {
+            return students;
+        }
+
+        public int getTotal() {
+            return total;
+        }
+
+        public int getPage() {
+            return page;
+        }
+
+        public int getPageSize() {
+            return pageSize;
+        }
+
+        public boolean isIncludeInactive() {
+            return includeInactive;
         }
     }
 }

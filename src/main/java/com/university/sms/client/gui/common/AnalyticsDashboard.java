@@ -30,6 +30,7 @@ public class AnalyticsDashboard extends JPanel {
     private JPanel chartsPanel;
     private JButton refreshButton;
     private JComboBox<FacultyItem> facultyCombo; // For admin to select faculty
+    private JButton loadGpaTrendButton;
 
     private final boolean showStatsCards;
     private final boolean showCharts;
@@ -50,6 +51,14 @@ public class AnalyticsDashboard extends JPanel {
         this(serverConnection, currentUser, true, true);
     }
 
+    private boolean isRefreshing = false;
+    private boolean pendingRefresh = false;
+    private boolean gpaTrendLoaded = false;
+    private boolean gpaTrendLoading = false;
+    private String lastSelectedFacultyCode = null;
+    private String cachedUserFacultyCode = null;
+    private boolean userFacultyCodeResolved = false;
+
     public AnalyticsDashboard(IServerConnection serverConnection, User currentUser,
             boolean showStatsCards, boolean showCharts) {
         this.serverConnection = serverConnection;
@@ -58,9 +67,6 @@ public class AnalyticsDashboard extends JPanel {
         this.showCharts = showCharts;
         initializeComponents();
         setupLayout();
-        if (currentUser != null) {
-            refreshData();
-        }
     }
 
     private void initializeComponents() {
@@ -119,6 +125,7 @@ public class AnalyticsDashboard extends JPanel {
         scrollPane.setBorder(null);
         scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
+
     }
 
     private JPanel createStatsCardsPanel() {
@@ -149,7 +156,13 @@ public class AnalyticsDashboard extends JPanel {
 
         // GPA Trend Chart
         gpaTrendChart = createGPATrendChart();
-        panel.add(gpaTrendChart);
+        JPanel gpaContainer = new JPanel(new BorderLayout(5, 5));
+        gpaContainer.setOpaque(false);
+        gpaContainer.add(gpaTrendChart, BorderLayout.CENTER);
+        loadGpaTrendButton = new JButton("Tải xu hướng GPA");
+        loadGpaTrendButton.addActionListener(e -> loadGpaTrendData());
+        gpaContainer.add(loadGpaTrendButton, BorderLayout.SOUTH);
+        panel.add(gpaContainer);
 
         // Faculty Comparison Chart
         facultyChart = createFacultyComparisonChart();
@@ -197,24 +210,48 @@ public class AnalyticsDashboard extends JPanel {
         setupLayout();
         revalidate();
         repaint();
-        refreshData();
+        pendingRefresh = false;
+        isRefreshing = false;
+        gpaTrendLoaded = false;
+        gpaTrendLoading = false;
+        lastSelectedFacultyCode = null;
+        cachedUserFacultyCode = null;
+        userFacultyCodeResolved = false;
     }
 
     public void refreshData() {
         if (currentUser == null)
             return;
 
+        if (isRefreshing) {
+            pendingRefresh = true;
+            return;
+        }
+        isRefreshing = true;
+        gpaTrendLoaded = false;
+        gpaTrendLoading = false;
+        if (loadGpaTrendButton != null) {
+            loadGpaTrendButton.setEnabled(true);
+            loadGpaTrendButton.setText("Tải xu hướng GPA");
+        }
+        if (gpaTrendChart != null) {
+            gpaTrendChart.clearBars();
+        }
+
         // Only admin or teacher can view analytics
         if (!"ADMIN".equalsIgnoreCase(currentUser.getRole().toString())
                 && !"TEACHER".equalsIgnoreCase(currentUser.getRole().toString())) {
+            isRefreshing = false;
             return;
         }
+
+        lastSelectedFacultyCode = getSelectedFacultyFilter();
 
         SwingWorker<StatisticsData, Void> worker = new SwingWorker<>() {
             @Override
             protected StatisticsData doInBackground() {
                 try {
-                    String facultyCode = getCurrentUserFacultyCode();
+                    String facultyCode = lastSelectedFacultyCode;
                     StatisticsData data = new StatisticsData();
 
                     // Get faculty statistics if faculty is selected
@@ -279,9 +316,6 @@ public class AnalyticsDashboard extends JPanel {
                         data.honorStudents = honorStudents;
                     }
 
-                    // Get GPA trend by semester (for all students or specific faculty)
-                    data.gpaTrendData = getGPATrendBySemester(facultyCode);
-
                     return data;
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi tải dữ liệu phân tích", e);
@@ -298,6 +332,12 @@ public class AnalyticsDashboard extends JPanel {
                     }
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật thống kê phân tích", e);
+                } finally {
+                    isRefreshing = false;
+                    if (pendingRefresh) {
+                        pendingRefresh = false;
+                        refreshData();
+                    }
                 }
             }
         };
@@ -310,7 +350,6 @@ public class AnalyticsDashboard extends JPanel {
         List<Faculty> allFaculties;
         Map<String, Map<String, Object>> facultyStatsMap;
         List<?> honorStudents;
-        Map<String, Double> gpaTrendData; // Key: "academicYear-semester", Value: average GPA
     }
 
     /**
@@ -411,9 +450,20 @@ public class AnalyticsDashboard extends JPanel {
         if (currentUser == null)
             return null;
 
+        if (currentUser.getRole() == User.UserRole.ADMIN) {
+            if (facultyCombo != null && facultyCombo.getSelectedItem() != null) {
+                FacultyItem item = (FacultyItem) facultyCombo.getSelectedItem();
+                return item.code;
+            }
+            return null;
+        }
+
+        if (userFacultyCodeResolved) {
+            return cachedUserFacultyCode;
+        }
+
         try {
             if (currentUser.getRole() == User.UserRole.STUDENT) {
-                // Get student info to get facultyCode
                 Message request = Message.createRequest(Constants.ACTION_GET_STUDENT_INFO);
                 Message response = serverConnection.sendRequest(request);
 
@@ -421,11 +471,12 @@ public class AnalyticsDashboard extends JPanel {
                     com.university.sms.model.Student student = response.getData(Constants.KEY_STUDENT,
                             com.university.sms.model.Student.class);
                     if (student != null) {
-                        return student.getFacultyCode();
+                        cachedUserFacultyCode = student.getFacultyCode();
+                        userFacultyCodeResolved = true;
+                        return cachedUserFacultyCode;
                     }
                 }
             } else if (currentUser.getRole() == User.UserRole.TEACHER) {
-                // Get teacher's courses to determine faculty
                 Message request = Message.createRequest(Constants.ACTION_GET_COURSES_BY_TEACHER);
                 Message response = serverConnection.sendRequest(request);
 
@@ -434,9 +485,7 @@ public class AnalyticsDashboard extends JPanel {
                     List<com.university.sms.model.Course> courses = (List<com.university.sms.model.Course>) response
                             .getData("courses");
                     if (courses != null && !courses.isEmpty()) {
-                        // Get faculty from first course's subject
                         String subjectCode = courses.get(0).getSubjectCode();
-                        // Get all subjects and find the one with matching code
                         Message subRequest = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
                         Message subResponse = serverConnection.sendRequest(subRequest);
                         if (subResponse != null && subResponse.isSuccess()) {
@@ -446,27 +495,37 @@ public class AnalyticsDashboard extends JPanel {
                             if (subjects != null) {
                                 for (com.university.sms.model.Subject subject : subjects) {
                                     if (subjectCode.equals(subject.getSubjectCode())) {
-                                        return subject.getFacultyCode();
+                                        cachedUserFacultyCode = subject.getFacultyCode();
+                                        userFacultyCodeResolved = true;
+                                        return cachedUserFacultyCode;
                                     }
                                 }
                             }
                         }
                     }
                 }
-                return null;
-            } else if (currentUser.getRole() == User.UserRole.ADMIN) {
-                // Admin: get from faculty selector
-                if (facultyCombo != null && facultyCombo.getSelectedItem() != null) {
-                    FacultyItem item = (FacultyItem) facultyCombo.getSelectedItem();
-                    return item.code; // null means "all faculties"
-                }
-                return null; // All faculties
             }
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Lỗi khi xác định khoa của người dùng hiện tại", e);
         }
 
         return null; // Default fallback
+    }
+
+    private String getSelectedFacultyFilter() {
+        if (currentUser == null) {
+            return null;
+        }
+
+        if (currentUser.getRole() == User.UserRole.ADMIN) {
+            if (facultyCombo != null && facultyCombo.getSelectedItem() != null) {
+                FacultyItem item = (FacultyItem) facultyCombo.getSelectedItem();
+                return item.code;
+            }
+            return null;
+        }
+
+        return getCurrentUserFacultyCode();
     }
 
     private void loadFaculties() {
@@ -560,10 +619,7 @@ public class AnalyticsDashboard extends JPanel {
             updateTopPerformersChart(data.honorStudents);
         }
 
-        // Update GPA trend chart
-        if (data.gpaTrendData != null && !data.gpaTrendData.isEmpty()) {
-            updateGPATrendChart(data.gpaTrendData);
-        }
+        // GPA trend is loaded on demand via button
     }
 
     private void updateGPATrendChart(Map<String, Double> trendData) {
@@ -692,6 +748,60 @@ public class AnalyticsDashboard extends JPanel {
                 topPerformersChart.addBar(label, gpaValue * 20, colors[i % colors.length]);
             }
         }
+    }
+
+    private void loadGpaTrendData() {
+        if (gpaTrendLoaded || gpaTrendLoading) {
+            return;
+        }
+
+        gpaTrendLoading = true;
+        if (loadGpaTrendButton != null) {
+            loadGpaTrendButton.setEnabled(false);
+            loadGpaTrendButton.setText("Đang tải...");
+        }
+
+        final String facultyCode = lastSelectedFacultyCode != null ? lastSelectedFacultyCode
+                : getSelectedFacultyFilter();
+
+        SwingWorker<Map<String, Double>, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Map<String, Double> doInBackground() {
+                return getGPATrendBySemester(facultyCode);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Map<String, Double> trendData = get();
+                    if (trendData != null && !trendData.isEmpty()) {
+                        updateGPATrendChart(trendData);
+                        gpaTrendLoaded = true;
+                    } else if (gpaTrendChart != null) {
+                        gpaTrendChart.clearBars();
+                    }
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải xu hướng GPA", e);
+                    JOptionPane.showMessageDialog(AnalyticsDashboard.this,
+                            "Không thể tải xu hướng GPA: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                } finally {
+                    gpaTrendLoading = false;
+                    if (loadGpaTrendButton != null) {
+                        if (gpaTrendLoaded) {
+                            loadGpaTrendButton.setText("Đã tải xu hướng GPA");
+                            loadGpaTrendButton.setEnabled(false);
+                        } else {
+                            loadGpaTrendButton.setText("Tải xu hướng GPA");
+                            loadGpaTrendButton.setEnabled(true);
+                        }
+                    }
+                }
+            }
+        };
+
+        worker.execute();
     }
 
     private Map<String, Object> aggregateStatistics(Map<String, Map<String, Object>> facultyStatsMap) {

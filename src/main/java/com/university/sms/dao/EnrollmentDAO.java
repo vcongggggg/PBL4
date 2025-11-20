@@ -162,11 +162,13 @@ public class EnrollmentDAO {
      * Lấy đăng ký theo ID
      */
     public Enrollment findById(int enrollmentId) {
-        String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
+        String sql = "SELECT e.*, s.student_code, s.class_code AS student_class_code, u.full_name AS student_name, " +
+                "u.phone AS student_phone, cls.class_name AS student_class_name, " +
                 "c.course_code, sub.subject_name, sub.credits " +
                 "FROM enrollments e " +
                 "JOIN students s ON e.student_code = s.student_code " +
                 "JOIN users u ON s.username = u.username " +
+                "LEFT JOIN classes cls ON s.class_code = cls.class_code " +
                 "JOIN courses c ON e.course_code = c.course_code " +
                 "JOIN subjects sub ON c.subject_code = sub.subject_code " +
                 "WHERE e.enrollment_id = ?";
@@ -193,11 +195,13 @@ public class EnrollmentDAO {
      * ✅ REFACTORED: Lấy đăng ký theo student_code
      */
     public List<Enrollment> findByStudentCode(String studentCode) {
-        String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
+        String sql = "SELECT e.*, s.student_code, s.class_code AS student_class_code, u.full_name AS student_name, " +
+                "u.phone AS student_phone, cls.class_name AS student_class_name, " +
                 "c.course_code, sub.subject_name, sub.credits " +
                 "FROM enrollments e " +
                 "JOIN students s ON e.student_code = s.student_code " +
                 "JOIN users u ON s.username = u.username " +
+                "LEFT JOIN classes cls ON s.class_code = cls.class_code " +
                 "JOIN courses c ON e.course_code = c.course_code " +
                 "JOIN subjects sub ON c.subject_code = sub.subject_code " +
                 "WHERE e.student_code = ? ORDER BY e.enrollment_date DESC";
@@ -226,11 +230,13 @@ public class EnrollmentDAO {
      * ✅ REFACTORED: Lấy đăng ký theo course_code
      */
     public List<Enrollment> findByCourseCode(String courseCode) {
-        String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
+        String sql = "SELECT e.*, s.student_code, s.class_code AS student_class_code, u.full_name AS student_name, " +
+                "u.phone AS student_phone, cls.class_name AS student_class_name, " +
                 "c.course_code, sub.subject_name, sub.credits " +
                 "FROM enrollments e " +
                 "JOIN students s ON e.student_code = s.student_code " +
                 "JOIN users u ON s.username = u.username " +
+                "LEFT JOIN classes cls ON s.class_code = cls.class_code " +
                 "JOIN courses c ON e.course_code = c.course_code " +
                 "JOIN subjects sub ON c.subject_code = sub.subject_code " +
                 "WHERE e.course_code = ? ORDER BY s.student_code";
@@ -259,11 +265,13 @@ public class EnrollmentDAO {
      * ✅ REFACTORED: Tìm đăng ký cụ thể
      */
     public Enrollment findByStudentAndCourse(String studentCode, String courseCode) {
-        String sql = "SELECT e.*, s.student_code, u.full_name AS student_name, " +
+        String sql = "SELECT e.*, s.student_code, s.class_code AS student_class_code, u.full_name AS student_name, " +
+                "u.phone AS student_phone, cls.class_name AS student_class_name, " +
                 "c.course_code, sub.subject_name, sub.credits " +
                 "FROM enrollments e " +
                 "JOIN students s ON e.student_code = s.student_code " +
                 "JOIN users u ON s.username = u.username " +
+                "LEFT JOIN classes cls ON s.class_code = cls.class_code " +
                 "JOIN courses c ON e.course_code = c.course_code " +
                 "JOIN subjects sub ON c.subject_code = sub.subject_code " +
                 "WHERE e.student_code = ? AND e.course_code = ?";
@@ -450,6 +458,18 @@ public class EnrollmentDAO {
         // Related information
         enrollment.setStudentCode(rs.getString("student_code"));
         enrollment.setStudentName(rs.getString("student_name"));
+        try {
+            enrollment.setStudentPhone(rs.getString("student_phone"));
+        } catch (SQLException ignored) {
+        }
+        try {
+            enrollment.setStudentClassCode(rs.getString("student_class_code"));
+        } catch (SQLException ignored) {
+        }
+        try {
+            enrollment.setStudentClassName(rs.getString("student_class_name"));
+        } catch (SQLException ignored) {
+        }
         enrollment.setCourseCode(rs.getString("course_code"));
         enrollment.setSubjectName(rs.getString("subject_name"));
         enrollment.setCredits(rs.getInt("credits"));

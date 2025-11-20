@@ -30,6 +30,9 @@ public class Enrollment implements java.io.Serializable {
 
     // Related information (from joins)
     private String studentName;
+    private String studentPhone;
+    private String studentClassCode;
+    private String studentClassName;
     private String subjectName;
     private int credits;
 
@@ -146,6 +149,30 @@ public class Enrollment implements java.io.Serializable {
         this.studentName = studentName;
     }
 
+    public String getStudentPhone() {
+        return studentPhone;
+    }
+
+    public void setStudentPhone(String studentPhone) {
+        this.studentPhone = studentPhone;
+    }
+
+    public String getStudentClassCode() {
+        return studentClassCode;
+    }
+
+    public void setStudentClassCode(String studentClassCode) {
+        this.studentClassCode = studentClassCode;
+    }
+
+    public String getStudentClassName() {
+        return studentClassName;
+    }
+
+    public void setStudentClassName(String studentClassName) {
+        this.studentClassName = studentClassName;
+    }
+
     public String getCourseCode() {
         return courseCode;
     }
@@ -176,6 +203,8 @@ public class Enrollment implements java.io.Serializable {
                 "enrollmentId=" + enrollmentId +
                 ", studentCode='" + studentCode + '\'' +
                 ", studentName='" + studentName + '\'' +
+                ", studentClassCode='" + studentClassCode + '\'' +
+                ", studentClassName='" + studentClassName + '\'' +
                 ", subjectName='" + subjectName + '\'' +
                 ", finalGrade=" + finalGrade +
                 ", letterGrade='" + letterGrade + '\'' +

@@ -7,7 +7,13 @@ import com.university.sms.model.Subject;
 import com.university.sms.model.Faculty;
 
 import javax.swing.*;
+import javax.swing.RowFilter;
+import javax.swing.event.DocumentEvent;
+import javax.swing.event.DocumentListener;
+import javax.swing.table.DefaultTableModel;
+import javax.swing.table.TableRowSorter;
 import java.awt.*;
+import java.util.Collections;
 import java.util.List;
 
 /**
@@ -26,8 +32,12 @@ public class SubjectEditDialog extends JDialog {
   private JSpinner creditsSpinner;
   private JComboBox<FacultyItem> facultyCombo;
   private JComboBox<SubjectItem> prerequisiteCombo;
+  private JButton prerequisiteListButton;
   private JCheckBox requiredCheckbox;
   private JTextArea descriptionArea;
+  private List<Subject> allSubjects = Collections.emptyList();
+  private volatile boolean subjectsLoaded = false;
+  private volatile boolean facultiesLoaded = false;
 
   private JButton saveButton;
   private JButton cancelButton;
@@ -59,6 +69,8 @@ public class SubjectEditDialog extends JDialog {
     facultyCombo = new JComboBox<>();
     prerequisiteCombo = new JComboBox<>();
     prerequisiteCombo.addItem(new SubjectItem(null, "-- Không có --"));
+    prerequisiteListButton = new JButton("Danh sách...");
+    prerequisiteListButton.addActionListener(e -> showPrerequisiteSelectionDialog());
 
     requiredCheckbox = new JCheckBox("Môn bắt buộc");
     requiredCheckbox.setSelected(true);
@@ -85,79 +97,42 @@ public class SubjectEditDialog extends JDialog {
 
     // Form panel
     JPanel formPanel = new JPanel(new GridBagLayout());
-    GridBagConstraints gbc = new GridBagConstraints();
-    gbc.insets = new Insets(5, 5, 5, 5);
-    gbc.anchor = GridBagConstraints.WEST;
+    GridBagConstraints labelConstraints = new GridBagConstraints();
+    labelConstraints.insets = new Insets(5, 5, 5, 5);
+    labelConstraints.anchor = GridBagConstraints.WEST;
+    labelConstraints.gridx = 0;
 
-    // Row 0: Subject Code
-    gbc.gridx = 0;
-    gbc.gridy = 0;
-    formPanel.add(new JLabel("Mã môn học:"), gbc);
-    gbc.gridx = 1;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
-    gbc.weightx = 1.0;
-    formPanel.add(codeField, gbc);
+    GridBagConstraints fieldConstraints = new GridBagConstraints();
+    fieldConstraints.insets = new Insets(5, 5, 5, 5);
+    fieldConstraints.gridx = 1;
+    fieldConstraints.fill = GridBagConstraints.HORIZONTAL;
+    fieldConstraints.weightx = 1.0;
 
-    // Row 1: Subject Name
-    gbc.gridx = 0;
-    gbc.gridy = 1;
-    gbc.fill = GridBagConstraints.NONE;
-    gbc.weightx = 0;
-    formPanel.add(new JLabel("Tên môn học:"), gbc);
-    gbc.gridx = 1;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
-    gbc.weightx = 1.0;
-    formPanel.add(nameField, gbc);
+    addFormRow(formPanel, 0, "Mã môn học:", codeField, labelConstraints, fieldConstraints);
+    addFormRow(formPanel, 1, "Tên môn học:", nameField, labelConstraints, fieldConstraints);
+    addFormRow(formPanel, 2, "Số tín chỉ:", creditsSpinner, labelConstraints, fieldConstraints);
+    addFormRow(formPanel, 3, "Khoa:", facultyCombo, labelConstraints, fieldConstraints);
 
-    // Row 2: Credits
-    gbc.gridx = 0;
-    gbc.gridy = 2;
-    gbc.fill = GridBagConstraints.NONE;
-    gbc.weightx = 0;
-    formPanel.add(new JLabel("Số tín chỉ:"), gbc);
-    gbc.gridx = 1;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
-    gbc.weightx = 1.0;
-    formPanel.add(creditsSpinner, gbc);
+    JPanel prerequisiteFieldPanel = new JPanel(new BorderLayout(5, 0));
+    prerequisiteFieldPanel.add(prerequisiteCombo, BorderLayout.CENTER);
+    prerequisiteFieldPanel.add(prerequisiteListButton, BorderLayout.EAST);
+    addFormRow(formPanel, 4, "Môn tiên quyết:", prerequisiteFieldPanel, labelConstraints, fieldConstraints);
 
-    // Row 3: Faculty
-    gbc.gridx = 0;
-    gbc.gridy = 3;
-    gbc.fill = GridBagConstraints.NONE;
-    gbc.weightx = 0;
-    formPanel.add(new JLabel("Khoa:"), gbc);
-    gbc.gridx = 1;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
-    gbc.weightx = 1.0;
-    formPanel.add(facultyCombo, gbc);
+    GridBagConstraints checkboxConstraints = (GridBagConstraints) fieldConstraints.clone();
+    checkboxConstraints.gridy = 5;
+    checkboxConstraints.gridx = 1;
+    formPanel.add(requiredCheckbox, checkboxConstraints);
 
-    // Row 4: Prerequisite
-    gbc.gridx = 0;
-    gbc.gridy = 4;
-    gbc.fill = GridBagConstraints.NONE;
-    gbc.weightx = 0;
-    formPanel.add(new JLabel("Môn tiên quyết:"), gbc);
-    gbc.gridx = 1;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
-    gbc.weightx = 1.0;
-    formPanel.add(prerequisiteCombo, gbc);
+    GridBagConstraints descriptionLabelConstraints = (GridBagConstraints) labelConstraints.clone();
+    descriptionLabelConstraints.gridy = 6;
+    descriptionLabelConstraints.anchor = GridBagConstraints.NORTHWEST;
+    formPanel.add(new JLabel("Mô tả:"), descriptionLabelConstraints);
 
-    // Row 5: Required checkbox
-    gbc.gridx = 1;
-    gbc.gridy = 5;
-    gbc.fill = GridBagConstraints.HORIZONTAL;
-    formPanel.add(requiredCheckbox, gbc);
-
-    // Row 6: Description
-    gbc.gridx = 0;
-    gbc.gridy = 6;
-    gbc.fill = GridBagConstraints.NONE;
-    gbc.anchor = GridBagConstraints.NORTHWEST;
-    formPanel.add(new JLabel("Mô tả:"), gbc);
-    gbc.gridx = 1;
-    gbc.fill = GridBagConstraints.BOTH;
-    gbc.weighty = 1.0;
-    formPanel.add(new JScrollPane(descriptionArea), gbc);
+    GridBagConstraints descriptionFieldConstraints = (GridBagConstraints) fieldConstraints.clone();
+    descriptionFieldConstraints.gridy = 6;
+    descriptionFieldConstraints.fill = GridBagConstraints.BOTH;
+    descriptionFieldConstraints.weighty = 1.0;
+    formPanel.add(new JScrollPane(descriptionArea), descriptionFieldConstraints);
 
     mainPanel.add(formPanel, BorderLayout.CENTER);
 
@@ -168,120 +143,116 @@ public class SubjectEditDialog extends JDialog {
     mainPanel.add(buttonPanel, BorderLayout.SOUTH);
 
     setContentPane(mainPanel);
+
+    addComponentListener(new java.awt.event.ComponentAdapter() {
+      @Override
+      public void componentShown(java.awt.event.ComponentEvent e) {
+        if (!facultiesLoaded) {
+          loadFaculties();
+        }
+        if (!subjectsLoaded) {
+          loadSubjects();
+        }
+      }
+    });
   }
 
-  private void loadFaculties() {
-    SwingWorker<List<Faculty>, Void> worker = new SwingWorker<>() {
-      @Override
-      protected List<Faculty> doInBackground() throws Exception {
-        Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
-        Message response = serverConnection.sendRequest(request);
-        if (response != null && response.isSuccess()) {
-          @SuppressWarnings("unchecked")
-          List<Faculty> faculties = (List<Faculty>) response.getData("faculties");
-          return faculties;
-        }
-        return null;
-      }
+  private void addFormRow(JPanel panel, int row, String labelText, JComponent field,
+      GridBagConstraints labelTemplate, GridBagConstraints fieldTemplate) {
+    GridBagConstraints labelConstraints = (GridBagConstraints) labelTemplate.clone();
+    labelConstraints.gridy = row;
+    panel.add(new JLabel(labelText), labelConstraints);
 
-      @Override
-      protected void done() {
-        try {
-          List<Faculty> faculties = get();
-          if (faculties != null) {
-            for (Faculty faculty : faculties) {
-              facultyCombo.addItem(new FacultyItem(faculty.getFacultyCode(), faculty.getFacultyName()));
-            }
-            // Set selection if editing
-            if (subject != null) {
-              for (int i = 0; i < facultyCombo.getItemCount(); i++) {
-                FacultyItem item = facultyCombo.getItemAt(i);
-                if (item.code != null && item.code.equals(subject.getFacultyCode())) {
-                  facultyCombo.setSelectedIndex(i);
-                  break;
-                }
-              }
-            }
-          }
-        } catch (Exception e) {
-          JOptionPane.showMessageDialog(SubjectEditDialog.this,
-              "Lỗi khi tải danh sách khoa: " + e.getMessage(),
-              "Lỗi",
-              JOptionPane.ERROR_MESSAGE);
-        }
-      }
-    };
-    worker.execute();
+    GridBagConstraints fieldConstraints = (GridBagConstraints) fieldTemplate.clone();
+    fieldConstraints.gridy = row;
+    panel.add(field, fieldConstraints);
   }
 
-  private void loadSubjects() {
-    SwingWorker<List<Subject>, Void> worker = new SwingWorker<>() {
-      @Override
-      protected List<Subject> doInBackground() throws Exception {
-        Message request = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
-        Message response = serverConnection.sendRequest(request);
-        if (response != null && response.isSuccess()) {
-          @SuppressWarnings("unchecked")
-          List<Subject> subjects = (List<Subject>) response.getData("subjects");
-          return subjects;
-        }
-        return null;
-      }
+  private synchronized void loadFaculties() {
+    if (facultiesLoaded) {
+      return;
+    }
 
-      @Override
-      protected void done() {
-        try {
-          List<Subject> subjects = get();
-          if (subjects != null && !subjects.isEmpty()) {
-            // Sắp xếp danh sách môn học theo mã môn học để dễ tìm
-            subjects.sort((s1, s2) -> {
-              String code1 = s1.getSubjectCode() != null ? s1.getSubjectCode() : "";
-              String code2 = s2.getSubjectCode() != null ? s2.getSubjectCode() : "";
-              return code1.compareToIgnoreCase(code2);
-            });
+    try {
+      Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
+      Message response = serverConnection.sendRequest(request);
 
-            // Thêm các môn học vào combo box (loại trừ môn học hiện tại nếu đang edit)
-            for (Subject subj : subjects) {
-              // Không bao gồm môn học hiện tại khi đang sửa (tránh circular prerequisite)
-              if (subject == null
-                  || (subj.getSubjectCode() != null && !subj.getSubjectCode().equals(subject.getSubjectCode()))) {
-                String displayText = subj.getSubjectCode() + " - " + subj.getSubjectName();
-                prerequisiteCombo.addItem(new SubjectItem(subj.getSubjectCode(), displayText));
-              }
-            }
+      if (response != null && response.isSuccess()) {
+        @SuppressWarnings("unchecked")
+        List<Faculty> faculties = (List<Faculty>) response.getData("faculties");
+
+        if (faculties != null) {
+          for (Faculty faculty : faculties) {
+            facultyCombo.addItem(new FacultyItem(faculty.getFacultyCode(), faculty.getFacultyName()));
           }
+          facultiesLoaded = true;
 
-          // Set selection nếu đang edit và có môn tiên quyết
-          if (subject != null && subject.getPrerequisiteSubjectCode() != null) {
-            boolean found = false;
-            for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
-              SubjectItem item = prerequisiteCombo.getItemAt(i);
-              if (item.code != null && item.code.equals(subject.getPrerequisiteSubjectCode())) {
-                prerequisiteCombo.setSelectedIndex(i);
-                found = true;
+          if (subject != null) {
+            for (int i = 0; i < facultyCombo.getItemCount(); i++) {
+              FacultyItem item = facultyCombo.getItemAt(i);
+              if (item.code != null && item.code.equals(subject.getFacultyCode())) {
+                facultyCombo.setSelectedIndex(i);
                 break;
               }
             }
-            // Nếu môn tiên quyết không tìm thấy trong danh sách (có thể đã bị xóa),
-            // thêm vào combo để hiển thị
-            if (!found) {
-              prerequisiteCombo.addItem(new SubjectItem(subject.getPrerequisiteSubjectCode(),
-                  subject.getPrerequisiteSubjectCode() + " - (Đã bị xóa hoặc không tồn tại)"));
-              prerequisiteCombo.setSelectedIndex(prerequisiteCombo.getItemCount() - 1);
-            }
-          } else if (subject == null) {
-            // Khi thêm môn học mới, mặc định chọn "-- Không có --"
-            prerequisiteCombo.setSelectedIndex(0);
+          } else if (facultyCombo.getItemCount() > 0) {
+            facultyCombo.setSelectedIndex(0);
           }
-        } catch (Exception e) {
-          JOptionPane.showMessageDialog(SubjectEditDialog.this,
-              "Lỗi khi tải danh sách môn học: " + e.getMessage(),
-              "Lỗi",
-              JOptionPane.ERROR_MESSAGE);
         }
+      } else {
+        showServerError("khoa", response);
       }
-    };
-    worker.execute();
+    } catch (Exception e) {
+      JOptionPane.showMessageDialog(this,
+          "Lỗi khi tải danh sách khoa: " + e.getMessage(),
+          "Lỗi",
+          JOptionPane.ERROR_MESSAGE);
+    }
+  }
+
+  private synchronized void loadSubjects() {
+    if (subjectsLoaded) {
+      return;
+    }
+
+    try {
+      Message request = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
+      Message response = serverConnection.sendRequest(request);
+
+      if (response != null && response.isSuccess()) {
+        @SuppressWarnings("unchecked")
+        List<Subject> subjects = (List<Subject>) response.getData(Constants.KEY_SUBJECTS);
+
+        if (subjects != null && !subjects.isEmpty()) {
+          allSubjects = subjects;
+          subjects.sort((s1, s2) -> {
+            String code1 = s1.getSubjectCode() != null ? s1.getSubjectCode() : "";
+            String code2 = s2.getSubjectCode() != null ? s2.getSubjectCode() : "";
+            return code1.compareToIgnoreCase(code2);
+          });
+
+          for (Subject subj : subjects) {
+            if (subject == null
+                || (subj.getSubjectCode() != null && !subj.getSubjectCode().equals(subject.getSubjectCode()))) {
+              String displayText = subj.getSubjectCode() + " - " + subj.getSubjectName();
+              prerequisiteCombo.addItem(new SubjectItem(subj.getSubjectCode(), displayText));
+            }
+          }
+        } else {
+          allSubjects = Collections.emptyList();
+        }
+
+        updatePrerequisiteSelection();
+        subjectsLoaded = true;
+      } else {
+        showServerError("môn học", response);
+      }
+    } catch (Exception e) {
+      JOptionPane.showMessageDialog(this,
+          "Lỗi khi tải danh sách môn học: " + e.getMessage(),
+          "Lỗi",
+          JOptionPane.ERROR_MESSAGE);
+    }
   }
 
   private void populateFields() {
@@ -292,6 +263,8 @@ public class SubjectEditDialog extends JDialog {
     if (subject.getDescription() != null) {
       descriptionArea.setText(subject.getDescription());
     }
+
+    updatePrerequisiteSelection();
   }
 
   private void saveSubject() {
@@ -368,6 +341,152 @@ public class SubjectEditDialog extends JDialog {
     worker.execute();
   }
 
+  private void showPrerequisiteSelectionDialog() {
+    if (!subjectsLoaded) {
+      loadSubjects();
+    }
+
+    if (allSubjects == null || allSubjects.isEmpty()) {
+      JOptionPane.showMessageDialog(this,
+          "Không tìm thấy môn học nào khác để chọn làm môn tiên quyết.",
+          "Thông báo",
+          JOptionPane.INFORMATION_MESSAGE);
+      return;
+    }
+
+    JDialog dialog = new JDialog(this, "Chọn môn tiên quyết", true);
+    dialog.setSize(700, 450);
+    dialog.setLocationRelativeTo(this);
+
+    JPanel panel = new JPanel(new BorderLayout(10, 10));
+    panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
+
+    JTextField searchField = new JTextField();
+    panel.add(searchField, BorderLayout.NORTH);
+
+    String[] columns = { "Mã môn", "Tên môn học", "Tín chỉ", "Khoa" };
+    DefaultTableModel model = new DefaultTableModel(columns, 0) {
+      @Override
+      public boolean isCellEditable(int row, int column) {
+        return false;
+      }
+    };
+
+    for (Subject subj : allSubjects) {
+      if (subj == null || subj.getSubjectCode() == null) {
+        continue;
+      }
+      if (subject != null && subj.getSubjectCode().equals(subject.getSubjectCode())) {
+        continue;
+      }
+      model.addRow(new Object[] {
+          subj.getSubjectCode(),
+          subj.getSubjectName(),
+          subj.getCredits(),
+          subj.getFacultyName() != null ? subj.getFacultyName() : subj.getFacultyCode()
+      });
+    }
+
+    JTable table = new JTable(model);
+    table.setRowHeight(24);
+    TableRowSorter<DefaultTableModel> sorter = new TableRowSorter<>(model);
+    table.setRowSorter(sorter);
+
+    JScrollPane scrollPane = new JScrollPane(table);
+    panel.add(scrollPane, BorderLayout.CENTER);
+
+    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+    JButton selectButton = new JButton("Chọn");
+    JButton clearButton = new JButton("Không có");
+    JButton cancelButton = new JButton("Hủy");
+
+    buttonPanel.add(clearButton);
+    buttonPanel.add(selectButton);
+    buttonPanel.add(cancelButton);
+
+    panel.add(buttonPanel, BorderLayout.SOUTH);
+
+    searchField.getDocument().addDocumentListener(new DocumentListener() {
+      private void filter() {
+        String text = searchField.getText();
+        if (text == null || text.trim().isEmpty()) {
+          sorter.setRowFilter(null);
+        } else {
+          sorter.setRowFilter(RowFilter.regexFilter("(?i)" + java.util.regex.Pattern.quote(text.trim())));
+        }
+      }
+
+      @Override
+      public void insertUpdate(DocumentEvent e) {
+        filter();
+      }
+
+      @Override
+      public void removeUpdate(DocumentEvent e) {
+        filter();
+      }
+
+      @Override
+      public void changedUpdate(DocumentEvent e) {
+        filter();
+      }
+    });
+
+    Runnable selectCurrentRow = () -> {
+      int viewRow = table.getSelectedRow();
+      if (viewRow < 0) {
+        JOptionPane.showMessageDialog(dialog,
+            "Vui lòng chọn một môn học.",
+            "Thông báo",
+            JOptionPane.INFORMATION_MESSAGE);
+        return;
+      }
+      int modelRow = table.convertRowIndexToModel(viewRow);
+      String code = (String) model.getValueAt(modelRow, 0);
+      String name = (String) model.getValueAt(modelRow, 1);
+      setPrerequisiteSelection(code, code + " - " + name);
+      dialog.dispose();
+    };
+
+    selectButton.addActionListener(e -> selectCurrentRow.run());
+    clearButton.addActionListener(e -> {
+      prerequisiteCombo.setSelectedIndex(0);
+      dialog.dispose();
+    });
+    cancelButton.addActionListener(e -> dialog.dispose());
+
+    table.addMouseListener(new java.awt.event.MouseAdapter() {
+      @Override
+      public void mouseClicked(java.awt.event.MouseEvent e) {
+        if (e.getClickCount() == 2 && SwingUtilities.isLeftMouseButton(e)) {
+          selectCurrentRow.run();
+        }
+      }
+    });
+
+    dialog.setContentPane(panel);
+    dialog.setVisible(true);
+  }
+
+  private void setPrerequisiteSelection(String code, String displayText) {
+    if (code == null) {
+      prerequisiteCombo.setSelectedIndex(0);
+      return;
+    }
+
+    for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
+      SubjectItem item = prerequisiteCombo.getItemAt(i);
+      if (item.code != null && item.code.equals(code)) {
+        prerequisiteCombo.setSelectedIndex(i);
+        return;
+      }
+    }
+
+    SubjectItem newItem = new SubjectItem(code, displayText);
+    prerequisiteCombo.addItem(newItem);
+    prerequisiteCombo.setSelectedItem(newItem);
+  }
+
   public boolean isSaved() {
     return isSaved;
   }
@@ -386,6 +505,35 @@ public class SubjectEditDialog extends JDialog {
     public String toString() {
       return name;
     }
+  }
+
+  private void updatePrerequisiteSelection() {
+    if (subject != null && subject.getPrerequisiteSubjectCode() != null) {
+      boolean found = false;
+      for (int i = 0; i < prerequisiteCombo.getItemCount(); i++) {
+        SubjectItem item = prerequisiteCombo.getItemAt(i);
+        if (item.code != null && item.code.equals(subject.getPrerequisiteSubjectCode())) {
+          prerequisiteCombo.setSelectedIndex(i);
+          found = true;
+          break;
+        }
+      }
+      if (!found) {
+        prerequisiteCombo.addItem(new SubjectItem(subject.getPrerequisiteSubjectCode(),
+            subject.getPrerequisiteSubjectCode() + " - (Đã bị xóa hoặc không tồn tại)"));
+        prerequisiteCombo.setSelectedIndex(prerequisiteCombo.getItemCount() - 1);
+      }
+    } else if (subject == null && prerequisiteCombo.getItemCount() > 0) {
+      prerequisiteCombo.setSelectedIndex(0);
+    }
+  }
+
+  private void showServerError(String entityName, Message response) {
+    String errorMsg = response != null ? response.getMessage() : "Không nhận được phản hồi từ server";
+    JOptionPane.showMessageDialog(this,
+        "Không thể tải danh sách " + entityName + ": " + errorMsg,
+        "Lỗi",
+        JOptionPane.ERROR_MESSAGE);
   }
 
   private static class SubjectItem {

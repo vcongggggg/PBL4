@@ -20,6 +20,7 @@ import java.util.List;
  */
 public class StudentPanel extends JPanel {
     private static final long serialVersionUID = 1L;
+    private static final int STUDENT_PAGE_SIZE = 50;
 
     private User currentUser;
     private IServerConnection serverConnection;
@@ -265,7 +266,8 @@ public class StudentPanel extends JPanel {
 
             Student selectedStudent = currentStudents.get(selectedRow);
             boolean isAccountActive = selectedStudent.isActive();
-            boolean isStatusActive = selectedStudent.getStudentStatus() == Student.StudentStatus.ACTIVE;
+            Student.StudentStatus status = selectedStudent.getStudentStatus();
+            boolean isStatusActive = status == null || status == Student.StudentStatus.ACTIVE;
 
             deleteButton.setEnabled(isAccountActive && isStatusActive);
             activateButton.setEnabled(!isAccountActive);
@@ -345,31 +347,59 @@ public class StudentPanel extends JPanel {
         }
 
         isRefreshing = true;
-        SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
+        final boolean includeInactiveRequest = showInactiveCheckbox != null && showInactiveCheckbox.isSelected();
+        addLog("Đang tải danh sách sinh viên"
+                + (includeInactiveRequest ? " (bao gồm tài khoản đã vô hiệu hóa)..." : "..."));
+
+        SwingWorker<StudentLoadResult, Void> worker = new SwingWorker<>() {
             @Override
-            protected Message doInBackground() throws Exception {
-                // Get all students (with or without inactive)
-                if (showInactiveCheckbox.isSelected()) {
-                    Message request = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS_INCLUDE_INACTIVE);
-                    return serverConnection.sendRequest(request);
-                } else {
-                    return serverConnection.getAllStudents();
+            protected StudentLoadResult doInBackground() throws Exception {
+                java.util.List<Student> aggregated = new java.util.ArrayList<>();
+                int page = 1;
+                int total = 0;
+
+                while (!isCancelled()) {
+                    Message request = Message.createRequest(Constants.ACTION_GET_STUDENTS_PAGED);
+                    request.addData(Constants.KEY_PAGE, page);
+                    request.addData(Constants.KEY_PAGE_SIZE, STUDENT_PAGE_SIZE);
+                    request.addData(Constants.KEY_INCLUDE_INACTIVE, includeInactiveRequest);
+                    Message response = serverConnection.sendRequest(request);
+                    if (response == null) {
+                        throw new Exception("Không nhận được phản hồi từ server");
+                    }
+                    if (!response.isSuccess()) {
+                        throw new Exception(response.getMessage());
+                    }
+
+                    @SuppressWarnings("unchecked")
+                    List<Student> pageStudents = (List<Student>) response.getData(Constants.KEY_STUDENTS);
+                    Number totalNumber = (Number) response.getData(Constants.KEY_TOTAL);
+                    if (totalNumber != null) {
+                        total = totalNumber.intValue();
+                    }
+
+                    if (pageStudents != null && !pageStudents.isEmpty()) {
+                        aggregated.addAll(pageStudents);
+                    }
+
+                    if (pageStudents == null || pageStudents.isEmpty() || aggregated.size() >= total) {
+                        break;
+                    }
+                    page++;
                 }
+
+                return new StudentLoadResult(aggregated, includeInactiveRequest, total);
             }
 
             @Override
             protected void done() {
                 try {
-                    Message response = get();
-                    if (response.isSuccess()) {
-                        @SuppressWarnings("unchecked")
-                        List<Student> students = (List<Student>) response.getData(Constants.KEY_STUDENTS);
-                        updateStudentTable(students);
-                    } else {
-                        showErrorMessage("Không thể tải danh sách sinh viên: " + response.getMessage());
-                    }
+                    StudentLoadResult result = get();
+                    updateStudentTable(result.students, result.includeInactive);
+                    addLog(String.format("Đã tải %d/%d sinh viên", result.students.size(),
+                            result.total > 0 ? result.total : result.students.size()));
                 } catch (Exception e) {
-                    showErrorMessage("Lỗi khi tải dữ liệu: " + e.getMessage());
+                    showErrorMessage("Không thể tải danh sách sinh viên: " + e.getMessage());
                 } finally {
                     isRefreshing = false;
                 }
@@ -400,7 +430,8 @@ public class StudentPanel extends JPanel {
                     if (response.isSuccess()) {
                         @SuppressWarnings("unchecked")
                         List<Student> students = (List<Student>) response.getData(Constants.KEY_STUDENTS);
-                        updateStudentTable(students);
+                        boolean includeInactive = showInactiveCheckbox != null && showInactiveCheckbox.isSelected();
+                        updateStudentTable(students, includeInactive);
                     } else {
                         showErrorMessage("Tìm kiếm thất bại: " + response.getMessage());
                     }
@@ -413,22 +444,18 @@ public class StudentPanel extends JPanel {
         worker.execute();
     }
 
-    private void updateStudentTable(List<Student> students) {
-        currentStudents = students;
+    private void updateStudentTable(List<Student> students, boolean includeInactive) {
+        if (students == null) {
+            students = java.util.Collections.emptyList();
+        }
+
+        currentStudents = new java.util.ArrayList<>(students);
         tableModel.setRowCount(0);
 
-        boolean includeInactive = showInactiveCheckbox.isSelected();
-
         for (Student student : students) {
-            // Nếu không bao gồm inactive: chỉ hiển thị sinh viên có is_active = true VÀ
-            // student_status = ACTIVE
-            if (!includeInactive) {
-                // Kiểm tra cả is_active và student_status
-                if (!student.isActive() || student.getStudentStatus() != Student.StudentStatus.ACTIVE) {
-                    continue;
-                }
+            if (!includeInactive && !student.isActive()) {
+                continue;
             }
-            // Nếu includeInactive = true: hiển thị tất cả (không lọc)
 
             Object[] rowData = {
                     student.getStudentCode(),
@@ -981,6 +1008,18 @@ public class StudentPanel extends JPanel {
         @Override
         public String toString() {
             return name;
+        }
+    }
+
+    private static class StudentLoadResult {
+        private final List<Student> students;
+        private final boolean includeInactive;
+        private final int total;
+
+        StudentLoadResult(List<Student> students, boolean includeInactive, int total) {
+            this.students = students != null ? students : java.util.Collections.emptyList();
+            this.includeInactive = includeInactive;
+            this.total = total;
         }
     }
 }

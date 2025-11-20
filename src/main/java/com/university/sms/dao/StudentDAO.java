@@ -307,16 +307,14 @@ public class StudentDAO {
      * ✅ REFACTORED: Lấy tất cả sinh viên (chỉ active)
      */
     public List<Student> findAll() {
-        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, f.faculty_name, c.class_name "
-                +
-                ", dor.source AS data_source " +
-                "FROM students s " +
-                "JOIN users u ON s.username = u.username " +
-                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
-                "LEFT JOIN classes c ON s.class_code = c.class_code " +
-                "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
-                "WHERE u.is_active = TRUE " +
-                "ORDER BY CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
+        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, "
+                + "f.faculty_name, c.class_name "
+                + "FROM students s "
+                + "JOIN users u ON s.username = u.username "
+                + "JOIN faculties f ON s.faculty_code = f.faculty_code "
+                + "LEFT JOIN classes c ON s.class_code = c.class_code "
+                + "WHERE u.is_active = TRUE "
+                + "ORDER BY s.student_code";
 
         List<Student> students = new ArrayList<>();
 
@@ -340,15 +338,13 @@ public class StudentDAO {
      * ✅ REFACTORED: Lấy tất cả sinh viên (bao gồm cả đã vô hiệu hóa)
      */
     public List<Student> findAllIncludeInactive() {
-        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, f.faculty_name, c.class_name "
-                +
-                ", dor.source AS data_source " +
-                "FROM students s " +
-                "JOIN users u ON s.username = u.username " +
-                "JOIN faculties f ON s.faculty_code = f.faculty_code " +
-                "LEFT JOIN classes c ON s.class_code = c.class_code " +
-                "LEFT JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
-                "ORDER BY u.is_active DESC, CASE WHEN dor.source = 'CSV' THEN 0 ELSE 1 END, COALESCE(dor.source,'ZZZ'), s.student_code";
+        String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, "
+                + "f.faculty_name, c.class_name "
+                + "FROM students s "
+                + "JOIN users u ON s.username = u.username "
+                + "JOIN faculties f ON s.faculty_code = f.faculty_code "
+                + "LEFT JOIN classes c ON s.class_code = c.class_code "
+                + "ORDER BY u.is_active DESC, s.student_code";
 
         List<Student> students = new ArrayList<>();
 
@@ -366,6 +362,76 @@ public class StudentDAO {
         }
 
         return students;
+    }
+
+    /**
+     * ✅ Lấy sinh viên theo trang để tránh timeout
+     */
+    public List<Student> findPaged(boolean includeInactive, int offset, int limit) {
+        if (limit <= 0) {
+            limit = 100;
+        }
+        if (offset < 0) {
+            offset = 0;
+        }
+
+        StringBuilder sql = new StringBuilder(
+                "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, "
+                        + "f.faculty_name, c.class_name "
+                        + "FROM students s "
+                        + "JOIN users u ON s.username = u.username "
+                        + "JOIN faculties f ON s.faculty_code = f.faculty_code "
+                        + "LEFT JOIN classes c ON s.class_code = c.class_code ");
+
+        if (!includeInactive) {
+            sql.append("WHERE u.is_active = TRUE ");
+        }
+
+        sql.append("ORDER BY s.student_code LIMIT ? OFFSET ?");
+
+        List<Student> students = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            stmt.setInt(1, limit);
+            stmt.setInt(2, offset);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    students.add(mapResultSetToStudent(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding paged students", e);
+        }
+
+        return students;
+    }
+
+    public int countAll(boolean includeInactive) {
+        StringBuilder sql = new StringBuilder(
+                "SELECT COUNT(*) AS total "
+                        + "FROM students s "
+                        + "JOIN users u ON s.username = u.username ");
+        if (!includeInactive) {
+            sql.append("WHERE u.is_active = TRUE ");
+        }
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql.toString());
+                ResultSet rs = stmt.executeQuery()) {
+
+            if (rs.next()) {
+                return rs.getInt("total");
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error counting students", e);
+        }
+
+        return 0;
     }
 
     /**

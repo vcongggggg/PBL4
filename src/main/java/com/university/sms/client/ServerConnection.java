@@ -12,6 +12,7 @@ import java.util.logging.Logger;
  */
 public class ServerConnection extends BaseServerConnection {
     private static final Logger LOGGER = Logger.getLogger(ServerConnection.class.getName());
+    private static final long REQUEST_TIMEOUT_SECONDS = 60;
 
     public ServerConnection(String serverHost, int serverPort) {
         super(serverHost, serverPort);
@@ -28,7 +29,7 @@ public class ServerConnection extends BaseServerConnection {
      */
     @Override
     public Message sendRequest(Message request) {
-        return sendRequestAndWait(request, 30);
+        return sendRequestAndWait(request, REQUEST_TIMEOUT_SECONDS);
     }
 
     @Override

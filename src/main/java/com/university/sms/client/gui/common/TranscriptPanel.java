@@ -296,15 +296,16 @@ public class TranscriptPanel extends JPanel {
         int stt = 1;
         for (SemesterRecord semester : transcript.getSemesterRecords()) {
             for (CourseRecord course : semester.getCourses()) {
+                boolean hasGrade = hasCourseGrade(course);
                 Object[] row = {
                         stt++,
                         String.format("HK%d-%s", semester.getSemester(), semester.getAcademicYear()),
                         course.getCourseCode(),
                         course.getSubjectName(),
                         course.getCredits(),
-                        course.getFinalGrade() != null ? String.format("%.2f", course.getFinalGrade()) : "N/A",
-                        course.getLetterGrade() != null ? course.getLetterGrade() : "N/A",
-                        course.getGradePoints() != null ? String.format("%.2f", course.getGradePoints()) : "N/A"
+                        formatCourseGrade(course.getFinalGrade(), hasGrade),
+                        formatCourseLetter(course.getLetterGrade(), hasGrade),
+                        formatCourseGrade(course.getGradePoints(), hasGrade)
                 };
                 model.addRow(row);
             }
@@ -396,14 +397,15 @@ public class TranscriptPanel extends JPanel {
 
         int stt = 1;
         for (CourseRecord course : semester.getCourses()) {
+            boolean hasGrade = hasCourseGrade(course);
             Object[] row = {
                     stt++,
                     course.getCourseCode(),
                     course.getSubjectName(),
                     course.getCredits(),
-                    course.getFinalGrade() != null ? String.format("%.2f", course.getFinalGrade()) : "N/A",
-                    course.getLetterGrade() != null ? course.getLetterGrade() : "N/A",
-                    course.getGradePoints() != null ? String.format("%.2f", course.getGradePoints()) : "N/A",
+                    formatCourseGrade(course.getFinalGrade(), hasGrade),
+                    formatCourseLetter(course.getLetterGrade(), hasGrade),
+                    formatCourseGrade(course.getGradePoints(), hasGrade),
                     getStatusText(course.getStatus())
             };
             model.addRow(row);
@@ -464,5 +466,40 @@ public class TranscriptPanel extends JPanel {
                         "- Xếp loại: " + currentTranscript.getAcademicRank(),
                 "Xuất Học Bạ",
                 JOptionPane.INFORMATION_MESSAGE);
+    }
+
+    private boolean hasCourseGrade(CourseRecord course) {
+        if (course == null) {
+            return false;
+        }
+
+        if (course.getLetterGrade() != null && !course.getLetterGrade().trim().isEmpty()
+                && !"N/A".equalsIgnoreCase(course.getLetterGrade().trim())) {
+            return true;
+        }
+
+        if (course.getFinalGrade() != null && course.getFinalGrade().compareTo(BigDecimal.ZERO) != 0) {
+            return true;
+        }
+
+        if (course.getGradePoints() != null && course.getGradePoints().compareTo(BigDecimal.ZERO) != 0) {
+            return true;
+        }
+
+        return false;
+    }
+
+    private String formatCourseGrade(BigDecimal value, boolean hasGrade) {
+        if (!hasGrade || value == null) {
+            return "";
+        }
+        return String.format("%.2f", value);
+    }
+
+    private String formatCourseLetter(String letter, boolean hasGrade) {
+        if (!hasGrade || letter == null) {
+            return "";
+        }
+        return letter;
     }
 }

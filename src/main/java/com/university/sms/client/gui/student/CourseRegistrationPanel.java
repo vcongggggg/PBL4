@@ -17,6 +17,7 @@ import java.util.List;
 import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Panel đăng ký tín chỉ cho sinh viên
@@ -27,13 +28,14 @@ public class CourseRegistrationPanel extends JPanel {
     private static final Logger LOGGER = Logger.getLogger(CourseRegistrationPanel.class.getName());
 
     private IServerConnection serverConnection;
-    private User currentUser;
     private String studentCode;
 
     // Top table - Selected courses for registration
     private JTable selectedTable;
     private DefaultTableModel selectedModel;
     private List<Course> selectedCourses = new ArrayList<>();
+    private List<CourseRegistration> submittedRegistrations = new ArrayList<>();
+    private List<SelectedRowEntry> selectedRowEntries = new ArrayList<>();
 
     // Bottom table - Available courses
     private JTable availableTable;
@@ -78,10 +80,11 @@ public class CourseRegistrationPanel extends JPanel {
 
     private JPanel createSelectedCoursesPanel() {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
-        panel.setBorder(BorderFactory.createTitledBorder("Các môn đã chọn (Chưa đăng ký)"));
+        panel.setBorder(BorderFactory.createTitledBorder("Các môn đã chọn / đã đăng ký"));
 
         // Table columns
-        String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Sĩ số" };
+        String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Sĩ số",
+                "Trạng thái" };
         selectedModel = new DefaultTableModel(columns, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -215,7 +218,6 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     public void setCurrentUser(User user, int studentId) {
-        this.currentUser = user;
         // Get studentCode from username
         com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
         com.university.sms.model.Student student = studentDAO.findByUsername(user.getUsername());
@@ -227,10 +229,9 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     private void loadRegisteredCourses() {
-        SwingWorker<List<String>, Void> worker = new SwingWorker<>() {
+        SwingWorker<List<CourseRegistration>, Void> worker = new SwingWorker<>() {
             @Override
-            protected List<String> doInBackground() throws Exception {
-                List<String> codes = new ArrayList<>();
+            protected List<CourseRegistration> doInBackground() throws Exception {
                 Message request = Message.createRequest(Constants.ACTION_GET_MY_REGISTRATIONS);
                 request.addData("studentCode", studentCode);
 
@@ -240,23 +241,23 @@ public class CourseRegistrationPanel extends JPanel {
                     @SuppressWarnings("unchecked")
                     List<CourseRegistration> registrations = (List<CourseRegistration>) response
                             .getData(Constants.KEY_REGISTRATIONS);
-
-                    if (registrations != null) {
-                        for (CourseRegistration reg : registrations) {
-                            // Chỉ thêm những đăng ký đã được duyệt hoặc đang chờ duyệt
-                            if (reg.getRegistrationStatus() != CourseRegistration.RegistrationStatus.CANCELLED) {
-                                codes.add(reg.getCourseCode());
-                            }
-                        }
-                    }
+                    return registrations != null ? registrations : new ArrayList<>();
                 }
-                return codes;
+                return new ArrayList<>();
             }
 
             @Override
             protected void done() {
                 try {
-                    registeredCourseCodes = get();
+                    List<CourseRegistration> registrations = get();
+
+                    registeredCourseCodes = registrations.stream()
+                            .filter(reg -> reg
+                                    .getRegistrationStatus() != CourseRegistration.RegistrationStatus.CANCELLED)
+                            .map(CourseRegistration::getCourseCode)
+                            .collect(Collectors.toList());
+
+                    updateSubmittedRegistrations(registrations);
                     loadAvailableCourses(); // Load available courses AFTER registered courses are loaded
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách môn đã đăng ký", e);
@@ -408,18 +409,7 @@ public class CourseRegistrationPanel extends JPanel {
         // Add to selected list
         selectedCourses.add(courseToAdd);
 
-        // Update tables
-        selectedModel.addRow(new Object[] {
-                courseToAdd.getCourseCode(),
-                courseToAdd.getCourseName(),
-                courseToAdd.getCredits(),
-                courseToAdd.getTeacherName(),
-                courseToAdd.getScheduleDay(),
-                courseToAdd.getScheduleTime(),
-                courseToAdd.getRoom(),
-                courseToAdd.getCurrentEnrollment() + "/" + courseToAdd.getMaxStudents()
-        });
-
+        refreshSelectedCoursesTable();
         updateAvailableTable();
         updateCreditsAndConflicts();
     }
@@ -434,9 +424,22 @@ public class CourseRegistrationPanel extends JPanel {
             return;
         }
 
-        selectedCourses.remove(selectedRow);
-        selectedModel.removeRow(selectedRow);
+        if (selectedRow >= selectedRowEntries.size()) {
+            return;
+        }
 
+        SelectedRowEntry entry = selectedRowEntries.get(selectedRow);
+        if (entry.getType() == SelectedRowEntry.RowType.SUBMITTED) {
+            JOptionPane.showMessageDialog(this,
+                    "Môn học đã đăng ký không thể xóa tại đây.\nVui lòng chờ quản trị viên xử lý hoặc sử dụng mục 'Đăng ký của tôi' để hủy.",
+                    "Không thể xóa",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        selectedCourses.remove(entry.getCourse());
+
+        refreshSelectedCoursesTable();
         updateAvailableTable();
         updateCreditsAndConflicts();
     }
@@ -530,7 +533,7 @@ public class CourseRegistrationPanel extends JPanel {
                     // Clear selected courses and reload only if all succeeded
                     if (successCount == results.size() && successCount > 0) {
                         selectedCourses.clear();
-                        selectedModel.setRowCount(0);
+                        refreshSelectedCoursesTable();
                         updateCreditsAndConflicts();
                     }
                     // Reload registered courses to update the filter
@@ -650,6 +653,118 @@ public class CourseRegistrationPanel extends JPanel {
 
     private boolean isCourseRegistered(String courseCode) {
         return registeredCourseCodes.contains(courseCode);
+    }
+
+    private void refreshSelectedCoursesTable() {
+        if (selectedModel == null) {
+            return;
+        }
+
+        selectedModel.setRowCount(0);
+        selectedRowEntries.clear();
+
+        for (Course course : selectedCourses) {
+            selectedModel.addRow(new Object[] {
+                    course.getCourseCode(),
+                    course.getCourseName(),
+                    course.getCredits(),
+                    safeText(course.getTeacherName()),
+                    safeText(course.getScheduleDay()),
+                    safeText(course.getScheduleTime()),
+                    safeText(course.getRoom()),
+                    formatSeatInfo(course),
+                    "Chưa đăng ký"
+            });
+            selectedRowEntries.add(SelectedRowEntry.forDraft(course));
+        }
+
+        for (CourseRegistration registration : submittedRegistrations) {
+            selectedModel.addRow(new Object[] {
+                    registration.getCourseCode(),
+                    registration.getSubjectName(),
+                    registration.getCredits(),
+                    safeText(registration.getTeacherName()),
+                    safeText(registration.getScheduleDay()),
+                    safeText(registration.getScheduleTime()),
+                    safeText(registration.getRoom()),
+                    "-",
+                    getRegistrationStatusText(registration.getRegistrationStatus())
+            });
+            selectedRowEntries.add(SelectedRowEntry.forSubmitted());
+        }
+    }
+
+    private String formatSeatInfo(Course course) {
+        if (course == null) {
+            return "";
+        }
+        if (course.getMaxStudents() <= 0) {
+            return String.valueOf(course.getCurrentEnrollment());
+        }
+        return course.getCurrentEnrollment() + "/" + course.getMaxStudents();
+    }
+
+    private void updateSubmittedRegistrations(List<CourseRegistration> registrations) {
+        submittedRegistrations.clear();
+        if (registrations != null) {
+            for (CourseRegistration registration : registrations) {
+                if (registration.getRegistrationStatus() != CourseRegistration.RegistrationStatus.APPROVED) {
+                    submittedRegistrations.add(registration);
+                }
+            }
+        }
+        refreshSelectedCoursesTable();
+    }
+
+    private String getRegistrationStatusText(CourseRegistration.RegistrationStatus status) {
+        if (status == null) {
+            return "Đã đăng ký";
+        }
+        switch (status) {
+            case PENDING:
+                return "Đã đăng ký (Chờ duyệt)";
+            case CANCELLED:
+                return "Đã hủy";
+            case APPROVED:
+                return "Đã duyệt";
+            default:
+                return "Đã đăng ký";
+        }
+    }
+
+    private String safeText(String value) {
+        return value != null ? value : "";
+    }
+
+    private static class SelectedRowEntry {
+        enum RowType {
+            DRAFT, SUBMITTED
+        }
+
+        private final RowType type;
+        private final Course course;
+
+        private SelectedRowEntry(RowType type, Course course) {
+            this.type = type;
+            this.course = course;
+        }
+
+        static SelectedRowEntry forDraft(Course course) {
+            return new SelectedRowEntry(RowType.DRAFT, course);
+        }
+
+        static SelectedRowEntry forSubmitted() {
+            return new SelectedRowEntry(RowType.SUBMITTED, null);
+        }
+
+        RowType getType() {
+            return type;
+        }
+
+        Course getCourse() {
+            return course;
+        }
+
     }
 
     private void applySearchFilter() {
