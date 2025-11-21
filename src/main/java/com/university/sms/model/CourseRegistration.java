@@ -16,6 +16,7 @@ public class CourseRegistration implements Serializable {
     // ✅ NEW: Foreign keys dùng codes (KHÔNG bị conflict giữa clients)
     private String studentCode; // FK to students.student_code
     private String courseCode; // FK to courses.course_code
+    private String subjectCode; // FK to subjects.subject_code
 
     // Registration data
     private Timestamp registrationDate;
@@ -129,6 +130,14 @@ public class CourseRegistration implements Serializable {
 
     public void setCourseCode(String courseCode) {
         this.courseCode = courseCode;
+    }
+
+    public String getSubjectCode() {
+        return subjectCode;
+    }
+
+    public void setSubjectCode(String subjectCode) {
+        this.subjectCode = subjectCode;
     }
 
     public String getSubjectName() {

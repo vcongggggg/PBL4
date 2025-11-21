@@ -56,7 +56,6 @@ public class TranscriptPanel extends JPanel {
         refreshButton.addActionListener(e -> refreshData());
         exportButton.addActionListener(e -> exportToPDF());
 
-        // Add component listener to refresh when panel is shown
         addComponentListener(new java.awt.event.ComponentAdapter() {
             @Override
             public void componentShown(java.awt.event.ComponentEvent e) {
@@ -71,14 +70,13 @@ public class TranscriptPanel extends JPanel {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
 
-        // Title bar
         JPanel titleBar = new JPanel(new BorderLayout());
-        titleLabel = new JLabel("📊 Học Bạ & Kết Quả Học Tập", JLabel.LEFT);
+        titleLabel = new JLabel("Học Bạ & Kết Quả Học Tập", JLabel.LEFT);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        refreshButton = new JButton("🔄 Làm mới");
-        exportButton = new JButton("📥 Xuất PDF");
+        refreshButton = new JButton("Làm mới");
+        exportButton = new JButton("Xuất PDF");
 
         buttonPanel.add(refreshButton);
         buttonPanel.add(exportButton);
@@ -88,18 +86,12 @@ public class TranscriptPanel extends JPanel {
 
         add(titleBar, BorderLayout.NORTH);
 
-        // Summary panel
         summaryPanel = createSummaryPanel();
         add(summaryPanel, BorderLayout.WEST);
 
-        // Semester tabs
         semesterTabs = new JTabbedPane(JTabbedPane.TOP);
         semesterTabs.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         add(semesterTabs, BorderLayout.CENTER);
-
-        // Event listeners
-        refreshButton.addActionListener(e -> refreshData());
-        exportButton.addActionListener(e -> exportToPDF());
     }
 
     private JPanel createSummaryPanel() {
@@ -110,27 +102,22 @@ public class TranscriptPanel extends JPanel {
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)));
         panel.setPreferredSize(new Dimension(280, 0));
 
-        // GPA Card
-        JPanel gpaCard = createInfoCard("📈 GPA Tích Lũy", "0.00", Color.decode("#3498db"));
-        gpaLabel = (JLabel) ((JPanel) gpaCard.getComponent(2)).getComponent(0); // Fix: 1 -> 2
+        JPanel gpaCard = createInfoCard("GPA Tích Lũy", "0.00", Color.decode("#3498db"));
+        gpaLabel = (JLabel) ((JPanel) gpaCard.getComponent(2)).getComponent(0);
 
-        // GPA Progress Bar
-        gpaProgressBar = new JProgressBar(0, 400); // 0.00 - 4.00
+        gpaProgressBar = new JProgressBar(0, 400);
         gpaProgressBar.setStringPainted(true);
         gpaProgressBar.setForeground(Color.decode("#2ecc71"));
         gpaCard.add(gpaProgressBar);
 
-        // Rank Card
-        JPanel rankCard = createInfoCard("🏆 Xếp Loại", "Chưa có", Color.decode("#e74c3c"));
-        rankLabel = (JLabel) ((JPanel) rankCard.getComponent(2)).getComponent(0); // Fix: 1 -> 2
+        JPanel rankCard = createInfoCard("Xếp Loại", "Chưa có", Color.decode("#e74c3c"));
+        rankLabel = (JLabel) ((JPanel) rankCard.getComponent(2)).getComponent(0);
 
-        // Credits Card
-        JPanel creditsCard = createInfoCard("📚 Tín Chỉ Tích Lũy", "0", Color.decode("#f39c12"));
-        creditsLabel = (JLabel) ((JPanel) creditsCard.getComponent(2)).getComponent(0); // Fix: 1 -> 2
+        JPanel creditsCard = createInfoCard("Tín Chỉ Tích Lũy", "0", Color.decode("#f39c12"));
+        creditsLabel = (JLabel) ((JPanel) creditsCard.getComponent(2)).getComponent(0);
 
-        // Completed Card
-        JPanel completedCard = createInfoCard("✅ Môn Hoàn Thành", "0", Color.decode("#9b59b6"));
-        completedLabel = (JLabel) ((JPanel) completedCard.getComponent(2)).getComponent(0); // Fix: 1 -> 2
+        JPanel completedCard = createInfoCard("Môn Hoàn Thành", "0", Color.decode("#9b59b6"));
+        completedLabel = (JLabel) ((JPanel) completedCard.getComponent(2)).getComponent(0);
 
         panel.add(gpaCard);
         panel.add(Box.createVerticalStrut(10));
@@ -172,13 +159,10 @@ public class TranscriptPanel extends JPanel {
     }
 
     private void setupLayout() {
-        // Layout is already set up in initializeComponents
     }
 
     public void setCurrentUser(User user) {
         this.currentUser = user;
-        // Don't auto-refresh here, let ComponentListener handle it
-        // refreshData();
     }
 
     public void refreshData() {
@@ -198,9 +182,6 @@ public class TranscriptPanel extends JPanel {
                 try {
                     Message request = new Message();
                     request.setAction(Constants.ACTION_GET_TRANSCRIPT);
-
-                    // For admin/teacher viewing specific student
-                    // request.setData(Constants.KEY_STUDENT_ID, studentId);
 
                     Message response = serverConnection.sendRequest(request);
 
@@ -240,35 +221,43 @@ public class TranscriptPanel extends JPanel {
     private void displayTranscript(Transcript transcript) {
         this.currentTranscript = transcript;
 
-        // Update summary
         BigDecimal gpa = transcript.getCumulativeGPA();
-        gpaLabel.setText(String.format("%.2f", gpa.doubleValue()));
-        gpaProgressBar.setValue((int) (gpa.doubleValue() * 100));
-        gpaProgressBar.setString(String.format("%.2f / 4.00", gpa.doubleValue()));
-
-        // Update color based on GPA
-        if (gpa.doubleValue() >= 3.6) {
-            gpaProgressBar.setForeground(Color.decode("#27ae60")); // Green
-        } else if (gpa.doubleValue() >= 3.2) {
-            gpaProgressBar.setForeground(Color.decode("#3498db")); // Blue
-        } else if (gpa.doubleValue() >= 2.5) {
-            gpaProgressBar.setForeground(Color.decode("#f39c12")); // Orange
+        if (gpa == null || gpa.compareTo(BigDecimal.ZERO) == 0) {
+            gpaLabel.setText("Chưa có");
+            gpaProgressBar.setValue(0);
+            gpaProgressBar.setString("-- / 4.00");
+            gpaProgressBar.setForeground(Color.decode("#95a5a6"));
         } else {
-            gpaProgressBar.setForeground(Color.decode("#e74c3c")); // Red
+            gpaLabel.setText(String.format("%.2f", gpa.doubleValue()));
+            gpaProgressBar.setValue((int) (gpa.doubleValue() * 100));
+            gpaProgressBar.setString(String.format("%.2f / 4.00", gpa.doubleValue()));
+
+            if (gpa.doubleValue() >= 3.6) {
+                gpaProgressBar.setForeground(Color.decode("#27ae60"));
+            } else if (gpa.doubleValue() >= 3.2) {
+                gpaProgressBar.setForeground(Color.decode("#3498db"));
+            } else if (gpa.doubleValue() >= 2.5) {
+                gpaProgressBar.setForeground(Color.decode("#f39c12"));
+            } else {
+                gpaProgressBar.setForeground(Color.decode("#e74c3c"));
+            }
         }
 
-        rankLabel.setText(transcript.getAcademicRank());
+        String rank = transcript.getAcademicRank();
+        if (rank == null || rank.trim().isEmpty() || "Chưa có dữ liệu".equalsIgnoreCase(rank)) {
+            rankLabel.setText("Chưa có");
+        } else {
+            rankLabel.setText(rank);
+        }
+
         creditsLabel.setText(String.valueOf(transcript.getTotalCreditsEarned()));
         completedLabel.setText(String.valueOf(transcript.getTotalCoursesCompleted()));
 
-        // Clear and populate semester tabs
         semesterTabs.removeAll();
 
-        // Add "All Courses" tab
         JPanel allCoursesPanel = createAllCoursesPanel(transcript);
-        semesterTabs.addTab("📋 Tất Cả", allCoursesPanel);
+        semesterTabs.addTab("Tất Cả", allCoursesPanel);
 
-        // Add semester tabs
         List<SemesterRecord> semesters = transcript.getSemesterRecords();
         for (SemesterRecord semester : semesters) {
             JPanel semesterPanel = createSemesterPanel(semester);
@@ -284,7 +273,6 @@ public class TranscriptPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Create table
         String[] columnNames = { "STT", "Học kỳ", "Mã môn", "Tên môn", "Tín chỉ", "Điểm số", "Điểm chữ", "Điểm 4" };
         DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
@@ -316,7 +304,6 @@ public class TranscriptPanel extends JPanel {
         table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        // Center align numeric columns
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
         table.getColumnModel().getColumn(0).setCellRenderer(centerRenderer);
@@ -325,7 +312,6 @@ public class TranscriptPanel extends JPanel {
         table.getColumnModel().getColumn(6).setCellRenderer(centerRenderer);
         table.getColumnModel().getColumn(7).setCellRenderer(centerRenderer);
 
-        // Custom renderer for grade letters
         table.getColumnModel().getColumn(6).setCellRenderer(new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -364,20 +350,19 @@ public class TranscriptPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Semester summary
         JPanel summaryPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 10));
         summaryPanel.setBorder(BorderFactory.createCompoundBorder(
                 BorderFactory.createLineBorder(Color.LIGHT_GRAY),
                 BorderFactory.createEmptyBorder(10, 10, 10, 10)));
 
-        JLabel semesterGPALabel = new JLabel(String.format("📊 GPA Học Kỳ: %.2f",
+        JLabel semesterGPALabel = new JLabel(String.format("GPA Học Kỳ: %.2f",
                 semester.getSemesterGPA() != null ? semester.getSemesterGPA().doubleValue() : 0.0));
         semesterGPALabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
 
-        JLabel creditsLabel = new JLabel(String.format("📚 Tín Chỉ Đạt: %d", semester.getCreditsEarned()));
+        JLabel creditsLabel = new JLabel(String.format("Tín Chỉ Đạt: %d", semester.getCreditsEarned()));
         creditsLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
-        JLabel coursesLabel = new JLabel(String.format("📖 Số Môn: %d", semester.getCourses().size()));
+        JLabel coursesLabel = new JLabel(String.format("Số Môn: %d", semester.getCourses().size()));
         coursesLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
         summaryPanel.add(semesterGPALabel);
@@ -386,7 +371,6 @@ public class TranscriptPanel extends JPanel {
 
         panel.add(summaryPanel, BorderLayout.NORTH);
 
-        // Create table
         String[] columnNames = { "STT", "Mã môn", "Tên môn", "Tín chỉ", "Điểm số", "Điểm chữ", "Điểm 4", "Trạng thái" };
         DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
@@ -416,11 +400,10 @@ public class TranscriptPanel extends JPanel {
         table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
 
-        // Center align columns
         DefaultTableCellRenderer centerRenderer = new DefaultTableCellRenderer();
         centerRenderer.setHorizontalAlignment(JLabel.CENTER);
         for (int i = 0; i < 8; i++) {
-            if (i != 2) { // Don't center subject name
+            if (i != 2) {
                 table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
             }
         }
@@ -436,13 +419,13 @@ public class TranscriptPanel extends JPanel {
             return "N/A";
         switch (status.toLowerCase()) {
             case "completed":
-                return "✅ Hoàn thành";
+                return "Hoàn thành";
             case "failed":
-                return "❌ Không đạt";
+                return "Không đạt";
             case "enrolled":
-                return "📝 Đang học";
+                return "Đang học";
             case "dropped":
-                return "⛔ Bỏ học";
+                return "Bỏ học";
             default:
                 return status;
         }

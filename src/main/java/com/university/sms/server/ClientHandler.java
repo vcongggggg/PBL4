@@ -90,26 +90,25 @@ public class ClientHandler implements Runnable {
             outputStream = new ObjectOutputStream(clientSocket.getOutputStream());
             inputStream = new ObjectInputStream(clientSocket.getInputStream());
 
-            LOGGER.info("Client connected: " + clientSocket.getRemoteSocketAddress());
+            LOGGER.info("Client đã kết nối: " + clientSocket.getRemoteSocketAddress());
 
-            // Lắng nghe tin nhắn từ client
             while (isConnected && !clientSocket.isClosed()) {
                 try {
                     Message request = (Message) inputStream.readObject();
-                    LOGGER.info("Received request: " + request.getAction() + " from " +
+                    LOGGER.info("Nhận yêu cầu: " + request.getAction() + " từ " +
                             (currentUser != null ? currentUser.getUsername() : "anonymous"));
 
                     Message response = processRequest(request);
                     sendResponse(response);
 
                 } catch (SocketException e) {
-                    LOGGER.info("Client disconnected: " + clientSocket.getRemoteSocketAddress());
+                    LOGGER.info("Client đã ngắt kết nối: " + clientSocket.getRemoteSocketAddress());
                     break;
                 } catch (EOFException e) {
-                    LOGGER.info("Client connection ended: " + clientSocket.getRemoteSocketAddress());
+                    LOGGER.info("Kết nối client đã kết thúc: " + clientSocket.getRemoteSocketAddress());
                     break;
                 } catch (Exception e) {
-                    LOGGER.log(Level.SEVERE, "Error processing client request", e);
+                    LOGGER.log(Level.SEVERE, "Lỗi khi xử lý yêu cầu từ client", e);
 
                     Message errorResponse = Message.createErrorResponse("ERROR", "Server error occurred");
                     sendResponse(errorResponse);
@@ -117,7 +116,7 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (IOException e) {
-            LOGGER.log(Level.SEVERE, "Error initializing client handler", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi khởi tạo client handler", e);
         } finally {
             disconnect();
         }
@@ -325,6 +324,8 @@ public class ClientHandler implements Runnable {
                     return handleGetStudentCredits(request);
                 case Constants.ACTION_GET_REGISTRATION_STATS:
                     return handleGetRegistrationStats(request);
+                case Constants.ACTION_GET_COMPLETED_SUBJECT_CODES:
+                    return handleGetCompletedSubjectCodes(request);
 
                 // Hành động thông báo
                 case Constants.ACTION_GET_NOTIFICATIONS:
@@ -361,7 +362,7 @@ public class ClientHandler implements Runnable {
             }
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error processing action: " + action, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi xử lý hành động: " + action, e);
             return Message.createErrorResponse(action, Constants.MSG_SERVER_ERROR);
         }
     }
@@ -390,7 +391,7 @@ public class ClientHandler implements Runnable {
             Message response = Message.createSuccessResponse(Constants.ACTION_LOGIN, Constants.MSG_LOGIN_SUCCESS);
             response.addData(Constants.KEY_USER, user);
 
-            LOGGER.info("User logged in successfully: " + username);
+            LOGGER.info("Người dùng đăng nhập thành công: " + username);
             return response;
         } else {
             // Ghi log lần đăng nhập thất bại
@@ -412,7 +413,7 @@ public class ClientHandler implements Runnable {
                 }
             }
 
-            LOGGER.warning("Login failed for user " + username + ": " + errorMessage);
+            LOGGER.warning("Đăng nhập thất bại cho người dùng " + username + ": " + errorMessage);
             return Message.createErrorResponse(Constants.ACTION_LOGIN, errorMessage);
         }
     }
@@ -422,7 +423,7 @@ public class ClientHandler implements Runnable {
      */
     private Message handleLogout(Message request) {
         if (currentUser != null) {
-            LOGGER.info("User logged out: " + currentUser.getUsername());
+            LOGGER.info("Người dùng đã đăng xuất: " + currentUser.getUsername());
             currentUser = null;
         }
         return Message.createSuccessResponse(Constants.ACTION_LOGOUT, Constants.MSG_LOGOUT_SUCCESS);
@@ -717,7 +718,7 @@ public class ClientHandler implements Runnable {
                         "Không thể tạo tài khoản người dùng. Username có thể đã tồn tại.");
             }
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error preparing user for student: " + student.getStudentCode(), e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi chuẩn bị user cho sinh viên: " + student.getStudentCode(), e);
             return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT,
                     "Lỗi khi tạo tài khoản: " + e.getMessage());
         }
@@ -733,7 +734,8 @@ public class ClientHandler implements Runnable {
         boolean ok = studentService.addStudent(student);
         if (ok) {
             saveDataOrigin("student", student.getStudentId(), clientSource);
-            LOGGER.info("Student added successfully: " + student.getStudentCode() + " by " + currentUser.getUsername());
+            LOGGER.info(
+                    "Đã thêm sinh viên thành công: " + student.getStudentCode() + " bởi " + currentUser.getUsername());
             return Message.createSuccessResponse(Constants.ACTION_ADD_STUDENT, "Thêm sinh viên thành công");
         }
         return Message.createErrorResponse(Constants.ACTION_ADD_STUDENT, "Không thể thêm sinh viên. Vui lòng thử lại.");
@@ -1071,7 +1073,8 @@ public class ClientHandler implements Runnable {
                     }
                 }
 
-                LOGGER.info("Student deactivated: " + student.getStudentCode() + " by " + currentUser.getUsername());
+                LOGGER.info(
+                        "Đã vô hiệu hóa sinh viên: " + student.getStudentCode() + " bởi " + currentUser.getUsername());
 
                 Student updatedStudent = studentDAO.findByStudentCode(studentCode);
 
@@ -1085,7 +1088,7 @@ public class ClientHandler implements Runnable {
                 return Message.createErrorResponse(request.getAction(), "Không thể vô hiệu hóa sinh viên");
             }
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error deactivating student", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi vô hiệu hóa sinh viên", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
@@ -1095,9 +1098,9 @@ public class ClientHandler implements Runnable {
      */
     private Message handleGetAllCourses(Message request) {
         try {
-            LOGGER.info("Getting all courses...");
+            LOGGER.info("Đang lấy danh sách tất cả khóa học...");
             var courses = courseService.getAllCourses();
-            LOGGER.info("Found " + courses.size() + " courses");
+            LOGGER.info("Tìm thấy " + courses.size() + " khóa học");
             // Sử dụng cùng action như request để khớp response đúng
             String responseAction = request.getAction();
             Message response = Message.createSuccessResponse(responseAction, "Lấy danh sách khóa học thành công");
@@ -1223,7 +1226,7 @@ public class ClientHandler implements Runnable {
         // Thực hiện hủy/xóa lớp (logic hybrid tự động quyết định)
         boolean ok = courseService.deleteCourse(courseCode);
         if (ok) {
-            LOGGER.info("Course deleted/cancelled successfully: " + courseCode + " by " + currentUser.getUsername());
+            LOGGER.info("Đã xóa/hủy khóa học thành công: " + courseCode + " bởi " + currentUser.getUsername());
             return Message.createSuccessResponse(Constants.ACTION_DELETE_COURSE, "Hủy lớp học phần thành công");
         }
         return Message.createErrorResponse(Constants.ACTION_DELETE_COURSE,
@@ -1248,7 +1251,7 @@ public class ClientHandler implements Runnable {
             return Message.createErrorResponse(request.getAction(),
                     "Lớp học phần đang trong trạng thái không thể mở đăng ký.");
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error opening course registration", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi mở đăng ký khóa học", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
@@ -1272,7 +1275,7 @@ public class ClientHandler implements Runnable {
             response.addData(Constants.KEY_STATUS, result.getFinalStatus());
             return response;
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error closing course registration", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi đóng đăng ký khóa học", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
@@ -4096,6 +4099,31 @@ public class ClientHandler implements Runnable {
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy registration stats: " + e.getMessage());
             return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetCompletedSubjectCodes(Message request) {
+        try {
+            String studentCode = request.getData("studentCode", String.class);
+            if ((studentCode == null || studentCode.isEmpty()) && currentUser != null
+                    && currentUser.getRole() == User.UserRole.STUDENT) {
+                var student = studentService.findByUsername(currentUser.getUsername());
+                if (student != null) {
+                    studentCode = student.getStudentCode();
+                }
+            }
+
+            if (studentCode == null || studentCode.trim().isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code is required");
+            }
+
+            List<String> subjectCodes = transcriptService.getCompletedSubjectCodes(studentCode.trim());
+            Message response = Message.createSuccessResponse(request.getAction(), "Success");
+            response.addData(Constants.KEY_SUBJECT_CODES, subjectCodes);
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting completed subject codes", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
     }
 

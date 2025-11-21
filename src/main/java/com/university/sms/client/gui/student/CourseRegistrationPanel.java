@@ -5,16 +5,23 @@ import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.Course;
 import com.university.sms.model.CourseRegistration;
+import com.university.sms.model.Subject;
+import com.university.sms.model.Transcript;
 import com.university.sms.model.User;
 
 import javax.swing.*;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ComponentAdapter;
+import java.awt.event.ComponentEvent;
 import java.util.ArrayList;
+import java.util.Collections;
 import java.util.HashMap;
+import java.util.HashSet;
 import java.util.List;
 import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -30,50 +37,59 @@ public class CourseRegistrationPanel extends JPanel {
     private IServerConnection serverConnection;
     private String studentCode;
 
-    // Top table - Selected courses for registration
     private JTable selectedTable;
     private DefaultTableModel selectedModel;
     private List<Course> selectedCourses = new ArrayList<>();
     private List<CourseRegistration> submittedRegistrations = new ArrayList<>();
     private List<SelectedRowEntry> selectedRowEntries = new ArrayList<>();
+    private JButton removeSelectedButton;
+    private JButton cancelRegistrationButton;
 
-    // Bottom table - Available courses
     private JTable availableTable;
     private DefaultTableModel availableModel;
     private List<Course> availableCourses = new ArrayList<>();
 
-    // Registered courses (already in database)
     private List<String> registeredCourseCodes = new ArrayList<>();
+    private final Set<String> registeredSubjectCodes = new HashSet<>();
 
-    // UI Components
     private JLabel totalCreditsLabel;
     private JLabel conflictLabel;
     private JButton registerButton;
     private JTextField searchField;
 
+    private final Map<String, String> prerequisiteBySubject = new HashMap<>();
+    private final Map<String, String> subjectNameByCode = new HashMap<>();
+    private final Set<String> completedSubjectCodes = new HashSet<>();
+    private boolean prerequisiteDataLoaded;
+    private boolean prerequisiteDataLoading;
+    private boolean prerequisiteChecksAvailable;
+
     public CourseRegistrationPanel() {
         initComponents();
+
+        addComponentListener(new ComponentAdapter() {
+            @Override
+            public void componentShown(ComponentEvent e) {
+                refreshData();
+            }
+        });
     }
 
     private void initComponents() {
         setLayout(new BorderLayout(10, 10));
         setBorder(BorderFactory.createEmptyBorder(10, 10, 10, 10));
 
-        // Split pane for top (selected) and bottom (available) tables
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
-        splitPane.setResizeWeight(0.4); // 40% top, 60% bottom
+        splitPane.setResizeWeight(0.4);
 
-        // Top Panel: Selected Courses
         JPanel topPanel = createSelectedCoursesPanel();
         splitPane.setTopComponent(topPanel);
 
-        // Bottom Panel: Available Courses
         JPanel bottomPanel = createAvailableCoursesPanel();
         splitPane.setBottomComponent(bottomPanel);
 
         add(splitPane, BorderLayout.CENTER);
 
-        // Control buttons at the bottom
         JPanel controlPanel = createControlPanel();
         add(controlPanel, BorderLayout.SOUTH);
     }
@@ -82,7 +98,6 @@ public class CourseRegistrationPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createTitledBorder("Các môn đã chọn / đã đăng ký"));
 
-        // Table columns
         String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Sĩ số",
                 "Trạng thái" };
         selectedModel = new DefaultTableModel(columns, 0) {
@@ -95,14 +110,24 @@ public class CourseRegistrationPanel extends JPanel {
         selectedTable = new JTable(selectedModel);
         selectedTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         selectedTable.setRowHeight(25);
+        selectedTable.getSelectionModel().addListSelectionListener(e -> {
+            if (!e.getValueIsAdjusting()) {
+                updateSelectedActionButtons();
+            }
+        });
 
         JScrollPane scrollPane = new JScrollPane(selectedTable);
 
-        // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
-        JButton removeBtn = new JButton("Xóa khỏi danh sách");
-        removeBtn.addActionListener(e -> removeSelectedCourse());
-        buttonPanel.add(removeBtn);
+        removeSelectedButton = new JButton("Xóa khỏi danh sách");
+        removeSelectedButton.setEnabled(false);
+        removeSelectedButton.addActionListener(e -> removeSelectedCourse());
+        buttonPanel.add(removeSelectedButton);
+
+        cancelRegistrationButton = new JButton("Hủy đăng ký");
+        cancelRegistrationButton.setEnabled(false);
+        cancelRegistrationButton.addActionListener(e -> cancelSubmittedRegistration());
+        buttonPanel.add(cancelRegistrationButton);
 
         panel.add(scrollPane, BorderLayout.CENTER);
         panel.add(buttonPanel, BorderLayout.SOUTH);
@@ -114,7 +139,6 @@ public class CourseRegistrationPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(5, 5));
         panel.setBorder(BorderFactory.createTitledBorder("Danh sách môn học có thể đăng ký"));
 
-        // Search panel
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.add(new JLabel("Tìm kiếm:"));
         searchField = new JTextField(30);
@@ -126,10 +150,15 @@ public class CourseRegistrationPanel extends JPanel {
         searchPanel.add(searchBtn);
 
         JButton refreshBtn = new JButton("Làm mới");
-        refreshBtn.addActionListener(e -> loadAvailableCourses());
+        refreshBtn.addActionListener(e -> {
+            if (!prerequisiteDataLoaded) {
+                startDataFlow();
+            } else {
+                loadAvailableCourses();
+            }
+        });
         searchPanel.add(refreshBtn);
 
-        // Table columns
         String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Còn lại/Tối đa",
                 "Trạng thái" };
         availableModel = new DefaultTableModel(columns, 0) {
@@ -143,7 +172,6 @@ public class CourseRegistrationPanel extends JPanel {
         availableTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         availableTable.setRowHeight(25);
 
-        // Color coding for status
         availableTable.setDefaultRenderer(Object.class, new DefaultTableCellRenderer() {
             @Override
             public Component getTableCellRendererComponent(JTable table, Object value,
@@ -153,11 +181,11 @@ public class CourseRegistrationPanel extends JPanel {
                 if (!isSelected) {
                     String status = (String) table.getValueAt(row, 8);
                     if ("Đã đầy".equals(status)) {
-                        c.setBackground(new Color(255, 205, 210)); // Light red
+                        c.setBackground(new Color(255, 205, 210));
                     } else if ("Đã đăng ký".equals(status)) {
-                        c.setBackground(new Color(200, 230, 201)); // Light green
+                        c.setBackground(new Color(200, 230, 201));
                     } else if ("Đã chọn".equals(status)) {
-                        c.setBackground(new Color(255, 245, 157)); // Light yellow
+                        c.setBackground(new Color(255, 245, 157));
                     } else {
                         c.setBackground(Color.WHITE);
                     }
@@ -185,7 +213,6 @@ public class CourseRegistrationPanel extends JPanel {
         JPanel panel = new JPanel(new BorderLayout(10, 10));
         panel.setBorder(BorderFactory.createEmptyBorder(10, 0, 0, 0));
 
-        // Info panel
         JPanel infoPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 20, 5));
         totalCreditsLabel = new JLabel("Tổng tín chỉ đã chọn: 0");
         totalCreditsLabel.setFont(totalCreditsLabel.getFont().deriveFont(Font.BOLD, 14f));
@@ -197,7 +224,6 @@ public class CourseRegistrationPanel extends JPanel {
         infoPanel.add(totalCreditsLabel);
         infoPanel.add(conflictLabel);
 
-        // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         registerButton = new JButton("Đăng Ký Các Môn Đã Chọn");
         registerButton.setFont(registerButton.getFont().deriveFont(Font.BOLD, 14f));
@@ -218,17 +244,200 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     public void setCurrentUser(User user, int studentId) {
-        // Get studentCode from username
         com.university.sms.dao.StudentDAO studentDAO = new com.university.sms.dao.StudentDAO();
         com.university.sms.model.Student student = studentDAO.findByUsername(user.getUsername());
         this.studentCode = student != null ? student.getStudentCode() : null;
         if (serverConnection != null) {
-            loadRegisteredCourses(); // Load courses already registered by student first
-            // loadAvailableCourses() will be called after registered courses are loaded
+            prerequisiteDataLoaded = false;
+            prerequisiteDataLoading = false;
+            prerequisiteChecksAvailable = false;
+            prerequisiteBySubject.clear();
+            subjectNameByCode.clear();
+            completedSubjectCodes.clear();
+            selectedCourses.clear();
+            submittedRegistrations.clear();
+            selectedRowEntries.clear();
+            registeredCourseCodes.clear();
+            registeredSubjectCodes.clear();
+            refreshSelectedCoursesTable();
+            startDataFlow(); // Load prerequisites first, then registrations/courses
         }
     }
 
+    private void startDataFlow() {
+        if (serverConnection == null || studentCode == null || studentCode.trim().isEmpty()) {
+            return;
+        }
+        if (prerequisiteDataLoaded) {
+            loadRegisteredCourses();
+        } else {
+            loadPrerequisiteData();
+        }
+    }
+
+    private void loadPrerequisiteData() {
+        if (prerequisiteDataLoading || serverConnection == null || studentCode == null) {
+            return;
+        }
+
+        prerequisiteDataLoading = true;
+
+        SwingWorker<PrerequisiteDataBundle, Void> worker = new SwingWorker<>() {
+            @Override
+            protected PrerequisiteDataBundle doInBackground() throws Exception {
+                Map<String, String> prereqMap = new HashMap<>();
+                Map<String, String> nameMap = new HashMap<>();
+                boolean subjectsLoaded = true;
+
+                try {
+                    Message subjectRequest = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
+                    Message subjectResponse = serverConnection.sendRequest(subjectRequest);
+
+                    if (subjectResponse != null && subjectResponse.isSuccess()) {
+                        @SuppressWarnings("unchecked")
+                        List<Subject> subjects = (List<Subject>) subjectResponse.getData(Constants.KEY_SUBJECTS);
+                        if (subjects != null) {
+                            for (Subject subject : subjects) {
+                                String code = normalizeSubjectCode(subject.getSubjectCode());
+                                if (code == null) {
+                                    continue;
+                                }
+                                prereqMap.put(code, normalizeSubjectCode(subject.getPrerequisiteSubjectCode()));
+                                nameMap.put(code, subject.getSubjectName());
+                            }
+                        }
+                    } else {
+                        String msg = subjectResponse != null ? subjectResponse.getMessage()
+                                : "Không nhận được dữ liệu môn học";
+                        throw new IllegalStateException("Không thể tải danh sách môn học: " + msg);
+                    }
+                } catch (Exception subjectError) {
+                    subjectsLoaded = false;
+                    LOGGER.log(Level.WARNING, "Không thể tải danh sách môn học, sẽ bỏ qua kiểm tra môn tiên quyết",
+                            subjectError);
+                    prereqMap.clear();
+                    nameMap.clear();
+                }
+
+                Set<String> completedSubjects;
+                boolean transcriptLoaded = true;
+                try {
+                    completedSubjects = fetchCompletedSubjectCodes();
+                } catch (Exception transcriptError) {
+                    LOGGER.log(Level.WARNING,
+                            "Không thể tải danh sách môn đã hoàn thành, sẽ bỏ qua kiểm tra môn tiên quyết",
+                            transcriptError);
+                    completedSubjects = Collections.emptySet();
+                    transcriptLoaded = false;
+                }
+                return new PrerequisiteDataBundle(prereqMap, nameMap, completedSubjects, transcriptLoaded,
+                        subjectsLoaded);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    PrerequisiteDataBundle data = get();
+                    prerequisiteBySubject.clear();
+                    prerequisiteBySubject.putAll(data.prerequisiteMap);
+                    subjectNameByCode.clear();
+                    subjectNameByCode.putAll(data.subjectNames);
+                    completedSubjectCodes.clear();
+                    completedSubjectCodes.addAll(data.completedSubjects);
+                    prerequisiteChecksAvailable = data.transcriptLoaded && data.subjectsLoaded
+                            && !prerequisiteBySubject.isEmpty();
+                    if (!data.subjectsLoaded) {
+                        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(
+                                CourseRegistrationPanel.this,
+                                "Không thể tải danh sách môn học. Sẽ bỏ qua kiểm tra môn tiên quyết.",
+                                "Thông báo",
+                                JOptionPane.INFORMATION_MESSAGE));
+                    } else if (!data.transcriptLoaded) {
+                        SwingUtilities.invokeLater(() -> JOptionPane.showMessageDialog(
+                                CourseRegistrationPanel.this,
+                                "Không thể tải danh sách môn đã hoàn thành. Sẽ bỏ qua việc kiểm tra môn tiên quyết.",
+                                "Thông báo",
+                                JOptionPane.INFORMATION_MESSAGE));
+                    }
+                    prerequisiteDataLoaded = true;
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Lỗi khi tải dữ liệu môn tiên quyết", e);
+                    JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
+                            "Không thể tải dữ liệu môn tiên quyết: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                } finally {
+                    prerequisiteDataLoading = false;
+                    if (prerequisiteDataLoaded) {
+                        loadRegisteredCourses();
+                    }
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private Set<String> fetchCompletedSubjectCodes() throws Exception {
+        Message transcriptRequest = Message.createRequest(Constants.ACTION_GET_TRANSCRIPT);
+        transcriptRequest.addData("studentCode", studentCode);
+        Message response = serverConnection.sendRequest(transcriptRequest);
+
+        if (response == null || !response.isSuccess()) {
+            String msg = response != null ? response.getMessage() : "Không nhận được dữ liệu bảng điểm";
+            throw new IllegalStateException("Không thể tải bảng điểm sinh viên: " + msg);
+        }
+
+        Transcript transcript = (Transcript) response.getData(Constants.KEY_TRANSCRIPT);
+        Set<String> completed = new HashSet<>();
+
+        if (transcript != null && transcript.getSemesterRecords() != null) {
+            for (Transcript.SemesterRecord semester : transcript.getSemesterRecords()) {
+                if (semester == null || semester.getCourses() == null) {
+                    continue;
+                }
+                for (Transcript.CourseRecord courseRecord : semester.getCourses()) {
+                    if (courseRecord == null) {
+                        continue;
+                    }
+                    if (isCourseRecordCompleted(courseRecord)) {
+                        String code = normalizeSubjectCode(courseRecord.getSubjectCode());
+                        if (code != null) {
+                            completed.add(code);
+                        }
+                    }
+                }
+            }
+        }
+
+        return completed;
+    }
+
+    private boolean isCourseRecordCompleted(Transcript.CourseRecord courseRecord) {
+        if (courseRecord.getSubjectCode() == null) {
+            return false;
+        }
+        String status = courseRecord.getStatus();
+        if (status == null) {
+            return false;
+        }
+        if (!"completed".equalsIgnoreCase(status)) {
+            return false;
+        }
+        return courseRecord.getGradePoints() != null
+                && courseRecord.getGradePoints().compareTo(java.math.BigDecimal.ZERO) > 0;
+    }
+
     private void loadRegisteredCourses() {
+        if (studentCode == null || studentCode.trim().isEmpty()) {
+            return;
+        }
+        if (!prerequisiteDataLoaded) {
+            if (!prerequisiteDataLoading) {
+                loadPrerequisiteData();
+            }
+            return;
+        }
+
         SwingWorker<List<CourseRegistration>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<CourseRegistration> doInBackground() throws Exception {
@@ -257,8 +466,19 @@ public class CourseRegistrationPanel extends JPanel {
                             .map(CourseRegistration::getCourseCode)
                             .collect(Collectors.toList());
 
+                    registeredSubjectCodes.clear();
+                    for (CourseRegistration reg : registrations) {
+                        if (reg.getRegistrationStatus() == CourseRegistration.RegistrationStatus.CANCELLED) {
+                            continue;
+                        }
+                        String code = normalizeSubjectCode(reg.getSubjectCode());
+                        if (code != null) {
+                            registeredSubjectCodes.add(code);
+                        }
+                    }
+
                     updateSubmittedRegistrations(registrations);
-                    loadAvailableCourses(); // Load available courses AFTER registered courses are loaded
+                    loadAvailableCourses();
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách môn đã đăng ký", e);
                     SwingUtilities.invokeLater(() -> {
@@ -274,6 +494,16 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     private void loadAvailableCourses() {
+        if (studentCode == null || studentCode.trim().isEmpty()) {
+            return;
+        }
+        if (!prerequisiteDataLoaded) {
+            if (!prerequisiteDataLoading) {
+                loadPrerequisiteData();
+            }
+            return;
+        }
+
         SwingWorker<List<Course>, Void> worker = new SwingWorker<>() {
             @Override
             protected List<Course> doInBackground() throws Exception {
@@ -308,6 +538,7 @@ public class CourseRegistrationPanel extends JPanel {
     private void updateAvailableTable() {
         availableModel.setRowCount(0);
         String searchText = searchField.getText().trim().toLowerCase();
+        Set<String> lockedSubjects = getLockedSubjectCodes();
 
         for (Course course : availableCourses) {
             // Skip if already selected or registered
@@ -320,6 +551,15 @@ public class CourseRegistrationPanel extends JPanel {
             }
 
             if (course.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+                continue;
+            }
+
+            String subjectCode = normalizeSubjectCode(course.getSubjectCode());
+            if (subjectCode != null && lockedSubjects.contains(subjectCode)) {
+                continue;
+            }
+
+            if (!isCourseEligibleForStudent(course)) {
                 continue;
             }
 
@@ -353,6 +593,14 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     private void addSelectedCourse() {
+        if (!prerequisiteDataLoaded) {
+            JOptionPane.showMessageDialog(this,
+                    "Dữ liệu môn tiên quyết đang được tải. Vui lòng thử lại sau.",
+                    "Đang tải dữ liệu",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
         int selectedRow = availableTable.getSelectedRow();
         if (selectedRow < 0) {
             JOptionPane.showMessageDialog(this,
@@ -364,7 +612,6 @@ public class CourseRegistrationPanel extends JPanel {
 
         String courseCode = (String) availableModel.getValueAt(selectedRow, 0);
 
-        // Find course in availableCourses
         Course courseToAdd = null;
         for (Course c : availableCourses) {
             if (c.getCourseCode().equals(courseCode)) {
@@ -385,10 +632,30 @@ public class CourseRegistrationPanel extends JPanel {
             return;
         }
 
-        // Check if already full
         if (courseToAdd.getCurrentEnrollment() >= courseToAdd.getMaxStudents()) {
             JOptionPane.showMessageDialog(this,
                     "Lớp học này đã đầy!",
+                    "Không thể thêm",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        Set<String> lockedSubjects = getLockedSubjectCodes();
+        String subjectCode = normalizeSubjectCode(courseToAdd.getSubjectCode());
+        if (subjectCode != null && lockedSubjects.contains(subjectCode)) {
+            JOptionPane.showMessageDialog(this,
+                    "Bạn đã có lớp khác của môn học này. Vui lòng hủy trước khi chọn lớp mới.",
+                    "Không thể thêm",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        if (!isCourseEligibleForStudent(courseToAdd)) {
+            String requiredCode = prerequisiteBySubject
+                    .getOrDefault(normalizeSubjectCode(courseToAdd.getSubjectCode()), "");
+            JOptionPane.showMessageDialog(this,
+                    "Bạn phải hoàn thành môn tiên quyết trước: "
+                            + getPrerequisiteDisplayName(requiredCode),
                     "Không thể thêm",
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -412,6 +679,7 @@ public class CourseRegistrationPanel extends JPanel {
         refreshSelectedCoursesTable();
         updateAvailableTable();
         updateCreditsAndConflicts();
+        updateSelectedActionButtons();
     }
 
     private void removeSelectedCourse() {
@@ -425,6 +693,14 @@ public class CourseRegistrationPanel extends JPanel {
         }
 
         if (selectedRow >= selectedRowEntries.size()) {
+            return;
+        }
+
+        if (serverConnection == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Chưa kết nối tới máy chủ. Vui lòng thử lại sau.",
+                    "Lỗi kết nối",
+                    JOptionPane.ERROR_MESSAGE);
             return;
         }
 
@@ -444,12 +720,117 @@ public class CourseRegistrationPanel extends JPanel {
         updateCreditsAndConflicts();
     }
 
+    private void cancelSubmittedRegistration() {
+        int selectedRow = selectedTable.getSelectedRow();
+        if (selectedRow < 0 || selectedRow >= selectedRowEntries.size()) {
+            JOptionPane.showMessageDialog(this,
+                    "Vui lòng chọn một đăng ký để hủy",
+                    "Thông báo",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        SelectedRowEntry entry = selectedRowEntries.get(selectedRow);
+        if (entry.getType() != SelectedRowEntry.RowType.SUBMITTED || entry.getRegistration() == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Chỉ có thể hủy những đăng ký đã gửi lên hệ thống.",
+                    "Thông báo",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        CourseRegistration registration = entry.getRegistration();
+        if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.CANCELLED) {
+            JOptionPane.showMessageDialog(this,
+                    "Đăng ký này đã được hủy trước đó.",
+                    "Thông báo",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        if (studentCode == null || studentCode.trim().isEmpty()) {
+            JOptionPane.showMessageDialog(this,
+                    "Không tìm thấy mã sinh viên để hủy đăng ký.",
+                    "Lỗi",
+                    JOptionPane.ERROR_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                "Bạn có chắc muốn hủy đăng ký môn " + registration.getSubjectName() + "?",
+                "Xác nhận hủy đăng ký",
+                JOptionPane.YES_NO_OPTION);
+
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        SwingWorker<Boolean, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Boolean doInBackground() throws Exception {
+                Message request = Message.createRequest(Constants.ACTION_CANCEL_REGISTRATION);
+                request.addData(Constants.KEY_REGISTRATION_ID, registration.getRegistrationId());
+                request.addData("studentCode", studentCode);
+
+                Message response = serverConnection.sendRequest(request);
+                if (response != null && response.isSuccess()) {
+                    return true;
+                }
+                String error = response != null ? response.getMessage() : "Không nhận được phản hồi từ server";
+                throw new IllegalStateException(error);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    get();
+                    JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
+                            "Đã hủy đăng ký thành công.",
+                            "Thành công",
+                            JOptionPane.INFORMATION_MESSAGE);
+                    loadRegisteredCourses();
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Lỗi khi hủy đăng ký môn học", e);
+                    JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
+                            "Không thể hủy đăng ký: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+
+        worker.execute();
+    }
+
     private void registerSelectedCourses() {
+        if (!prerequisiteDataLoaded) {
+            JOptionPane.showMessageDialog(this,
+                    "Dữ liệu môn tiên quyết đang được tải. Vui lòng thử lại sau.",
+                    "Đang tải dữ liệu",
+                    JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
         if (selectedCourses.isEmpty()) {
             JOptionPane.showMessageDialog(this,
                     "Vui lòng chọn ít nhất một môn học để đăng ký",
                     "Thông báo",
                     JOptionPane.INFORMATION_MESSAGE);
+            return;
+        }
+
+        List<Course> invalidCourses = selectedCourses.stream()
+                .filter(course -> !isCourseEligibleForStudent(course))
+                .collect(Collectors.toList());
+        if (!invalidCourses.isEmpty()) {
+            Course invalid = invalidCourses.get(0);
+            String requiredCode = prerequisiteBySubject
+                    .getOrDefault(normalizeSubjectCode(invalid.getSubjectCode()), "");
+            JOptionPane.showMessageDialog(this,
+                    String.format("Không thể đăng ký %s vì chưa hoàn thành môn tiên quyết: %s",
+                            invalid.getCourseName(), getPrerequisiteDisplayName(requiredCode)),
+                    "Thiếu môn tiên quyết",
+                    JOptionPane.WARNING_MESSAGE);
             return;
         }
 
@@ -475,7 +856,6 @@ public class CourseRegistrationPanel extends JPanel {
             return;
         }
 
-        // Register courses
         SwingWorker<Map<Course, String>, Void> worker = new SwingWorker<>() {
             @Override
             protected Map<Course, String> doInBackground() throws Exception {
@@ -530,13 +910,11 @@ public class CourseRegistrationPanel extends JPanel {
                             successCount == results.size() ? JOptionPane.INFORMATION_MESSAGE
                                     : JOptionPane.WARNING_MESSAGE);
 
-                    // Clear selected courses and reload only if all succeeded
                     if (successCount == results.size() && successCount > 0) {
                         selectedCourses.clear();
                         refreshSelectedCoursesTable();
                         updateCreditsAndConflicts();
                     }
-                    // Reload registered courses to update the filter
                     loadRegisteredCourses();
 
                 } catch (Exception e) {
@@ -572,26 +950,21 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     private boolean isTimeConflict(Course c1, Course c2) {
-        // Check NULL for scheduleDay
         if (c1.getScheduleDay() == null || c2.getScheduleDay() == null) {
             return false;
         }
 
-        // Different days = no conflict
         if (!c1.getScheduleDay().equals(c2.getScheduleDay())) {
             return false;
         }
 
-        // Check NULL for scheduleTime
         if (c1.getScheduleTime() == null || c2.getScheduleTime() == null) {
             return false;
         }
 
-        // Parse time slots (e.g., "7:00-9:00" or "Tiết 1-3 (07:00-09:30)")
         String scheduleTime1 = c1.getScheduleTime().trim();
         String scheduleTime2 = c2.getScheduleTime().trim();
 
-        // Extract time range if format is "Tiết X-Y (HH:MM-HH:MM)"
         if (scheduleTime1.contains("(") && scheduleTime1.contains(")")) {
             int start = scheduleTime1.indexOf("(");
             int end = scheduleTime1.indexOf(")");
@@ -604,7 +977,6 @@ public class CourseRegistrationPanel extends JPanel {
             scheduleTime2 = scheduleTime2.substring(start + 1, end).trim();
         }
 
-        // Split by "-" to get start and end time
         String[] time1 = scheduleTime1.split("-");
         String[] time2 = scheduleTime2.split("-");
 
@@ -613,7 +985,6 @@ public class CourseRegistrationPanel extends JPanel {
         }
 
         try {
-            // Simple overlap check: if end1 <= start2 OR end2 <= start1, no conflict
             return !(time1[1].trim().compareTo(time2[0].trim()) <= 0 ||
                     time2[1].trim().compareTo(time1[0].trim()) <= 0);
         } catch (Exception e) {
@@ -632,6 +1003,72 @@ public class CourseRegistrationPanel extends JPanel {
         }
 
         registerButton.setEnabled(!selectedCourses.isEmpty());
+    }
+
+    private void updateSelectedActionButtons() {
+        if (removeSelectedButton == null || cancelRegistrationButton == null || selectedTable == null) {
+            return;
+        }
+        int selectedRow = selectedTable.getSelectedRow();
+        if (selectedRow < 0 || selectedRow >= selectedRowEntries.size()) {
+            removeSelectedButton.setEnabled(false);
+            cancelRegistrationButton.setEnabled(false);
+            return;
+        }
+        SelectedRowEntry entry = selectedRowEntries.get(selectedRow);
+        boolean isDraft = entry.getType() == SelectedRowEntry.RowType.DRAFT;
+        removeSelectedButton.setEnabled(isDraft);
+
+        if (entry.getType() == SelectedRowEntry.RowType.SUBMITTED && entry.getRegistration() != null) {
+            boolean cancellable = entry.getRegistration()
+                    .getRegistrationStatus() != CourseRegistration.RegistrationStatus.CANCELLED;
+            cancelRegistrationButton.setEnabled(cancellable);
+        } else {
+            cancelRegistrationButton.setEnabled(false);
+        }
+    }
+
+    private boolean isCourseEligibleForStudent(Course course) {
+        if (!prerequisiteChecksAvailable) {
+            return true;
+        }
+        String subjectCode = normalizeSubjectCode(course.getSubjectCode());
+        if (subjectCode == null) {
+            return true;
+        }
+        String prerequisiteCode = prerequisiteBySubject.get(subjectCode);
+        if (prerequisiteCode == null || prerequisiteCode.isEmpty()) {
+            return true;
+        }
+        return hasCompletedPrerequisite(prerequisiteCode);
+    }
+
+    private boolean hasCompletedPrerequisite(String prerequisiteCode) {
+        String normalized = normalizeSubjectCode(prerequisiteCode);
+        if (normalized == null) {
+            return true;
+        }
+        return completedSubjectCodes.contains(normalized);
+    }
+
+    private String normalizeSubjectCode(String code) {
+        if (code == null) {
+            return null;
+        }
+        String trimmed = code.trim();
+        return trimmed.isEmpty() ? null : trimmed.toUpperCase();
+    }
+
+    private String getPrerequisiteDisplayName(String prerequisiteCode) {
+        String normalized = normalizeSubjectCode(prerequisiteCode);
+        if (normalized == null) {
+            return "Môn tiên quyết yêu cầu";
+        }
+        String name = subjectNameByCode.get(normalized);
+        if (name == null || name.isBlank()) {
+            return normalized;
+        }
+        return normalized + " - " + name;
     }
 
     private int getTotalCredits() {
@@ -690,8 +1127,13 @@ public class CourseRegistrationPanel extends JPanel {
                     "-",
                     getRegistrationStatusText(registration.getRegistrationStatus())
             });
-            selectedRowEntries.add(SelectedRowEntry.forSubmitted());
+            selectedRowEntries.add(SelectedRowEntry.forSubmitted(registration));
         }
+
+        if (selectedTable != null) {
+            selectedTable.clearSelection();
+        }
+        updateSelectedActionButtons();
     }
 
     private String formatSeatInfo(Course course) {
@@ -708,28 +1150,49 @@ public class CourseRegistrationPanel extends JPanel {
         submittedRegistrations.clear();
         if (registrations != null) {
             for (CourseRegistration registration : registrations) {
-                if (registration.getRegistrationStatus() != CourseRegistration.RegistrationStatus.APPROVED) {
+                if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.PENDING) {
                     submittedRegistrations.add(registration);
                 }
             }
         }
         refreshSelectedCoursesTable();
+        updateAvailableTable();
+    }
+
+    private Set<String> getLockedSubjectCodes() {
+        Set<String> locked = new HashSet<>(registeredSubjectCodes);
+        for (Course course : selectedCourses) {
+            String code = normalizeSubjectCode(course.getSubjectCode());
+            if (code != null) {
+                locked.add(code);
+            }
+        }
+        for (CourseRegistration reg : submittedRegistrations) {
+            if (reg.getRegistrationStatus() == CourseRegistration.RegistrationStatus.CANCELLED) {
+                continue;
+            }
+            String code = normalizeSubjectCode(reg.getSubjectCode());
+            if (code != null) {
+                locked.add(code);
+            }
+        }
+        return locked;
     }
 
     private String getRegistrationStatusText(CourseRegistration.RegistrationStatus status) {
         if (status == null) {
             return "Đã đăng ký";
         }
-        switch (status) {
-            case PENDING:
-                return "Đã đăng ký (Chờ duyệt)";
-            case CANCELLED:
-                return "Đã hủy";
-            case APPROVED:
-                return "Đã duyệt";
-            default:
-                return "Đã đăng ký";
+        if (status == CourseRegistration.RegistrationStatus.PENDING) {
+            return "Đã đăng ký (Chờ duyệt)";
         }
+        if (status == CourseRegistration.RegistrationStatus.CANCELLED) {
+            return "Đã hủy";
+        }
+        if (status == CourseRegistration.RegistrationStatus.APPROVED) {
+            return "Đã duyệt";
+        }
+        return "Đã đăng ký";
     }
 
     private String safeText(String value) {
@@ -743,18 +1206,20 @@ public class CourseRegistrationPanel extends JPanel {
 
         private final RowType type;
         private final Course course;
+        private final CourseRegistration registration;
 
-        private SelectedRowEntry(RowType type, Course course) {
+        private SelectedRowEntry(RowType type, Course course, CourseRegistration registration) {
             this.type = type;
             this.course = course;
+            this.registration = registration;
         }
 
         static SelectedRowEntry forDraft(Course course) {
-            return new SelectedRowEntry(RowType.DRAFT, course);
+            return new SelectedRowEntry(RowType.DRAFT, course, null);
         }
 
-        static SelectedRowEntry forSubmitted() {
-            return new SelectedRowEntry(RowType.SUBMITTED, null);
+        static SelectedRowEntry forSubmitted(CourseRegistration registration) {
+            return new SelectedRowEntry(RowType.SUBMITTED, null, registration);
         }
 
         RowType getType() {
@@ -765,6 +1230,30 @@ public class CourseRegistrationPanel extends JPanel {
             return course;
         }
 
+        CourseRegistration getRegistration() {
+            return registration;
+        }
+
+    }
+
+    private static class PrerequisiteDataBundle {
+        private final Map<String, String> prerequisiteMap;
+        private final Map<String, String> subjectNames;
+        private final Set<String> completedSubjects;
+        private final boolean transcriptLoaded;
+        private final boolean subjectsLoaded;
+
+        private PrerequisiteDataBundle(Map<String, String> prerequisiteMap,
+                Map<String, String> subjectNames,
+                Set<String> completedSubjects,
+                boolean transcriptLoaded,
+                boolean subjectsLoaded) {
+            this.prerequisiteMap = prerequisiteMap;
+            this.subjectNames = subjectNames;
+            this.completedSubjects = completedSubjects;
+            this.transcriptLoaded = transcriptLoaded;
+            this.subjectsLoaded = subjectsLoaded;
+        }
     }
 
     private void applySearchFilter() {
@@ -772,7 +1261,6 @@ public class CourseRegistrationPanel extends JPanel {
     }
 
     public void refreshData() {
-        loadRegisteredCourses();
-        loadAvailableCourses();
+        startDataFlow();
     }
 }

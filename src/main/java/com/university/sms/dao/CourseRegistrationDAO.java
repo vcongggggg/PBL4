@@ -24,7 +24,7 @@ public class CourseRegistrationDAO {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
                 "s.student_code, u.full_name as student_name, " +
-                "c.course_code, sub.subject_name, sub.credits, " +
+                "c.course_code, c.subject_code AS subject_code, sub.subject_name, sub.credits, " +
                 "u2.full_name as teacher_name, " +
                 "c.schedule_day, c.schedule_time, c.room " +
                 "FROM course_registrations cr " +
@@ -56,7 +56,7 @@ public class CourseRegistrationDAO {
     public CourseRegistration findById(int registrationId) {
         String sql = "SELECT cr.*, " +
                 "s.student_code, u.full_name as student_name, " +
-                "c.course_code, sub.subject_name, sub.credits, " +
+                "c.course_code, c.subject_code AS subject_code, sub.subject_name, sub.credits, " +
                 "u2.full_name as teacher_name, " +
                 "c.schedule_day, c.schedule_time, c.room " +
                 "FROM course_registrations cr " +
@@ -91,7 +91,7 @@ public class CourseRegistrationDAO {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
                 "s.student_code, u.full_name as student_name, " +
-                "c.course_code, sub.subject_name, sub.credits, " +
+                "c.course_code, c.subject_code AS subject_code, sub.subject_name, sub.credits, " +
                 "u2.full_name as teacher_name, " +
                 "c.schedule_day, c.schedule_time, c.room " +
                 "FROM course_registrations cr " +
@@ -127,7 +127,7 @@ public class CourseRegistrationDAO {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
                 "s.student_code, u.full_name as student_name, " +
-                "c.course_code, sub.subject_name, sub.credits, " +
+                "c.course_code, c.subject_code AS subject_code, sub.subject_name, sub.credits, " +
                 "u2.full_name as teacher_name, " +
                 "c.schedule_day, c.schedule_time, c.room " +
                 "FROM course_registrations cr " +
@@ -163,7 +163,7 @@ public class CourseRegistrationDAO {
         List<CourseRegistration> registrations = new ArrayList<>();
         String sql = "SELECT cr.*, " +
                 "s.student_code, u.full_name as student_name, " +
-                "c.course_code, sub.subject_name, sub.credits, " +
+                "c.course_code, c.subject_code AS subject_code, sub.subject_name, sub.credits, " +
                 "u2.full_name as teacher_name, " +
                 "c.schedule_day, c.schedule_time, c.room " +
                 "FROM course_registrations cr " +
@@ -334,6 +334,40 @@ public class CourseRegistrationDAO {
         return false;
     }
 
+    public CourseRegistration findByStudentAndCourse(String studentCode, String courseCode) {
+        String sql = "SELECT cr.*, " +
+                "s.student_code, u.full_name as student_name, " +
+                "c.course_code, c.subject_code AS subject_code, sub.subject_name, sub.credits, " +
+                "u2.full_name as teacher_name, " +
+                "c.schedule_day, c.schedule_time, c.room " +
+                "FROM course_registrations cr " +
+                "JOIN students s ON cr.student_code = s.student_code " +
+                "JOIN users u ON s.username = u.username " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u2 ON c.teacher_username = u2.username " +
+                "WHERE cr.student_code = ? AND cr.course_code = ? " +
+                "ORDER BY cr.registration_date DESC LIMIT 1";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, studentCode);
+            pstmt.setString(2, courseCode);
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                if (rs.next()) {
+                    return extractRegistrationFromResultSet(rs);
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm đăng ký theo sinh viên & lớp học phần", e);
+        }
+
+        return null;
+    }
+
     /**
      * Delete registration
      */
@@ -374,6 +408,31 @@ public class CourseRegistrationDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Lỗi khi kiểm tra đăng ký trùng", e);
+        }
+
+        return false;
+    }
+
+    public boolean hasActiveRegistrationForSubject(String studentCode, String subjectCode) {
+        String sql = "SELECT COUNT(*) FROM course_registrations cr " +
+                "JOIN courses c ON cr.course_code = c.course_code " +
+                "WHERE cr.student_code = ? " +
+                "AND c.subject_code = ? " +
+                "AND cr.registration_status != 'CANCELLED'";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, studentCode);
+            pstmt.setString(2, subjectCode);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi kiểm tra đăng ký môn học khác cùng môn", e);
         }
 
         return false;
@@ -460,6 +519,7 @@ public class CourseRegistrationDAO {
         registration.setStudentCode(rs.getString("student_code"));
         registration.setStudentName(rs.getString("student_name"));
         registration.setCourseCode(rs.getString("course_code"));
+        registration.setSubjectCode(rs.getString("subject_code"));
         registration.setSubjectName(rs.getString("subject_name"));
         registration.setCredits(rs.getInt("credits"));
         registration.setTeacherName(rs.getString("teacher_name"));

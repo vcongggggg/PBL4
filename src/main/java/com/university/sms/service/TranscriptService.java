@@ -40,7 +40,7 @@ public class TranscriptService {
             // Get student info
             Student student = studentDAO.findByStudentCode(studentCode);
             if (student == null) {
-                LOGGER.warning("Student not found: " + studentCode);
+                LOGGER.warning("Không tìm thấy sinh viên: " + studentCode);
                 return null;
             }
 
@@ -121,14 +121,14 @@ public class TranscriptService {
                 transcript.setSemesterGPA(latestSemester.getSemesterGPA());
             }
 
-            LOGGER.info("Generated transcript for student " + studentCode
+            LOGGER.info("Đã tạo học bạ cho sinh viên " + studentCode
                     + " - GPA: " + transcript.getCumulativeGPA()
-                    + " - Rank: " + transcript.getAcademicRank());
+                    + " - Xếp loại: " + transcript.getAcademicRank());
 
             return transcript;
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error generating transcript for student " + studentCode, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tạo học bạ cho sinh viên " + studentCode, e);
             return null;
         }
     }
@@ -150,7 +150,7 @@ public class TranscriptService {
             }
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting semester transcript", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy học bạ học kỳ", e);
         }
 
         return null;
@@ -185,7 +185,7 @@ public class TranscriptService {
             result.put("projectedCredits", (int) totalCredits);
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error calculating projected GPA", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tính GPA dự kiến", e);
             result.put("success", false);
             result.put("message", e.getMessage());
         }
@@ -219,14 +219,17 @@ public class TranscriptService {
 
             // Sort by GPA descending
             honorStudents.sort((t1, t2) -> {
-                if (t1.getCumulativeGPA() == null && t2.getCumulativeGPA() == null) return 0;
-                if (t1.getCumulativeGPA() == null) return 1;
-                if (t2.getCumulativeGPA() == null) return -1;
+                if (t1.getCumulativeGPA() == null && t2.getCumulativeGPA() == null)
+                    return 0;
+                if (t1.getCumulativeGPA() == null)
+                    return 1;
+                if (t2.getCumulativeGPA() == null)
+                    return -1;
                 return t2.getCumulativeGPA().compareTo(t1.getCumulativeGPA());
             });
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting honor students", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy danh sách sinh viên xuất sắc", e);
         }
 
         return honorStudents;
@@ -287,9 +290,24 @@ public class TranscriptService {
             }
 
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error calculating faculty statistics", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tính thống kê khoa", e);
         }
 
         return stats;
+    }
+
+    /**
+     * Lấy danh sách mã môn học đã hoàn thành của sinh viên
+     */
+    public List<String> getCompletedSubjectCodes(String studentCode) {
+        if (studentCode == null || studentCode.trim().isEmpty()) {
+            return Collections.emptyList();
+        }
+        try {
+            return enrollmentDAO.findCompletedSubjectCodes(studentCode.trim());
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy danh sách môn đã hoàn thành cho sinh viên " + studentCode, e);
+            return Collections.emptyList();
+        }
     }
 }

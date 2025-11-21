@@ -139,6 +139,7 @@ public class Constants {
     public static final String ACTION_VALIDATE_REGISTRATION = "VALIDATE_REGISTRATION";
     public static final String ACTION_GET_STUDENT_CREDITS = "GET_STUDENT_CREDITS";
     public static final String ACTION_GET_REGISTRATION_STATS = "GET_REGISTRATION_STATS";
+    public static final String ACTION_GET_COMPLETED_SUBJECT_CODES = "GET_COMPLETED_SUBJECT_CODES";
 
     // Data Keys
     public static final String KEY_USER = "user";
@@ -195,6 +196,7 @@ public class Constants {
     public static final String KEY_GRADES = "grades";
     public static final String KEY_FACULTIES = "faculties";
     public static final String KEY_SUBJECTS = "subjects";
+    public static final String KEY_SUBJECT_CODES = "subjectCodes";
     public static final String KEY_CLASSES = "classes";
     public static final String KEY_NOTIFICATIONS = "notifications";
     public static final String KEY_CLASS_REQUESTS = "classRequests";

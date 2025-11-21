@@ -8,6 +8,7 @@ import com.university.sms.model.CourseRegistration;
 import com.university.sms.model.CourseRegistration.RegistrationStatus;
 import com.university.sms.model.Student;
 
+import java.sql.Timestamp;
 import java.util.List;
 import java.util.logging.Logger;
 
@@ -15,7 +16,6 @@ public class CourseRegistrationService {
     private static final Logger LOGGER = Logger.getLogger(CourseRegistrationService.class.getName());
 
     private static final int MAX_CREDITS_PER_SEMESTER = 24;
-    private static final int MIN_CREDITS_PER_SEMESTER = 12;
 
     private final CourseRegistrationDAO registrationDAO;
     private final CourseDAO courseDAO;
@@ -31,8 +31,8 @@ public class CourseRegistrationService {
         try {
             return registrationDAO.findAll();
         } catch (Exception e) {
-            LOGGER.severe("Error getting all registrations: " + e.getMessage());
-            throw new RuntimeException("Failed to get registrations", e);
+            LOGGER.severe("Lỗi khi lấy danh sách đăng ký: " + e.getMessage());
+            throw new RuntimeException("Không thể lấy danh sách đăng ký", e);
         }
     }
 
@@ -40,8 +40,8 @@ public class CourseRegistrationService {
         try {
             return registrationDAO.findById(registrationId);
         } catch (Exception e) {
-            LOGGER.severe("Error getting registration by ID: " + e.getMessage());
-            throw new RuntimeException("Failed to get registration", e);
+            LOGGER.severe("Lỗi khi lấy đăng ký theo ID: " + e.getMessage());
+            throw new RuntimeException("Không thể lấy đăng ký", e);
         }
     }
 
@@ -49,8 +49,8 @@ public class CourseRegistrationService {
         try {
             return registrationDAO.findByStudent(studentCode);
         } catch (Exception e) {
-            LOGGER.severe("Error getting registrations by student: " + e.getMessage());
-            throw new RuntimeException("Failed to get student registrations", e);
+            LOGGER.severe("Lỗi khi lấy đăng ký theo sinh viên: " + e.getMessage());
+            throw new RuntimeException("Không thể lấy đăng ký của sinh viên", e);
         }
     }
 
@@ -58,8 +58,8 @@ public class CourseRegistrationService {
         try {
             return registrationDAO.findByCourse(courseCode);
         } catch (Exception e) {
-            LOGGER.severe("Error getting registrations by course: " + e.getMessage());
-            throw new RuntimeException("Failed to get course registrations", e);
+            LOGGER.severe("Lỗi khi lấy đăng ký theo khóa học: " + e.getMessage());
+            throw new RuntimeException("Không thể lấy đăng ký của khóa học", e);
         }
     }
 
@@ -67,8 +67,8 @@ public class CourseRegistrationService {
         try {
             return registrationDAO.findByStatus(RegistrationStatus.PENDING);
         } catch (Exception e) {
-            LOGGER.severe("Error getting pending registrations: " + e.getMessage());
-            throw new RuntimeException("Failed to get pending registrations", e);
+            LOGGER.severe("Lỗi khi lấy đăng ký đang chờ: " + e.getMessage());
+            throw new RuntimeException("Không thể lấy đăng ký đang chờ", e);
         }
     }
 
@@ -94,6 +94,25 @@ public class CourseRegistrationService {
 
             if (registrationDAO.isAlreadyRegistered(studentCode, courseCode)) {
                 throw new IllegalStateException("Student is already registered for this course");
+            }
+
+            if (registrationDAO.hasActiveRegistrationForSubject(studentCode, course.getSubjectCode())) {
+                throw new IllegalStateException("Student is already registered for another class of this subject");
+            }
+
+            CourseRegistration existingRegistration = registrationDAO.findByStudentAndCourse(studentCode, courseCode);
+            if (existingRegistration != null
+                    && existingRegistration.getRegistrationStatus() == RegistrationStatus.CANCELLED) {
+                existingRegistration.setRegistrationStatus(RegistrationStatus.PENDING);
+                existingRegistration.setRegistrationDate(new Timestamp(System.currentTimeMillis()));
+                existingRegistration.setCancelDate(null);
+                existingRegistration.setNotes(notes);
+                boolean updated = registrationDAO.update(existingRegistration);
+                if (updated) {
+                    LOGGER.info(
+                            "Đã kích hoạt lại đăng ký đã hủy cho sinh viên " + studentCode + " khóa học " + courseCode);
+                    return true;
+                }
             }
 
             if (course.getCurrentStudents() >= course.getMaxStudents()) {
@@ -124,14 +143,14 @@ public class CourseRegistrationService {
             boolean success = registrationDAO.insert(registration);
 
             if (success) {
-                LOGGER.info("Student " + studentCode + " registered for course " + courseCode);
+                LOGGER.info("Sinh viên " + studentCode + " đã đăng ký khóa học " + courseCode);
             }
 
             return success;
 
         } catch (Exception e) {
-            LOGGER.severe("Error registering course: " + e.getMessage());
-            throw new RuntimeException("Failed to register course: " + e.getMessage(), e);
+            LOGGER.severe("Lỗi khi đăng ký khóa học: " + e.getMessage());
+            throw new RuntimeException("Không thể đăng ký khóa học: " + e.getMessage(), e);
         }
     }
 
@@ -150,15 +169,15 @@ public class CourseRegistrationService {
             boolean success = registrationDAO.update(registration);
 
             if (success) {
-                LOGGER.info("Registration approved: " + registrationId);
+                LOGGER.info("Đã duyệt đăng ký: " + registrationId);
 
             }
 
             return success;
 
         } catch (Exception e) {
-            LOGGER.severe("Error approving registration: " + e.getMessage());
-            throw new RuntimeException("Failed to approve registration: " + e.getMessage(), e);
+            LOGGER.severe("Lỗi khi duyệt đăng ký: " + e.getMessage());
+            throw new RuntimeException("Không thể duyệt đăng ký: " + e.getMessage(), e);
         }
     }
 
@@ -182,14 +201,14 @@ public class CourseRegistrationService {
             boolean success = registrationDAO.update(registration);
 
             if (success) {
-                LOGGER.info("Registration rejected: " + registrationId);
+                LOGGER.info("Đã từ chối đăng ký: " + registrationId);
             }
 
             return success;
 
         } catch (Exception e) {
-            LOGGER.severe("Error rejecting registration: " + e.getMessage());
-            throw new RuntimeException("Failed to reject registration: " + e.getMessage(), e);
+            LOGGER.severe("Lỗi khi từ chối đăng ký: " + e.getMessage());
+            throw new RuntimeException("Không thể từ chối đăng ký: " + e.getMessage(), e);
         }
     }
 
@@ -211,15 +230,15 @@ public class CourseRegistrationService {
             boolean success = registrationDAO.cancel(registrationId);
 
             if (success) {
-                LOGGER.info("Registration cancelled by student: " + registrationId);
+                LOGGER.info("Sinh viên đã hủy đăng ký: " + registrationId);
 
             }
 
             return success;
 
         } catch (Exception e) {
-            LOGGER.severe("Error cancelling registration: " + e.getMessage());
-            throw new RuntimeException("Failed to cancel registration: " + e.getMessage(), e);
+            LOGGER.severe("Lỗi khi hủy đăng ký: " + e.getMessage());
+            throw new RuntimeException("Không thể hủy đăng ký: " + e.getMessage(), e);
         }
     }
 
@@ -269,7 +288,7 @@ public class CourseRegistrationService {
             return new RegistrationValidation(true, "Can register");
 
         } catch (Exception e) {
-            LOGGER.severe("Error validating registration: " + e.getMessage());
+            LOGGER.severe("Lỗi khi kiểm tra đăng ký: " + e.getMessage());
             return new RegistrationValidation(false, "Validation error: " + e.getMessage());
         }
     }
@@ -278,7 +297,7 @@ public class CourseRegistrationService {
         try {
             return registrationDAO.getTotalCredits(studentCode, academicYear, semester);
         } catch (Exception e) {
-            LOGGER.severe("Error getting student credits: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy tín chỉ sinh viên: " + e.getMessage());
             return 0;
         }
     }
@@ -312,7 +331,7 @@ public class CourseRegistrationService {
             return new RegistrationStatistics(pending, approved, rejected, cancelled, all.size());
 
         } catch (Exception e) {
-            LOGGER.severe("Error getting statistics: " + e.getMessage());
+            LOGGER.severe("Lỗi khi lấy thống kê: " + e.getMessage());
             return new RegistrationStatistics(0, 0, 0, 0, 0);
         }
     }
