@@ -473,7 +473,7 @@ public class MyClassRequestsPanel extends JPanel {
 
     private List<Subject> getSubjectsList() {
         try {
-            Message request = Message.createRequest(Constants.ACTION_GET_SUBJECTS);
+            Message request = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
             Message response = serverConnection.sendRequest(request);
 
             if (response != null && response.isSuccess()) {

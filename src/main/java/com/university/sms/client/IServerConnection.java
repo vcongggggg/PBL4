@@ -48,8 +48,6 @@ public interface IServerConnection {
   // Course APIs
   Message getAllCourses();
 
-  Message getCourses();
-
   Message getCourseInfo(int courseId);
 
   // User profile

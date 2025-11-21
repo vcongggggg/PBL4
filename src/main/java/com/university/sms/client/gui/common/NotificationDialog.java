@@ -279,7 +279,7 @@ public class NotificationDialog extends JDialog {
 
     private void loadClasses() {
         try {
-            Message request = Message.createRequest(Constants.ACTION_GET_CLASSES);
+            Message request = Message.createRequest(Constants.ACTION_GET_ALL_CLASSES);
             Message response = serverConnection.sendRequest(request);
 
             if (response.isSuccess()) {
