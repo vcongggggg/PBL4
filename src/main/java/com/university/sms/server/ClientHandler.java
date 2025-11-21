@@ -2,6 +2,10 @@ package com.university.sms.server;
 
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
+import com.university.sms.model.Enrollment;
+import com.university.sms.model.Grade;
+import com.university.sms.model.Notification;
+import com.university.sms.model.Student;
 import com.university.sms.model.User;
 import com.university.sms.service.AuthenticationService;
 import com.university.sms.service.AuthenticationService.AuthenticationResult;
@@ -22,7 +26,9 @@ import java.net.SocketException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.PreparedStatement;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import com.university.sms.util.DatabaseConnection;
@@ -37,6 +43,9 @@ import com.university.sms.server.handler.TimetableHandler;
 import com.university.sms.server.handler.StatisticsHandler;
 import com.university.sms.server.handler.DataOriginHelper;
 import com.university.sms.server.handler.SyncHandler;
+import com.university.sms.dao.EnrollmentDAO;
+import com.university.sms.dao.StudentDAO;
+import com.university.sms.dao.UserDAO;
 
 /**
  * Xử lý kết nối từ mỗi client

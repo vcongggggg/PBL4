@@ -365,5 +365,5 @@ public class TranscriptService {
             return Collections.emptyList();
         }
     }
-    }
 }
+
