@@ -3,6 +3,7 @@ package com.university.sms.service;
 import com.university.sms.dao.CourseDAO;
 import com.university.sms.dao.EnrollmentDAO;
 import com.university.sms.dao.StudentDAO;
+import com.university.sms.util.DatabaseConnection;
 import com.university.sms.model.Course;
 import com.university.sms.model.Enrollment;
 import com.university.sms.model.Student;
@@ -10,6 +11,10 @@ import com.university.sms.model.Transcript;
 import com.university.sms.model.Transcript.CourseRecord;
 import com.university.sms.model.Transcript.SemesterRecord;
 
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 import java.util.*;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -297,6 +302,56 @@ public class TranscriptService {
     }
 
     /**
+    /**
+     * Lấy xu hướng GPA trung bình theo học kỳ cho toàn trường hoặc theo khoa
+     */
+    public Map<String, Double> getGpaTrendBySemester(String facultyCode) {
+        Map<String, Double> trend = new LinkedHashMap<>();
+
+        StringBuilder sql = new StringBuilder();
+        sql.append("SELECT c.academic_year, c.semester, AVG(e.grade_points) AS avg_gpa ")
+                .append("FROM enrollments e ")
+                .append("JOIN courses c ON e.course_code = c.course_code ")
+                .append("JOIN students s ON e.student_code = s.student_code ")
+                .append("WHERE e.enrollment_status = 'completed' ")
+                .append("AND e.grade_points IS NOT NULL ");
+
+        if (facultyCode != null && !facultyCode.isBlank()) {
+            sql.append("AND s.faculty_code = ? ");
+        }
+
+        sql.append("GROUP BY c.academic_year, c.semester ")
+                .append("ORDER BY c.academic_year, c.semester");
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
+
+            if (facultyCode != null && !facultyCode.isBlank()) {
+                stmt.setString(1, facultyCode);
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String academicYear = rs.getString("academic_year");
+                    int semester = rs.getInt("semester");
+                    java.math.BigDecimal avg = rs.getBigDecimal("avg_gpa");
+                    if (avg == null) {
+                        continue;
+                    }
+                    double average = avg.doubleValue();
+                    String key = academicYear + "-" + semester;
+                    trend.put(key, Math.round(average * 100.0) / 100.0);
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error calculating GPA trend by semester", e);
+        }
+
+        return trend;
+    }
+
+    /**
      * Lấy danh sách mã môn học đã hoàn thành của sinh viên
      */
     public List<String> getCompletedSubjectCodes(String studentCode) {
@@ -311,3 +366,4 @@ public class TranscriptService {
         }
     }
 }
+

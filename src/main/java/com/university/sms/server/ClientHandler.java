@@ -2,6 +2,10 @@ package com.university.sms.server;
 
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
+import com.university.sms.model.Enrollment;
+import com.university.sms.model.Grade;
+import com.university.sms.model.Notification;
+import com.university.sms.model.Student;
 import com.university.sms.model.User;
 import com.university.sms.service.AuthenticationService;
 import com.university.sms.service.AuthenticationService.AuthenticationResult;
@@ -22,7 +26,9 @@ import java.net.SocketException;
 import java.sql.Connection;
 import java.sql.ResultSet;
 import java.sql.PreparedStatement;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import com.university.sms.util.DatabaseConnection;
@@ -37,6 +43,9 @@ import com.university.sms.server.handler.TimetableHandler;
 import com.university.sms.server.handler.StatisticsHandler;
 import com.university.sms.server.handler.DataOriginHelper;
 import com.university.sms.server.handler.SyncHandler;
+import com.university.sms.dao.EnrollmentDAO;
+import com.university.sms.dao.StudentDAO;
+import com.university.sms.dao.UserDAO;
 
 /**
  * Xử lý kết nối từ mỗi client
@@ -414,6 +423,9 @@ public class ClientHandler implements Runnable, DataOriginHelper {
 
                 case Constants.ACTION_GET_FACULTY_STATISTICS:
                     return statisticsHandler.handleGetFacultyStatistics(request);
+
+                case Constants.ACTION_GET_GPA_TREND:
+                    return handleGetGpaTrend(request);
 
                 case Constants.ACTION_VALIDATE_SCHEDULE:
                     return timetableHandler.handleValidateSchedule(request);
@@ -1855,6 +1867,629 @@ public class ClientHandler implements Runnable, DataOriginHelper {
             LOGGER.log(Level.SEVERE, "Error getting classes", e);
             return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
         }
+    }
+
+    // ==================== Enrollment Handlers (Additional) ====================
+
+    private Message handleGetEnrollmentsByCourse(Message request) {
+        try {
+            // Sử dụng courseCode thay vì courseId
+            String courseCode = request.getData("courseCode", String.class);
+            if (courseCode == null || courseCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Course code is required");
+            }
+
+            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+            List<com.university.sms.model.Enrollment> enrollments = enrollmentDAO.findByCourseCode(courseCode);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Found " + enrollments.size() + " enrollments");
+            response.addData("enrollments", enrollments);
+
+            LOGGER.info("Retrieved " + enrollments.size() + " enrollments for course " + courseCode);
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting enrollments by course", e);
+            return Message.createErrorResponse(request.getAction(),
+                    "Error retrieving enrollments: " + e.getMessage());
+        }
+    }
+
+    // ==================== Grade Handlers ====================
+
+    private Message handleAddGrade(Message request) {
+        try {
+            Grade grade = request.getData(Constants.KEY_GRADE, Grade.class);
+            if (grade == null) {
+                return Message.createErrorResponse(request.getAction(), "Grade data is required");
+            }
+
+            boolean result = gradeService.addGrade(grade);
+
+            if (result) {
+                // Lấy grade đã được lưu để trả về cho client
+                // Tìm grade bằng studentCode, courseCode, gradeType, gradeName
+                Grade savedGrade = gradeService.getGradesByStudentAndCourse(
+                        grade.getStudentCode(), grade.getCourseCode())
+                        .stream()
+                        .filter(g -> g.getGradeType() == grade.getGradeType() &&
+                                g.getGradeName() != null &&
+                                g.getGradeName().equals(grade.getGradeName()))
+                        .findFirst()
+                        .orElse(grade);
+
+                // saveDataOrigin sẽ tự động cập nhật timestamp nếu grade có source CSV
+                if (savedGrade != null && savedGrade.getGradeId() > 0) {
+                    saveDataOrigin("grade", savedGrade.getGradeId(), clientSource);
+                }
+
+                Message response = Message.createSuccessResponse(request.getAction(), "Thêm điểm thành công");
+                response.addData(Constants.KEY_GRADE, savedGrade);
+                return response;
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Thêm điểm thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error adding grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleUpdateGrade(Message request) {
+        try {
+            Grade grade = request.getData(Constants.KEY_GRADE, Grade.class);
+            if (grade == null) {
+                return Message.createErrorResponse(request.getAction(), "Grade data is required");
+            }
+
+            boolean result = gradeService.updateGrade(grade);
+
+            if (result) {
+                // Lấy grade đã được cập nhật để trả về cho client
+                Grade updatedGrade = gradeService.getGradeById(grade.getGradeId());
+                // saveDataOrigin sẽ tự động cập nhật timestamp nếu grade có source CSV
+                if (updatedGrade != null && updatedGrade.getGradeId() > 0) {
+                    saveDataOrigin("grade", updatedGrade.getGradeId(), clientSource);
+                } else if (grade.getGradeId() > 0) {
+                    saveDataOrigin("grade", grade.getGradeId(), clientSource);
+                }
+                Message response = Message.createSuccessResponse(request.getAction(), "Cập nhật điểm thành công");
+                if (updatedGrade != null) {
+                    response.addData(Constants.KEY_GRADE, updatedGrade);
+                } else {
+                    response.addData(Constants.KEY_GRADE, grade);
+                }
+                return response;
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Cập nhật điểm thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error updating grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleDeleteGrade(Message request) {
+        try {
+            Integer gradeId = request.getData(Constants.KEY_GRADE_ID, Integer.class);
+            if (gradeId == null || gradeId <= 0) {
+                return Message.createErrorResponse(request.getAction(), "Grade ID is required");
+            }
+
+            // Lấy grade trước khi xóa để trả về cho client
+            Grade deletedGrade = gradeService.getGradeById(gradeId);
+            // Cập nhật timestamp của source gốc trước khi xóa
+            if (deletedGrade != null && deletedGrade.getGradeId() > 0) {
+                String existingSource = getDataOrigin("grade", deletedGrade.getGradeId());
+                if (existingSource != null) {
+                    updateDataOriginTimestamp("grade", deletedGrade.getGradeId());
+                }
+            }
+            boolean result = gradeService.deleteGrade(gradeId);
+
+            if (result) {
+                Message response = Message.createSuccessResponse(request.getAction(), "Xóa điểm thành công");
+                if (deletedGrade != null) {
+                    response.addData(Constants.KEY_GRADE, deletedGrade);
+                }
+                return response;
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Xóa điểm thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error deleting grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetGrades(Message request) {
+        try {
+            // Chỉ sử dụng codes
+            String studentCode = request.getData(Constants.KEY_STUDENT_CODE, String.class);
+            String courseCode = request.getData(Constants.KEY_COURSE_CODE, String.class);
+            Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
+
+            List<Grade> grades;
+
+            if (studentCode != null && courseCode != null) {
+                grades = gradeService.getGradesByStudentAndCourse(studentCode, courseCode);
+            } else if (enrollmentId != null) {
+                // Tìm enrollment để lấy codes
+                EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+                Enrollment enrollment = enrollmentDAO.findById(enrollmentId);
+                if (enrollment != null) {
+                    grades = gradeService.getGradesByStudentAndCourse(
+                            enrollment.getStudentCode(), enrollment.getCourseCode());
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Enrollment không tồn tại");
+                }
+            } else if (studentCode != null) {
+                grades = gradeService.getGradesByStudent(studentCode);
+            } else if (courseCode != null) {
+                grades = gradeService.getGradesByCourse(courseCode);
+            } else {
+                return Message.createErrorResponse(request.getAction(),
+                        "student_code/course_code hoặc enrollment_id is required");
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Lấy danh sách điểm thành công");
+            response.addData(Constants.KEY_GRADES, grades);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting grades", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleCalculateFinalGrade(Message request) {
+        try {
+            // Sử dụng studentCode và courseCode, hoặc enrollmentId
+            String studentCode = request.getData(Constants.KEY_STUDENT_CODE, String.class);
+            String courseCode = request.getData(Constants.KEY_COURSE_CODE, String.class);
+            Integer enrollmentId = request.getData(Constants.KEY_ENROLLMENT, Integer.class);
+
+            if (studentCode == null || courseCode == null) {
+                if (enrollmentId == null) {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Student code and course code (or enrollment ID) are required");
+                }
+
+                // Tìm enrollment để lấy studentCode và courseCode
+                EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+                Enrollment enrollment = enrollmentDAO.findById(enrollmentId);
+                if (enrollment == null) {
+                    return Message.createErrorResponse(request.getAction(), "Enrollment không tồn tại");
+                }
+
+                studentCode = enrollment.getStudentCode();
+                courseCode = enrollment.getCourseCode();
+            }
+
+            boolean result = gradeService.finalizeCourseGrade(studentCode, courseCode);
+
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Tính điểm tổng kết thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Tính điểm tổng kết thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error calculating final grade", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== Notification Handlers ====================
+
+    private Message handleGetNotifications(Message request) {
+        try {
+            Integer userId = request.getData(Constants.KEY_USER_ID, Integer.class);
+
+            List<Notification> notifications;
+            String username = null;
+
+            if (userId != null) {
+                UserDAO userDAO = new UserDAO();
+                User user = userDAO.findById(userId);
+                if (user != null) {
+                    username = user.getUsername();
+                }
+            } else if (currentUser != null) {
+                username = currentUser.getUsername();
+            }
+
+            if (username == null || username.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "User information is required");
+            }
+
+            notifications = notificationService.getNotificationsByUser(username);
+
+            // Count unread
+            int unreadCount = 0;
+            for (Notification n : notifications) {
+                if (!n.isRead()) {
+                    unreadCount++;
+                }
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Lấy danh sách thông báo thành công");
+            response.addData(Constants.KEY_NOTIFICATIONS, notifications);
+            response.addData(Constants.KEY_UNREAD_COUNT, unreadCount);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting notifications", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleSendNotification(Message request) {
+        try {
+            Notification notification = request.getData(Constants.KEY_NOTIFICATION, Notification.class);
+            if (notification == null) {
+                return Message.createErrorResponse(request.getAction(), "Notification data is required");
+            }
+
+            if (notification.getSenderUsername() == null && currentUser != null) {
+                notification.setSenderUsername(currentUser.getUsername());
+            }
+
+            boolean result = notificationService.createNotification(notification);
+
+            if (result) {
+                return Message.createSuccessResponse(request.getAction(), "Gửi thông báo thành công");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Gửi thông báo thất bại");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error sending notification", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleMarkNotificationRead(Message request) {
+        try {
+            Integer notificationId = request.getData(Constants.KEY_NOTIFICATION_ID, Integer.class);
+
+            if (notificationId != null) {
+                // Mark single notification as read
+                boolean result = notificationService.markAsRead(notificationId);
+                if (result) {
+                    return Message.createSuccessResponse(request.getAction(), "Đánh dấu đã đọc thành công");
+                } else {
+                    return Message.createErrorResponse(request.getAction(), "Đánh dấu đã đọc thất bại");
+                }
+            } else if (currentUser != null) {
+                boolean result = notificationService.markAllAsReadForUser(currentUser.getUsername());
+                if (result) {
+                    return Message.createSuccessResponse(request.getAction(),
+                            "Đánh dấu tất cả thông báo đã đọc thành công");
+                } else {
+                    return Message.createErrorResponse(request.getAction(),
+                            "Đánh dấu thông báo đã đọc thất bại");
+                }
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Notification ID is required");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error marking notification as read", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    // ==================== TIMETABLE & TRANSCRIPT HANDLERS ====================
+
+    private Message handleGetTimetable(Message request) {
+        try {
+            Integer userId = request.getData(Constants.KEY_USER_ID, Integer.class);
+            String userRole = request.getData(Constants.KEY_USER_ROLE, String.class);
+
+            if (userId == null) {
+                userId = currentUser != null ? currentUser.getUserId() : null;
+                userRole = currentUser != null ? currentUser.getRole().toString() : null;
+            }
+
+            if (userId == null || userRole == null) {
+                return Message.createErrorResponse(request.getAction(), "User information is required");
+            }
+
+            List<?> timetable = null;
+
+            if ("STUDENT".equalsIgnoreCase(userRole)) {
+                UserDAO userDAO = new UserDAO();
+                User user = userDAO.findById(userId);
+                if (user != null) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student student = studentDAO.findByUsername(user.getUsername());
+                    if (student != null) {
+                        timetable = timetableService.getStudentTimetable(student.getStudentCode());
+                    }
+                }
+            } else if ("TEACHER".equalsIgnoreCase(userRole)) {
+                UserDAO userDAO = new UserDAO();
+                User user = userDAO.findById(userId);
+                if (user != null) {
+                    timetable = timetableService.getTeacherTimetable(user.getUsername());
+                }
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(), "Timetable retrieved successfully");
+            response.addData(Constants.KEY_TIMETABLE, timetable);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting timetable", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetTranscript(Message request) {
+        try {
+            String studentCode = request.getData("studentCode", String.class);
+            if (studentCode == null || studentCode.isEmpty()) {
+                // Fallback: nếu là student thì lấy từ currentUser
+                if (currentUser != null
+                        && "STUDENT".equalsIgnoreCase(currentUser.getRole().toString())) {
+                    StudentDAO studentDAO = new StudentDAO();
+                    Student student = studentDAO.findByUsername(currentUser.getUsername());
+                    if (student != null) {
+                        studentCode = student.getStudentCode();
+                    }
+                }
+            }
+
+            if (studentCode == null || studentCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code is required");
+            }
+
+            var transcript = transcriptService.generateTranscript(studentCode);
+
+            if (transcript == null) {
+                return Message.createErrorResponse(request.getAction(), "Cannot generate transcript");
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(), "Transcript retrieved successfully");
+            response.addData(Constants.KEY_TRANSCRIPT, transcript);
+            response.addData(Constants.KEY_CUMULATIVE_GPA, transcript.getCumulativeGPA());
+            response.addData(Constants.KEY_ACADEMIC_RANK, transcript.getAcademicRank());
+            response.addData(Constants.KEY_TOTAL_CREDITS, transcript.getTotalCreditsEarned());
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting transcript", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetSemesterTranscript(Message request) {
+        try {
+            String studentCode = request.getData("studentCode", String.class);
+            String academicYear = request.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
+            Integer semester = request.getData(Constants.KEY_SEMESTER, Integer.class);
+
+            if (studentCode == null || studentCode.isEmpty() || academicYear == null || semester == null) {
+                return Message.createErrorResponse(request.getAction(),
+                        "Student code, academic year and semester are required");
+            }
+
+            var semesterRecord = transcriptService.getSemesterTranscript(studentCode, academicYear, semester);
+
+            if (semesterRecord == null) {
+                return Message.createErrorResponse(request.getAction(), "Semester transcript not found");
+            }
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Semester transcript retrieved successfully");
+            response.addData(Constants.KEY_SEMESTER_RECORDS, semesterRecord);
+            response.addData(Constants.KEY_SEMESTER_GPA, semesterRecord.getSemesterGPA());
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting semester transcript", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetHonorStudents(Message request) {
+        try {
+            String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
+
+            // Allow null facultyCode to get honor students from all faculties
+            List<?> honorStudents = transcriptService.getHonorStudents(facultyCode);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Honor students retrieved successfully");
+            response.addData(Constants.KEY_HONOR_STUDENTS, honorStudents);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting honor students", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetFacultyStatistics(Message request) {
+        try {
+            String facultyCode = request.getData("facultyCode", String.class);
+            if (facultyCode == null || facultyCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Faculty code is required");
+            }
+
+            Map<String, Object> statistics = transcriptService.getFacultyStatistics(facultyCode);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Faculty statistics retrieved successfully");
+            response.addData(Constants.KEY_STATISTICS, statistics);
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting faculty statistics", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleGetGpaTrend(Message request) {
+        try {
+            String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
+
+            // Only admin or teacher allowed
+            if (currentUser == null || (currentUser.getRole() != User.UserRole.ADMIN
+                    && currentUser.getRole() != User.UserRole.TEACHER)) {
+                return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+            }
+
+            Map<String, Double> trend = transcriptService.getGpaTrendBySemester(facultyCode);
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "GPA trend retrieved successfully");
+            response.addData(Constants.KEY_GPA_TREND, trend);
+            return response;
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting GPA trend", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    private Message handleValidateSchedule(Message request) {
+        try {
+            String studentCode = request.getData("studentCode", String.class);
+            String courseCode = request.getData("courseCode", String.class);
+
+            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
+                return Message.createErrorResponse(request.getAction(), "Student code and course code are required");
+            }
+
+            boolean isValid = timetableService.validateSchedule(studentCode, courseCode);
+
+            if (isValid) {
+                return Message.createSuccessResponse(request.getAction(), "No schedule conflict");
+            } else {
+                return Message.createErrorResponse(request.getAction(), "Schedule conflict detected");
+            }
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error validating schedule", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Handle get server statistics (admin only)
+     */
+    private Message handleGetServerStatistics(Message request) {
+        try {
+            // Only admin can access server statistics
+            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+                return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+            }
+
+            StudentManagementServer server = StudentManagementServer.getInstance();
+            if (server == null) {
+                return Message.createErrorResponse(request.getAction(), "Server instance not available");
+            }
+
+            StudentManagementServer.ServerStatistics stats = server.getStatistics();
+
+            // Get server database version
+            int serverDbVersion = getServerVersion();
+
+            Message response = Message.createSuccessResponse(request.getAction(),
+                    "Server statistics retrieved successfully");
+            response.addData("totalClients", stats.getConnectedClients());
+            response.addData("adminClients", stats.getAdminClients());
+            response.addData("teacherClients", stats.getTeacherClients());
+            response.addData("studentClients", stats.getStudentClients());
+            response.addData("serverDbVersion", serverDbVersion);
+
+            return response;
+
+        } catch (Exception e) {
+            LOGGER.log(Level.SEVERE, "Error getting server statistics", e);
+            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+        }
+    }
+
+    /**
+     * Validate email format
+     * 
+     * @param email Email to validate
+     * @return true if email format is valid, false otherwise
+     */
+    private boolean isValidEmailFormat(String email) {
+        if (email == null || email.trim().isEmpty()) {
+            return false;
+        }
+        // RFC 5322 compliant email regex (simplified but robust)
+        String emailRegex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
+        return email.trim().matches(emailRegex);
+    }
+
+    /**
+     * Validate phone number format (Vietnam phone numbers)
+     * Supports:
+     * - 10 digits starting with 0: 0123456789, 0912345678
+     * - 11 digits starting with +84: +84123456789, +84912345678
+     * - 10 digits without leading 0: 1234567890 (less common)
+     * 
+     * @param phone Phone number to validate
+     * @return true if phone format is valid, false otherwise
+     */
+    private boolean isValidPhoneFormat(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return false;
+        }
+        String phoneStr = phone.trim();
+
+        // Remove all non-digit characters except + for validation
+        // This handles spaces, dashes, dots, parentheses, etc.
+        String normalized = phoneStr.replaceAll("[^0-9+]", "");
+
+        // If normalized is empty after removing non-digits, it's invalid
+        if (normalized.isEmpty()) {
+            return false;
+        }
+
+        // Pattern 1: 10 digits starting with 0 (e.g., 0123456789, 0912345678)
+        if (normalized.matches("^0[0-9]{9}$")) {
+            return true;
+        }
+
+        // Pattern 2: 11 digits starting with +84 (e.g., +84123456789, +84912345678)
+        if (normalized.matches("^\\+84[0-9]{9}$")) {
+            return true;
+        }
+
+        // Pattern 3: 10 digits without leading 0 (less common, but acceptable)
+        // Only accept if it doesn't start with 0 (to avoid conflict with Pattern 1)
+        if (normalized.matches("^[1-9][0-9]{9}$")) {
+            return true;
+        }
+
+        return false;
+    }
+
+    /**
+     * Normalize phone number by removing spaces, dashes, dots, etc.
+     * Keeps the + sign if present for international format.
+     * 
+     * @param phone Phone number to normalize
+     * @return Normalized phone number
+     */
+    private String normalizePhoneNumber(String phone) {
+        if (phone == null || phone.trim().isEmpty()) {
+            return phone;
+        }
+        // Remove all non-digit characters except +
+        String normalized = phone.trim().replaceAll("[^0-9+]", "");
+        return normalized;
     }
 
     // Getters

@@ -1,12 +1,15 @@
 package com.university.sms.client.gui.common;
 
 import com.formdev.flatlaf.FlatDarkLaf;
+import com.formdev.flatlaf.FlatLightLaf;
 import com.university.sms.client.IServerConnection;
 import com.university.sms.client.ServerConnection;
 import com.university.sms.csvclient.CSVServerConnection;
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
+import com.university.sms.client.gui.common.ThemeManager;
+import com.university.sms.client.gui.common.ThemeManager;
 
 import javax.swing.*;
 import javax.swing.border.*;
@@ -102,6 +105,18 @@ public class LoginFrame extends JFrame {
         } catch (Exception e) {
             LOGGER.log(Level.SEVERE, "Không thể khởi tạo giao diện FlatLaf", e);
         }
+    }
+
+    private void applyLightThemeForMainApp() {
+        try {
+            UIManager.setLookAndFeel(new FlatLightLaf());
+            UIManager.put("Button.arc", 5);
+            UIManager.put("Component.arc", 5);
+            UIManager.put("TextComponent.arc", 5);
+        } catch (Exception e) {
+            LOGGER.log(Level.WARNING, "Không thể thiết lập FlatLightLaf cho giao diện chính", e);
+        }
+        ThemeManager.getInstance().applyTheme(ThemeManager.ThemeType.LIGHT);
     }
 
     private void initializeComponents() {
