@@ -8,10 +8,13 @@ import com.university.sms.model.Transcript;
 import com.university.sms.model.User;
 
 import javax.swing.*;
+import javax.swing.table.DefaultTableModel;
 import java.awt.*;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Arrays;
+import java.util.function.Function;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -45,7 +48,7 @@ public class AnalyticsDashboard extends JPanel {
     private ChartPanel gradeDistChart;
     private ChartPanel gpaTrendChart;
     private ChartPanel facultyChart;
-    private ChartPanel topPerformersChart;
+    private TopStudentsPanel topPerformersPanel;
 
     public AnalyticsDashboard(IServerConnection serverConnection, User currentUser) {
         this(serverConnection, currentUser, true, true);
@@ -159,8 +162,11 @@ public class AnalyticsDashboard extends JPanel {
         JPanel gpaContainer = new JPanel(new BorderLayout(5, 5));
         gpaContainer.setOpaque(false);
         gpaContainer.add(gpaTrendChart, BorderLayout.CENTER);
-        loadGpaTrendButton = new JButton("Tải xu hướng GPA");
-        loadGpaTrendButton.addActionListener(e -> loadGpaTrendData());
+        loadGpaTrendButton = new JButton("Làm mới xu hướng GPA");
+        loadGpaTrendButton.addActionListener(e -> {
+            gpaTrendLoaded = false;
+            loadGpaTrendData();
+        });
         gpaContainer.add(loadGpaTrendButton, BorderLayout.SOUTH);
         panel.add(gpaContainer);
 
@@ -169,34 +175,32 @@ public class AnalyticsDashboard extends JPanel {
         panel.add(facultyChart);
 
         // Top Performers Chart
-        topPerformersChart = createTopPerformersChart();
-        panel.add(topPerformersChart);
+        topPerformersPanel = createTopPerformersPanel();
+        panel.add(topPerformersPanel);
 
         return panel;
     }
 
     private ChartPanel createGradeDistributionChart() {
         ChartPanel chart = new ChartPanel("📊 Phân Bố Điểm");
-        // Will be populated with real data
+        chart.setValueFormatter(value -> String.format("%.0f SV", value));
         return chart;
     }
 
     private ChartPanel createGPATrendChart() {
         ChartPanel chart = new ChartPanel("📈 Xu Hướng GPA Theo Học Kỳ");
-        // Will be populated with real data
+        chart.setValueFormatter(value -> String.format("%.2f GPA", value));
         return chart;
     }
 
     private ChartPanel createFacultyComparisonChart() {
         ChartPanel chart = new ChartPanel("🏛️ So Sánh GPA Các Khoa");
-        // Will be populated with real data
+        chart.setValueFormatter(value -> String.format("%.2f GPA", value));
         return chart;
     }
 
-    private ChartPanel createTopPerformersChart() {
-        ChartPanel chart = new ChartPanel("🏆 Top 5 Sinh Viên Xuất Sắc");
-        // Will be populated with real data
-        return chart;
+    private TopStudentsPanel createTopPerformersPanel() {
+        return new TopStudentsPanel("🏆 Top 5 Sinh Viên Xuất Sắc");
     }
 
     private void setupLayout() {
@@ -232,7 +236,7 @@ public class AnalyticsDashboard extends JPanel {
         gpaTrendLoading = false;
         if (loadGpaTrendButton != null) {
             loadGpaTrendButton.setEnabled(true);
-            loadGpaTrendButton.setText("Tải xu hướng GPA");
+            loadGpaTrendButton.setText("Làm mới xu hướng GPA");
         }
         if (gpaTrendChart != null) {
             gpaTrendChart.clearBars();
@@ -353,89 +357,26 @@ public class AnalyticsDashboard extends JPanel {
     }
 
     /**
-     * Lấy dữ liệu GPA trend theo học kỳ
+     * Lấy dữ liệu GPA trend từ server (đã tối ưu)
      */
     private Map<String, Double> getGPATrendBySemester(String facultyCode) {
         Map<String, Double> trendData = new HashMap<>();
         try {
-            // Get all students first to filter by faculty if needed
-            Message studentsRequest = Message.createRequest(Constants.ACTION_GET_ALL_STUDENTS);
-            Message studentsResponse = serverConnection.sendRequest(studentsRequest);
+            Message request = Message.createRequest(Constants.ACTION_GET_GPA_TREND);
+            if (facultyCode != null && !facultyCode.isEmpty()) {
+                request.addData(Constants.KEY_FACULTY_CODE, facultyCode);
+            }
 
-            java.util.Set<String> studentCodes = new java.util.HashSet<>();
-            if (studentsResponse != null && studentsResponse.isSuccess()) {
+            Message response = serverConnection.sendRequest(request);
+            if (response != null && response.isSuccess()) {
                 @SuppressWarnings("unchecked")
-                List<com.university.sms.model.Student> students = (List<com.university.sms.model.Student>) studentsResponse
-                        .getData("students");
-                if (students != null) {
-                    for (com.university.sms.model.Student student : students) {
-                        if (facultyCode == null || facultyCode.isEmpty() ||
-                                facultyCode.equals(student.getFacultyCode())) {
-                            studentCodes.add(student.getStudentCode());
-                        }
-                    }
+                Map<String, Double> serverTrend = (Map<String, Double>) response.getData(Constants.KEY_GPA_TREND);
+                if (serverTrend != null) {
+                    trendData.putAll(serverTrend);
                 }
-            }
-
-            if (studentCodes.isEmpty()) {
-                return trendData;
-            }
-
-            // Get all courses to map course_code to academic_year and semester
-            Message coursesRequest = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
-            Message coursesResponse = serverConnection.sendRequest(coursesRequest);
-
-            Map<String, com.university.sms.model.Course> courseMap = new HashMap<>();
-            if (coursesResponse != null && coursesResponse.isSuccess()) {
-                @SuppressWarnings("unchecked")
-                List<com.university.sms.model.Course> courses = (List<com.university.sms.model.Course>) coursesResponse
-                        .getData("courses");
-                if (courses != null) {
-                    for (com.university.sms.model.Course course : courses) {
-                        courseMap.put(course.getCourseCode(), course);
-                    }
-                }
-            }
-
-            // Get enrollments for each student
-            Map<String, List<Double>> semesterGPAs = new HashMap<>();
-
-            for (String studentCode : studentCodes) {
-                Message enrollRequest = Message.createRequest(Constants.ACTION_GET_STUDENT_GRADES);
-                enrollRequest.addData("studentCode", studentCode);
-                Message enrollResponse = serverConnection.sendRequest(enrollRequest);
-
-                if (enrollResponse != null && enrollResponse.isSuccess()) {
-                    @SuppressWarnings("unchecked")
-                    List<com.university.sms.model.Enrollment> enrollments = (List<com.university.sms.model.Enrollment>) enrollResponse
-                            .getData("enrollments");
-
-                    if (enrollments != null) {
-                        for (com.university.sms.model.Enrollment enrollment : enrollments) {
-                            if (enrollment
-                                    .getEnrollmentStatus() == com.university.sms.model.Enrollment.EnrollmentStatus.COMPLETED
-                                    && enrollment.getGradePoints() != null) {
-
-                                com.university.sms.model.Course course = courseMap.get(enrollment.getCourseCode());
-                                if (course != null) {
-                                    String semesterKey = course.getAcademicYear() + "-" + course.getSemester();
-                                    semesterGPAs.computeIfAbsent(semesterKey, k -> new java.util.ArrayList<>())
-                                            .add(enrollment.getGradePoints().doubleValue());
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            // Calculate average GPA for each semester
-            for (Map.Entry<String, List<Double>> entry : semesterGPAs.entrySet()) {
-                List<Double> gpas = entry.getValue();
-                double avgGPA = gpas.stream().mapToDouble(Double::doubleValue).average().orElse(0.0);
-                trendData.put(entry.getKey(), avgGPA);
             }
         } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Lỗi khi tính toán xu hướng GPA theo học kỳ", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy xu hướng GPA từ server", e);
         }
         return trendData;
     }
@@ -616,10 +557,15 @@ public class AnalyticsDashboard extends JPanel {
 
         // Update top performers chart
         if (data.honorStudents != null && !data.honorStudents.isEmpty()) {
-            updateTopPerformersChart(data.honorStudents);
+            updateTopPerformersPanel(data.honorStudents);
+        } else if (topPerformersPanel != null) {
+            topPerformersPanel.clearStudents();
         }
 
-        // GPA trend is loaded on demand via button
+        // Tự động tải xu hướng GPA sau khi có số liệu tổng quát
+        if (gpaTrendChart != null) {
+            loadGpaTrendData();
+        }
     }
 
     private void updateGPATrendChart(Map<String, Double> trendData) {
@@ -651,8 +597,7 @@ public class AnalyticsDashboard extends JPanel {
             if (gpa != null) {
                 String[] parts = semesterKey.split("-");
                 String label = "HK" + parts[1] + " " + parts[0];
-                // Convert GPA (0-4 scale) to percentage (0-100) for display
-                gpaTrendChart.addBar(label, gpa * 25, colors[colorIndex % colors.length]);
+                gpaTrendChart.addBar(label, gpa, colors[colorIndex % colors.length]);
                 colorIndex++;
             }
         }
@@ -671,11 +616,17 @@ public class AnalyticsDashboard extends JPanel {
         int averagePercent = ((Number) stats.getOrDefault("averagePercent", 0)).intValue();
         int poorPercent = ((Number) stats.getOrDefault("poorPercent", 0)).intValue();
 
-        gradeDistChart.addBar("A (Xuất sắc)", excellentPercent, Color.decode("#27ae60"));
-        gradeDistChart.addBar("B (Giỏi)", goodPercent, Color.decode("#3498db"));
-        gradeDistChart.addBar("C (Khá)", fairPercent, Color.decode("#f39c12"));
-        gradeDistChart.addBar("D (Trung bình)", averagePercent, Color.decode("#e67e22"));
-        gradeDistChart.addBar("F (Yếu)", poorPercent, Color.decode("#e74c3c"));
+        int excellentCount = ((Number) stats.getOrDefault("excellentCount", 0)).intValue();
+        int goodCount = ((Number) stats.getOrDefault("goodCount", 0)).intValue();
+        int fairCount = ((Number) stats.getOrDefault("fairCount", 0)).intValue();
+        int averageCount = ((Number) stats.getOrDefault("averageCount", 0)).intValue();
+        int poorCount = ((Number) stats.getOrDefault("poorCount", 0)).intValue();
+
+        gradeDistChart.addBar("A (Xuất sắc)", excellentCount, Color.decode("#27ae60"));
+        gradeDistChart.addBar("B (Giỏi)", goodCount, Color.decode("#3498db"));
+        gradeDistChart.addBar("C (Khá)", fairCount, Color.decode("#f39c12"));
+        gradeDistChart.addBar("D (Trung bình)", averageCount, Color.decode("#e67e22"));
+        gradeDistChart.addBar("F (Yếu)", poorCount, Color.decode("#e74c3c"));
     }
 
     private void updateFacultyComparisonChart(Map<String, Map<String, Object>> facultyStatsMap,
@@ -702,35 +653,32 @@ public class AnalyticsDashboard extends JPanel {
                     if (label.length() > 15) {
                         label = label.substring(0, 12) + "...";
                     }
-                    facultyChart.addBar(label, gpa * 20, colors[colorIndex % colors.length]);
+                    facultyChart.addBar(label, gpa, colors[colorIndex % colors.length]);
                     colorIndex++;
                 }
             }
         }
     }
 
-    private void updateTopPerformersChart(List<?> honorStudents) {
-        if (topPerformersChart == null || honorStudents == null)
+    private void updateTopPerformersPanel(List<?> honorStudents) {
+        if (topPerformersPanel == null || honorStudents == null) {
             return;
+        }
 
-        topPerformersChart.clearBars();
-
-        Color[] colors = {
-                Color.decode("#f1c40f"), Color.decode("#95a5a6"),
-                Color.decode("#cd7f32"), Color.decode("#3498db"),
-                Color.decode("#9b59b6")
-        };
-
+        java.util.List<TopStudentsPanel.StudentInfo> studentInfos = new java.util.ArrayList<>();
         int count = Math.min(5, honorStudents.size());
         for (int i = 0; i < count; i++) {
             Object studentObj = honorStudents.get(i);
             String name = null;
+            String code = null;
             Double gpaValue = null;
 
             if (studentObj instanceof Map<?, ?>) {
                 Map<?, ?> studentMap = (Map<?, ?>) studentObj;
                 Object nameObj = studentMap.get("studentName");
                 name = nameObj instanceof String ? (String) nameObj : "N/A";
+                Object codeObj = studentMap.get("studentCode");
+                code = codeObj instanceof String ? (String) codeObj : null;
                 Object gpaObj = studentMap.get("gpa");
                 if (gpaObj instanceof Number) {
                     gpaValue = ((Number) gpaObj).doubleValue();
@@ -738,16 +686,21 @@ public class AnalyticsDashboard extends JPanel {
             } else if (studentObj instanceof Transcript) {
                 Transcript transcript = (Transcript) studentObj;
                 name = transcript.getStudentName();
+                code = transcript.getStudentCode();
                 if (transcript.getCumulativeGPA() != null) {
                     gpaValue = transcript.getCumulativeGPA().doubleValue();
                 }
             }
 
             if (name != null && gpaValue != null) {
-                String label = name.length() > 15 ? name.substring(0, 12) + "..." : name;
-                topPerformersChart.addBar(label, gpaValue * 20, colors[i % colors.length]);
+                studentInfos.add(new TopStudentsPanel.StudentInfo(
+                        code != null ? code : "—",
+                        name,
+                        gpaValue));
             }
         }
+
+        topPerformersPanel.setStudents(studentInfos);
     }
 
     private void loadGpaTrendData() {
@@ -790,12 +743,11 @@ public class AnalyticsDashboard extends JPanel {
                     gpaTrendLoading = false;
                     if (loadGpaTrendButton != null) {
                         if (gpaTrendLoaded) {
-                            loadGpaTrendButton.setText("Đã tải xu hướng GPA");
-                            loadGpaTrendButton.setEnabled(false);
+                            loadGpaTrendButton.setText("Làm mới xu hướng GPA");
                         } else {
-                            loadGpaTrendButton.setText("Tải xu hướng GPA");
-                            loadGpaTrendButton.setEnabled(true);
+                            loadGpaTrendButton.setText("Làm mới xu hướng GPA");
                         }
+                        loadGpaTrendButton.setEnabled(true);
                     }
                 }
             }
@@ -893,10 +845,12 @@ public class AnalyticsDashboard extends JPanel {
     private static class ChartPanel extends JPanel {
         private String title;
         private java.util.List<BarData> bars;
+        private Function<Double, String> valueFormatter;
 
         public ChartPanel(String title) {
             this.title = title;
             this.bars = new java.util.ArrayList<>();
+            this.valueFormatter = value -> String.format("%.0f%%", value);
 
             setBackground(Color.WHITE);
             setBorder(BorderFactory.createCompoundBorder(
@@ -913,6 +867,12 @@ public class AnalyticsDashboard extends JPanel {
         public void clearBars() {
             bars.clear();
             repaint();
+        }
+
+        public void setValueFormatter(Function<Double, String> formatter) {
+            if (formatter != null) {
+                this.valueFormatter = formatter;
+            }
         }
 
         @Override
@@ -953,33 +913,70 @@ public class AnalyticsDashboard extends JPanel {
                 // Draw value on top
                 g2d.setColor(Color.DARK_GRAY);
                 g2d.setFont(new Font("Segoe UI", Font.BOLD, 11));
-                String valueText = String.format("%.0f%%", bar.value);
+                String valueText = valueFormatter != null ? valueFormatter.apply(bar.value)
+                        : String.format("%.0f%%", bar.value);
                 int textWidth = g2d.getFontMetrics().stringWidth(valueText);
                 g2d.drawString(valueText, x + (barWidth - textWidth) / 2, y - 5);
 
                 // Draw label
-                g2d.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                Font labelFont = new Font("Segoe UI", Font.PLAIN, 10);
+                g2d.setFont(labelFont);
                 g2d.setColor(Color.GRAY);
-
-                // Wrap label if too long
-                String label = bar.label;
-                if (label.length() > 10) {
-                    label = label.substring(0, 10) + "...";
-                }
-
-                // Rotate label if needed
-                textWidth = g2d.getFontMetrics().stringWidth(label);
-                if (textWidth > barWidth) {
-                    // Draw rotated
-                    g2d.rotate(-Math.PI / 4, x + barWidth / 2, chartTop + chartHeight + 20);
-                    g2d.drawString(label, x + barWidth / 2, chartTop + chartHeight + 20);
-                    g2d.rotate(Math.PI / 4, x + barWidth / 2, chartTop + chartHeight + 20);
-                } else {
-                    g2d.drawString(label, x + (barWidth - textWidth) / 2, chartTop + chartHeight + 15);
+                FontMetrics labelMetrics = g2d.getFontMetrics(labelFont);
+                java.util.List<String> lines = wrapLabel(bar.label, labelMetrics, barWidth);
+                int labelY = chartTop + chartHeight + 15;
+                for (String line : lines) {
+                    textWidth = labelMetrics.stringWidth(line);
+                    g2d.drawString(line, x + (barWidth - textWidth) / 2, labelY);
+                    labelY += labelMetrics.getHeight();
                 }
 
                 x += barWidth + 10;
             }
+        }
+
+        private java.util.List<String> wrapLabel(String label, FontMetrics metrics, int maxWidth) {
+            java.util.List<String> lines = new java.util.ArrayList<>();
+            if (label == null || label.isEmpty()) {
+                lines.add("");
+                return lines;
+            }
+
+            String[] words = label.split("\\s+");
+            StringBuilder currentLine = new StringBuilder();
+
+            for (String word : words) {
+                String candidate = currentLine.length() == 0 ? word : currentLine + " " + word;
+                if (metrics.stringWidth(candidate) <= maxWidth || currentLine.length() == 0) {
+                    currentLine.setLength(0);
+                    currentLine.append(candidate);
+                } else {
+                    lines.add(currentLine.toString());
+                    currentLine.setLength(0);
+                    currentLine.append(word);
+                }
+            }
+
+            if (currentLine.length() > 0) {
+                lines.add(currentLine.toString());
+            }
+
+            if (lines.size() > 2) {
+                StringBuilder merged = new StringBuilder(lines.get(1));
+                for (int i = 2; i < lines.size(); i++) {
+                    merged.append(" ").append(lines.get(i));
+                }
+                String secondLine = merged.toString();
+                while (metrics.stringWidth(secondLine + "...") > maxWidth && secondLine.length() > 1) {
+                    secondLine = secondLine.substring(0, secondLine.length() - 1);
+                }
+                if (!secondLine.endsWith("...")) {
+                    secondLine = secondLine.trim() + "...";
+                }
+                lines = Arrays.asList(lines.get(0), secondLine);
+            }
+
+            return lines;
         }
 
         private static class BarData {
@@ -991,6 +988,75 @@ public class AnalyticsDashboard extends JPanel {
                 this.label = label;
                 this.value = value;
                 this.color = color;
+            }
+        }
+    }
+
+    /**
+     * Bảng hiển thị top sinh viên
+     */
+    private static class TopStudentsPanel extends JPanel {
+        private DefaultTableModel tableModel;
+        private JTable table;
+
+        TopStudentsPanel(String title) {
+            setLayout(new BorderLayout(10, 10));
+            setBackground(Color.WHITE);
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(220, 220, 220)),
+                    BorderFactory.createEmptyBorder(15, 15, 15, 15)));
+
+            JLabel titleLabel = new JLabel(title);
+            titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            titleLabel.setForeground(Color.DARK_GRAY);
+            add(titleLabel, BorderLayout.NORTH);
+
+            tableModel = new DefaultTableModel(new Object[] { "Hạng", "Mã SV", "Họ và tên", "GPA" }, 0) {
+                private static final long serialVersionUID = 1L;
+
+                @Override
+                public boolean isCellEditable(int row, int column) {
+                    return false;
+                }
+            };
+
+            table = new JTable(tableModel);
+            table.setRowHeight(28);
+            table.setFont(new Font("Segoe UI", Font.PLAIN, 12));
+            table.getTableHeader().setFont(new Font("Segoe UI", Font.BOLD, 12));
+            table.setFillsViewportHeight(true);
+
+            JScrollPane scrollPane = new JScrollPane(table);
+            scrollPane.setBorder(BorderFactory.createEmptyBorder());
+            add(scrollPane, BorderLayout.CENTER);
+        }
+
+        void setStudents(java.util.List<StudentInfo> students) {
+            clearStudents();
+            int rank = 1;
+            for (StudentInfo info : students) {
+                tableModel.addRow(new Object[] {
+                        rank++,
+                        info.code,
+                        info.name,
+                        String.format("%.2f", info.gpa)
+                });
+            }
+        }
+
+        void clearStudents() {
+            tableModel.setRowCount(0);
+        }
+
+        static class StudentInfo {
+            final String code;
+            final String name;
+            final double gpa;
+
+            StudentInfo(String code, String name, double gpa) {
+                this.code = code;
+                this.name = name;
+                this.gpa = gpa;
             }
         }
     }

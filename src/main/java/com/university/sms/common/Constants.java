@@ -228,6 +228,7 @@ public class Constants {
     public static final String ACTION_GET_SEMESTER_TRANSCRIPT = "GET_SEMESTER_TRANSCRIPT";
     public static final String ACTION_GET_HONOR_STUDENTS = "GET_HONOR_STUDENTS";
     public static final String ACTION_GET_FACULTY_STATISTICS = "GET_FACULTY_STATISTICS";
+    public static final String ACTION_GET_GPA_TREND = "GET_GPA_TREND";
     public static final String ACTION_VALIDATE_SCHEDULE = "VALIDATE_SCHEDULE";
 
     // Timetable & Transcript Keys
@@ -237,6 +238,7 @@ public class Constants {
     public static final String KEY_HONOR_STUDENTS = "honor_students";
     public static final String KEY_CUMULATIVE_GPA = "cumulative_gpa";
     public static final String KEY_SEMESTER_GPA = "semester_gpa";
+    public static final String KEY_GPA_TREND = "gpa_trend";
     public static final String KEY_ACADEMIC_RANK = "academic_rank";
     public static final String KEY_TOTAL_CREDITS = "total_credits";
     public static final String KEY_USER_ROLE = "user_role";
