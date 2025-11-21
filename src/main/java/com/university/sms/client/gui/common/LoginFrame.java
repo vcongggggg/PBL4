@@ -9,7 +9,6 @@ import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
 import com.university.sms.client.gui.common.ThemeManager;
-import com.university.sms.client.gui.common.ThemeManager;
 
 import javax.swing.*;
 import javax.swing.border.*;
@@ -815,6 +814,9 @@ public class LoginFrame extends JFrame {
         User user = (User) response.getData(Constants.KEY_USER);
 
         if (user != null) {
+            // Chuyển sang Light theme cho các màn hình chính
+            applyLightThemeForMainApp();
+            
             if (serverConnection instanceof CSVServerConnection
                     && user.getRole() == User.UserRole.ADMIN) {
                 performCsvAdminSync(user, (CSVServerConnection) serverConnection);
@@ -855,6 +857,9 @@ public class LoginFrame extends JFrame {
     }
 
     private void openMainFrameForUser(User user) {
+        // Đảm bảo Light theme đã được áp dụng trước khi mở main frame
+        applyLightThemeForMainApp();
+        
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
             switch (user.getRole()) {

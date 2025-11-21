@@ -100,4 +100,25 @@ public class StatisticsHandler {
       return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
     }
   }
+  public Message handleGetGpaTrend(Message request) {
+    try {
+        String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
+
+        // Only admin or teacher allowed
+        if (currentUser == null || (currentUser.getRole() != User.UserRole.ADMIN
+                && currentUser.getRole() != User.UserRole.TEACHER)) {
+            return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+        }
+
+        Map<String, Double> trend = transcriptService.getGpaTrendBySemester(facultyCode);
+
+        Message response = Message.createSuccessResponse(request.getAction(),
+                "GPA trend retrieved successfully");
+        response.addData(Constants.KEY_GPA_TREND, trend);
+        return response;
+    } catch (Exception e) {
+        LOGGER.log(Level.SEVERE, "Error getting GPA trend", e);
+        return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
+    }
+  }
 }

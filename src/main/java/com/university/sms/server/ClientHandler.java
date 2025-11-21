@@ -425,7 +425,7 @@ public class ClientHandler implements Runnable, DataOriginHelper {
                     return statisticsHandler.handleGetFacultyStatistics(request);
 
                 case Constants.ACTION_GET_GPA_TREND:
-                    return handleGetGpaTrend(request);
+                    return statisticsHandler.handleGetGpaTrend(request);
 
                 case Constants.ACTION_VALIDATE_SCHEDULE:
                     return timetableHandler.handleValidateSchedule(request);
@@ -2187,50 +2187,6 @@ public class ClientHandler implements Runnable, DataOriginHelper {
 
     // ==================== TIMETABLE & TRANSCRIPT HANDLERS ====================
 
-    private Message handleGetTimetable(Message request) {
-        try {
-            Integer userId = request.getData(Constants.KEY_USER_ID, Integer.class);
-            String userRole = request.getData(Constants.KEY_USER_ROLE, String.class);
-
-            if (userId == null) {
-                userId = currentUser != null ? currentUser.getUserId() : null;
-                userRole = currentUser != null ? currentUser.getRole().toString() : null;
-            }
-
-            if (userId == null || userRole == null) {
-                return Message.createErrorResponse(request.getAction(), "User information is required");
-            }
-
-            List<?> timetable = null;
-
-            if ("STUDENT".equalsIgnoreCase(userRole)) {
-                UserDAO userDAO = new UserDAO();
-                User user = userDAO.findById(userId);
-                if (user != null) {
-                    StudentDAO studentDAO = new StudentDAO();
-                    Student student = studentDAO.findByUsername(user.getUsername());
-                    if (student != null) {
-                        timetable = timetableService.getStudentTimetable(student.getStudentCode());
-                    }
-                }
-            } else if ("TEACHER".equalsIgnoreCase(userRole)) {
-                UserDAO userDAO = new UserDAO();
-                User user = userDAO.findById(userId);
-                if (user != null) {
-                    timetable = timetableService.getTeacherTimetable(user.getUsername());
-                }
-            }
-
-            Message response = Message.createSuccessResponse(request.getAction(), "Timetable retrieved successfully");
-            response.addData(Constants.KEY_TIMETABLE, timetable);
-            return response;
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting timetable", e);
-            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
-        }
-    }
-
     private Message handleGetTranscript(Message request) {
         try {
             String studentCode = request.getData("studentCode", String.class);
@@ -2298,124 +2254,6 @@ public class ClientHandler implements Runnable, DataOriginHelper {
         }
     }
 
-    private Message handleGetHonorStudents(Message request) {
-        try {
-            String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
-
-            // Allow null facultyCode to get honor students from all faculties
-            List<?> honorStudents = transcriptService.getHonorStudents(facultyCode);
-
-            Message response = Message.createSuccessResponse(request.getAction(),
-                    "Honor students retrieved successfully");
-            response.addData(Constants.KEY_HONOR_STUDENTS, honorStudents);
-            return response;
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting honor students", e);
-            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
-        }
-    }
-
-    private Message handleGetFacultyStatistics(Message request) {
-        try {
-            String facultyCode = request.getData("facultyCode", String.class);
-            if (facultyCode == null || facultyCode.isEmpty()) {
-                return Message.createErrorResponse(request.getAction(), "Faculty code is required");
-            }
-
-            Map<String, Object> statistics = transcriptService.getFacultyStatistics(facultyCode);
-
-            Message response = Message.createSuccessResponse(request.getAction(),
-                    "Faculty statistics retrieved successfully");
-            response.addData(Constants.KEY_STATISTICS, statistics);
-            return response;
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting faculty statistics", e);
-            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
-        }
-    }
-
-    private Message handleGetGpaTrend(Message request) {
-        try {
-            String facultyCode = request.getData(Constants.KEY_FACULTY_CODE, String.class);
-
-            // Only admin or teacher allowed
-            if (currentUser == null || (currentUser.getRole() != User.UserRole.ADMIN
-                    && currentUser.getRole() != User.UserRole.TEACHER)) {
-                return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
-            }
-
-            Map<String, Double> trend = transcriptService.getGpaTrendBySemester(facultyCode);
-
-            Message response = Message.createSuccessResponse(request.getAction(),
-                    "GPA trend retrieved successfully");
-            response.addData(Constants.KEY_GPA_TREND, trend);
-            return response;
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting GPA trend", e);
-            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
-        }
-    }
-
-    private Message handleValidateSchedule(Message request) {
-        try {
-            String studentCode = request.getData("studentCode", String.class);
-            String courseCode = request.getData("courseCode", String.class);
-
-            if (studentCode == null || studentCode.isEmpty() || courseCode == null || courseCode.isEmpty()) {
-                return Message.createErrorResponse(request.getAction(), "Student code and course code are required");
-            }
-
-            boolean isValid = timetableService.validateSchedule(studentCode, courseCode);
-
-            if (isValid) {
-                return Message.createSuccessResponse(request.getAction(), "No schedule conflict");
-            } else {
-                return Message.createErrorResponse(request.getAction(), "Schedule conflict detected");
-            }
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error validating schedule", e);
-            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
-        }
-    }
-
-    /**
-     * Handle get server statistics (admin only)
-     */
-    private Message handleGetServerStatistics(Message request) {
-        try {
-            // Only admin can access server statistics
-            if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
-                return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
-            }
-
-            StudentManagementServer server = StudentManagementServer.getInstance();
-            if (server == null) {
-                return Message.createErrorResponse(request.getAction(), "Server instance not available");
-            }
-
-            StudentManagementServer.ServerStatistics stats = server.getStatistics();
-
-            // Get server database version
-            int serverDbVersion = getServerVersion();
-
-            Message response = Message.createSuccessResponse(request.getAction(),
-                    "Server statistics retrieved successfully");
-            response.addData("totalClients", stats.getConnectedClients());
-            response.addData("adminClients", stats.getAdminClients());
-            response.addData("teacherClients", stats.getTeacherClients());
-            response.addData("studentClients", stats.getStudentClients());
-            response.addData("serverDbVersion", serverDbVersion);
-
-            return response;
-
-        } catch (Exception e) {
-            LOGGER.log(Level.SEVERE, "Error getting server statistics", e);
-            return Message.createErrorResponse(request.getAction(), "Lỗi: " + e.getMessage());
-        }
-    }
 
     /**
      * Validate email format
