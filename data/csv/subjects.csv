@@ -1,5 +1,2 @@
 subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt
-1,NMN,Nhập môn lập trình,3,CNTT,,Môn nhập môn lập trình,true,2024-01-01
-2,CTDL,Cấu trúc dữ liệu,3,CNTT,NMN,Basic data structures,true,2024-01-02
-3,CSDL,Cơ sở dữ liệu,3,CNTT,NMN,Database fundamentals,true,2024-01-03
-4,MMT,Mạng máy tính,3,CNTT,,Computer networks,false,2024-01-04
+2,DTDM,Điện tử đại cương,3,CNTT,NMN,Môn ĐTĐM,false,null

@@ -39,6 +39,7 @@ public class AdminMainFrame extends JFrame {
     public AdminMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
         this.serverConnection = serverConnection;
+        CsvSyncProgressMonitor.attach(this, this.serverConnection);
 
         initializeComponents();
         setupLayout();

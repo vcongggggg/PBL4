@@ -16,7 +16,6 @@ import com.university.sms.model.User;
 
 import java.util.List;
 import java.util.Map;
-import java.util.concurrent.CompletableFuture;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -28,6 +27,15 @@ public class CSVServerConnection extends BaseServerConnection {
   private static final Logger LOGGER = Logger.getLogger(CSVServerConnection.class.getName());
 
   private CSVDataService csvDataService;
+  private SyncProgressListener syncProgressListener;
+
+  public interface SyncProgressListener {
+    void onSyncStart(String action);
+
+    void onSyncStep(String action, String message);
+
+    void onSyncCompleted(String action, Message result);
+  }
 
   public CSVServerConnection(String serverHost, int serverPort) {
     super(serverHost, serverPort);
@@ -234,6 +242,28 @@ public class CSVServerConnection extends BaseServerConnection {
     return csvDataService;
   }
 
+  public void setSyncProgressListener(SyncProgressListener listener) {
+    this.syncProgressListener = listener;
+  }
+
+  private void notifySyncStart(String action) {
+    if (syncProgressListener != null && action != null && !"NO_SYNC_NEEDED".equals(action)) {
+      syncProgressListener.onSyncStart(action);
+    }
+  }
+
+  private void notifySyncStep(String action, String message) {
+    if (syncProgressListener != null && action != null && !"NO_SYNC_NEEDED".equals(action)) {
+      syncProgressListener.onSyncStep(action, message);
+    }
+  }
+
+  private void notifySyncCompleted(String action, Message result) {
+    if (syncProgressListener != null && action != null && !"NO_SYNC_NEEDED".equals(action)) {
+      syncProgressListener.onSyncCompleted(action, result);
+    }
+  }
+
   /**
    * Gửi metadata lên server khi kết nối
    */
@@ -255,21 +285,30 @@ public class CSVServerConnection extends BaseServerConnection {
    * Đồng bộ dữ liệu dựa trên response từ server
    */
   public Message syncData(String syncAction) {
+    Message result = null;
     try {
+      notifySyncStart(syncAction);
       switch (syncAction) {
         case "UPLOAD_TO_SERVER":
-          return uploadAllCSVData();
+          result = uploadAllCSVData();
+          break;
         case "DOWNLOAD_FROM_SERVER":
-          return downloadFromServer();
+          result = downloadFromServer();
+          break;
         case "NO_SYNC_NEEDED":
-          return Message.createSuccessResponse(Constants.ACTION_SYNC_DATA, "Dữ liệu đã đồng bộ");
+          result = Message.createSuccessResponse(Constants.ACTION_SYNC_DATA, "Dữ liệu đã đồng bộ");
+          break;
         default:
-          return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Unknown sync action");
+          result = Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Unknown sync action");
+          break;
       }
     } catch (Exception e) {
       LOGGER.severe("Lỗi khi đồng bộ dữ liệu: " + e.getMessage());
-      return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Error: " + e.getMessage());
+      result = Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Error: " + e.getMessage());
+    } finally {
+      notifySyncCompleted(syncAction, result);
     }
+    return result;
   }
 
   /**
@@ -278,6 +317,7 @@ public class CSVServerConnection extends BaseServerConnection {
   private Message downloadFromServer() {
     try {
       LOGGER.info("Đang tải dữ liệu từ server về CSV...");
+      notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang gửi yêu cầu tải dữ liệu từ server...");
 
       // 1) Gửi request tải dữ liệu
       Message request = Message.createRequest(Constants.ACTION_DOWNLOAD_DATA);
@@ -335,6 +375,7 @@ public class CSVServerConnection extends BaseServerConnection {
       try {
         if (users != null) {
           LOGGER.info("Đang lưu " + users.size() + " người dùng vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + users.size() + " người dùng...");
           try {
             if (csvDataService.saveAllUsers(users)) {
               usersSaved = users.size();
@@ -349,6 +390,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (faculties != null) {
           LOGGER.info("Đang lưu " + faculties.size() + " khoa vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + faculties.size() + " khoa...");
           try {
             if (csvDataService.saveAllFaculties(faculties)) {
               facultiesSaved = faculties.size();
@@ -363,6 +405,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (subjects != null) {
           LOGGER.info("Đang lưu " + subjects.size() + " môn học vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + subjects.size() + " môn học...");
           try {
             if (csvDataService.saveAllSubjects(subjects)) {
               subjectsSaved = subjects.size();
@@ -377,6 +420,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (classes != null) {
           LOGGER.info("Đang lưu " + classes.size() + " lớp vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + classes.size() + " lớp...");
           try {
             if (csvDataService.saveAllClasses(classes)) {
               classesSaved = classes.size();
@@ -391,6 +435,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (courses != null) {
           LOGGER.info("Đang lưu " + courses.size() + " khóa học vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + courses.size() + " khóa học...");
           try {
             if (csvDataService.saveAllCourses(courses)) {
               coursesSaved = courses.size();
@@ -405,6 +450,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (students != null) {
           LOGGER.info("Đang lưu " + students.size() + " sinh viên vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + students.size() + " sinh viên...");
           try {
             if (csvDataService.saveAllStudents(students)) {
               studentsSaved = students.size();
@@ -419,6 +465,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (enrollments != null) {
           LOGGER.info("Đang lưu " + enrollments.size() + " đăng ký học phần vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + enrollments.size() + " đăng ký học phần...");
           try {
             if (csvDataService.saveAllEnrollments(enrollments)) {
               enrollmentsSaved = enrollments.size();
@@ -433,6 +480,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (grades != null) {
           LOGGER.info("Đang lưu " + grades.size() + " điểm vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + grades.size() + " điểm...");
           try {
             if (csvDataService.saveAllGrades(grades)) {
               gradesSaved = grades.size();
@@ -447,6 +495,7 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (notifications != null) {
           LOGGER.info("Đang lưu " + notifications.size() + " thông báo vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER", "Đang lưu " + notifications.size() + " thông báo...");
           try {
             if (csvDataService.saveAllNotifications(notifications)) {
               notificationsSaved = notifications.size();
@@ -461,6 +510,8 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (classOpeningRequests != null) {
           LOGGER.info("Đang lưu " + classOpeningRequests.size() + " yêu cầu mở lớp vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER",
+              "Đang lưu " + classOpeningRequests.size() + " yêu cầu mở lớp...");
           try {
             if (csvDataService.saveAllClassOpeningRequests(classOpeningRequests)) {
               classOpeningRequestsSaved = classOpeningRequests.size();
@@ -475,6 +526,8 @@ public class CSVServerConnection extends BaseServerConnection {
         }
         if (courseRegistrations != null) {
           LOGGER.info("Đang lưu " + courseRegistrations.size() + " đăng ký khóa học vào CSV...");
+          notifySyncStep("DOWNLOAD_FROM_SERVER",
+              "Đang lưu " + courseRegistrations.size() + " đăng ký khóa học...");
           try {
             if (csvDataService.saveAllCourseRegistrations(courseRegistrations)) {
               courseRegistrationsSaved = courseRegistrations.size();
@@ -521,6 +574,7 @@ public class CSVServerConnection extends BaseServerConnection {
   public Message uploadAllCSVData() {
     try {
       LOGGER.info("Bắt đầu tải lên toàn bộ dữ liệu CSV lên server");
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload dữ liệu khoa...");
 
       // Upload theo thứ tự để đảm bảo foreign key constraints
       // Faculties trước vì users có FK đến faculties (faculty_code)
@@ -529,51 +583,61 @@ public class CSVServerConnection extends BaseServerConnection {
         LOGGER.warning("Không thể tải lên khoa: " + facultiesResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload dữ liệu người dùng...");
       Message usersResponse = uploadAllUsersFromCSV();
       if (!usersResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên người dùng: " + usersResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload dữ liệu môn học...");
       Message subjectsResponse = uploadAllSubjectsFromCSV();
       if (!subjectsResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên môn học: " + subjectsResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload dữ liệu lớp...");
       Message classesResponse = uploadAllClassesFromCSV();
       if (!classesResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên lớp: " + classesResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload dữ liệu sinh viên...");
       Message studentsResponse = uploadAllStudentsFromCSV();
       if (!studentsResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên sinh viên: " + studentsResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload dữ liệu khóa học...");
       Message coursesResponse = uploadAllCoursesFromCSV();
       if (!coursesResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên khóa học: " + coursesResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload đăng ký học phần...");
       Message enrollmentsResponse = uploadAllEnrollmentsFromCSV();
       if (!enrollmentsResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên đăng ký học phần: " + enrollmentsResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload điểm...");
       Message gradesResponse = uploadAllGradesFromCSV();
       if (!gradesResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên điểm: " + gradesResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload thông báo...");
       Message notificationsResponse = uploadAllNotificationsFromCSV();
       if (!notificationsResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên thông báo: " + notificationsResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload yêu cầu mở lớp...");
       Message classOpeningRequestsResponse = uploadAllClassOpeningRequestsFromCSV();
       if (!classOpeningRequestsResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên yêu cầu mở lớp: " + classOpeningRequestsResponse.getMessage());
       }
 
+      notifySyncStep("UPLOAD_TO_SERVER", "Đang upload đăng ký khóa học...");
       Message courseRegistrationsResponse = uploadAllCourseRegistrationsFromCSV();
       if (!courseRegistrationsResponse.isSuccess()) {
         LOGGER.warning("Không thể tải lên đăng ký khóa học: " + courseRegistrationsResponse.getMessage());
@@ -894,44 +958,4 @@ public class CSVServerConnection extends BaseServerConnection {
     }
   }
 
-  /**
-   * Sync tự động khi kết nối
-   * Chỉ tự động download (không cần quyền), không tự động upload (cần quyền
-   * admin)
-   */
-  @Override
-  protected void onConnect() {
-    CompletableFuture.runAsync(() -> {
-      try {
-        Thread.sleep(500); // Đợi một chút để connection ổn định
-        Message metadataResponse = sendMetadata();
-        if (metadataResponse.isSuccess()) {
-          String syncAction = (String) metadataResponse.getData("sync_action");
-          LOGGER.info("Hành động đồng bộ tự động: " + syncAction);
-          if ("DOWNLOAD_FROM_SERVER".equals(syncAction)) {
-            // Tự động download nếu server có version mới hơn (không cần quyền)
-            syncData("DOWNLOAD_FROM_SERVER");
-          } else if ("UPLOAD_TO_SERVER".equals(syncAction)) {
-            // Không tự động upload - cần đăng nhập admin trước
-            // Upload sẽ được thực hiện thủ công từ GUI sau khi admin đăng nhập
-            LOGGER.info("Cần đăng nhập với quyền admin để upload dữ liệu CSV");
-          }
-        }
-      } catch (Exception e) {
-        LOGGER.warning("Lỗi khi đồng bộ tự động: " + e.getMessage());
-      }
-    });
-  }
-
-  /**
-   * Manual sync (gọi từ GUI)
-   */
-  public Message manualSync() {
-    Message metadataResponse = sendMetadata();
-    if (metadataResponse.isSuccess()) {
-      String syncAction = (String) metadataResponse.getData("sync_action");
-      return syncData(syncAction);
-    }
-    return metadataResponse;
-  }
 }

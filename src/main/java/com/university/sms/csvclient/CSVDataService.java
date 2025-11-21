@@ -12,7 +12,10 @@ import com.university.sms.model.Student;
 import com.university.sms.model.Subject;
 import com.university.sms.model.User;
 
-import java.io.*;
+import java.io.BufferedReader;
+import java.io.IOException;
+import java.io.PrintWriter;
+import java.nio.charset.StandardCharsets;
 import java.nio.file.Files;
 import java.nio.file.Path;
 import java.nio.file.Paths;
@@ -72,25 +75,25 @@ public class CSVDataService {
   private void createSampleDataIfNotExists() {
     try {
       createEmptyFileIfNotExists(USERS_FILE,
-          "userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode");
+          "userId,username,password,email,fullName,role,phone,address,facultyCode,createdAt,updatedAt,isActive");
       createEmptyFileIfNotExists(FACULTIES_FILE,
           "facultyId,facultyCode,facultyName,description,createdAt");
       createEmptyFileIfNotExists(CLASSES_FILE,
           "classId,classCode,className,facultyCode,teacherUsername,academicYear,semester,maxStudents,createdAt");
       createEmptyFileIfNotExists(STUDENTS_FILE,
-          "studentId,username,studentCode,classCode,facultyCode,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
+          "studentId,username,studentCode,classCode,facultyCode,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt");
       createEmptyFileIfNotExists(SUBJECTS_FILE,
           "subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt");
       createEmptyFileIfNotExists(COURSES_FILE,
           "courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,registrationStatus,courseStatus,startDate,endDate,createdAt");
       createEmptyFileIfNotExists(ENROLLMENTS_FILE,
-          "enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints");
+          "enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints,createdAt");
       createEmptyFileIfNotExists(GRADES_FILE,
-          "gradeId,studentCode,courseCode,gradeType,gradeName,score,maxScore,weight,gradeDate,notes,createdAt");
+          "gradeId,studentCode,courseCode,gradeType,gradeName,score,maxScore,weight,gradeDate,notes,createdAt,updatedAt");
       createEmptyFileIfNotExists(CLASS_OPENING_REQUESTS_FILE,
           "requestId,teacherUsername,subjectCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,reason,requestStatus,adminNote,approvedByUsername,approvedCourseCode,requestDate,decisionDate,createdAt,updatedAt");
       createEmptyFileIfNotExists(COURSE_REGISTRATIONS_FILE,
-          "registrationId,studentCode,courseCode,registrationDate,registrationStatus,cancelDate,notes,createdAt");
+          "registrationId,studentCode,courseCode,registrationDate,registrationStatus,cancelDate,notes,createdAt,updatedAt");
       createEmptyFileIfNotExists(NOTIFICATIONS_FILE,
           "notificationId,title,content,senderUsername,targetType,targetCode,priority,isRead,createdAt,expiresAt");
     } catch (IOException e) {
@@ -238,61 +241,209 @@ public class CSVDataService {
 
   private Student parseStudentFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
-      if (fields.length < 19)
-        return null;
+      String[] fields = parseCsvLine(line);
+      if (fields.length < 15)
+        return null; // Ít nhất phải có đủ dữ liệu theo schema database
+
       Student student = new Student();
-      student.setStudentId(Integer.parseInt(fields[0].trim()));
-      student.setUsername(fields[1].trim());
-      student.setStudentCode(fields[2].trim());
-      student.setClassCode(fields[3].trim().isEmpty() ? null : fields[3].trim());
-      student.setFacultyCode(fields[4].trim());
-      student.setAdmissionYear(Integer.parseInt(fields[5].trim()));
-      student.setStudentStatus(Student.StudentStatus.valueOf(fields[6].trim().toUpperCase()));
-      student.setGpa(new java.math.BigDecimal(fields[7].trim()));
-      student.setTotalCredits(Integer.parseInt(fields[8].trim()));
-      student.setBirthDate(java.sql.Date.valueOf(fields[9].trim()));
-      student.setGender(Student.Gender.valueOf(fields[10].trim().toUpperCase()));
-      student.setCitizenId(fields[11].trim());
-      student.setEmergencyContact(fields[12].trim());
-      student.setEmergencyPhone(fields[13].trim());
-      student.setCreatedAt(java.sql.Timestamp.valueOf(fields[14].trim()));
-      student.setFullName(fields[15].trim());
-      student.setEmail(fields[16].trim());
-      student.setPhone(fields[17].trim());
-      student.setAddress(fields[18].trim());
+      student.setStudentId(parseIntSafe(fields[0]));
+      student.setUsername(safeTrim(fields, 1));
+      student.setStudentCode(safeTrim(fields, 2));
+      student.setClassCode(emptyToNull(safeTrim(fields, 3)));
+      student.setFacultyCode(safeTrim(fields, 4));
+      student.setAdmissionYear(parseIntSafe(fields[5]));
+      student.setStudentStatus(parseStudentStatus(fields, 6, Student.StudentStatus.ACTIVE));
+      student.setGpa(parseBigDecimalSafe(fields, 7));
+      student.setTotalCredits(parseIntSafe(fields[8]));
+      student.setBirthDate(parseDateSafe(fields, 9));
+      student.setGender(parseGender(fields, 10, Student.Gender.OTHER));
+      student.setCitizenId(emptyToNull(safeTrim(fields, 11)));
+      student.setEmergencyContact(emptyToNull(safeTrim(fields, 12)));
+      student.setEmergencyPhone(emptyToNull(safeTrim(fields, 13)));
+      student.setCreatedAt(parseTimestampSafe(fields, 14, currentTimestamp()));
+
       return student;
     } catch (Exception e) {
+      LOGGER.warning("Không parse được dòng student: " + line + " - " + e.getMessage());
       return null;
     }
   }
 
+  private String[] parseCsvLine(String line) {
+    if (line == null)
+      return new String[0];
+    List<String> tokens = new ArrayList<>();
+    StringBuilder current = new StringBuilder();
+    boolean inQuotes = false;
+    for (int i = 0; i < line.length(); i++) {
+      char c = line.charAt(i);
+      if (c == '"') {
+        if (inQuotes && i + 1 < line.length() && line.charAt(i + 1) == '"') {
+          current.append('"');
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (c == ',' && !inQuotes) {
+        tokens.add(current.toString());
+        current.setLength(0);
+      } else {
+        current.append(c);
+      }
+    }
+    tokens.add(current.toString());
+    return tokens.toArray(new String[0]);
+  }
+
+  private String safeTrim(String[] fields, int index) {
+    if (fields == null || index < 0 || index >= fields.length || fields[index] == null) {
+      return "";
+    }
+    return fields[index].trim();
+  }
+
+  private String emptyToNull(String value) {
+    return (value == null || value.isEmpty()) ? null : value;
+  }
+
+  private int parseIntSafe(String value) {
+    try {
+      if (value == null || value.trim().isEmpty()) {
+        return 0;
+      }
+      return Integer.parseInt(value.trim());
+    } catch (NumberFormatException e) {
+      return 0;
+    }
+  }
+
+  private java.math.BigDecimal parseBigDecimalSafe(String[] fields, int index) {
+    String value = safeTrim(fields, index);
+    if (value.isEmpty()) {
+      return java.math.BigDecimal.ZERO;
+    }
+    try {
+      return new java.math.BigDecimal(value);
+    } catch (NumberFormatException e) {
+      return java.math.BigDecimal.ZERO;
+    }
+  }
+
+  private java.sql.Date parseDateSafe(String[] fields, int index) {
+    String value = safeTrim(fields, index);
+    if (value.isEmpty()) {
+      return null;
+    }
+    try {
+      return java.sql.Date.valueOf(value);
+    } catch (IllegalArgumentException e) {
+      return null;
+    }
+  }
+
+  private java.sql.Timestamp parseTimestampSafe(String[] fields, int index) {
+    return parseTimestampSafe(fields, index, null);
+  }
+
+  private java.sql.Timestamp parseTimestampSafe(String[] fields, int index, java.sql.Timestamp defaultValue) {
+    String value = safeTrim(fields, index);
+    if (value.isEmpty()) {
+      return defaultValue;
+    }
+    try {
+      return java.sql.Timestamp.valueOf(value);
+    } catch (IllegalArgumentException e) {
+      return defaultValue;
+    }
+  }
+
+  private java.sql.Timestamp currentTimestamp() {
+    return new java.sql.Timestamp(System.currentTimeMillis());
+  }
+
+  private Student.StudentStatus parseStudentStatus(String[] fields, int index,
+      Student.StudentStatus defaultValue) {
+    String value = safeTrim(fields, index);
+    if (value.isEmpty())
+      return defaultValue;
+    try {
+      return Student.StudentStatus.valueOf(value.trim().toUpperCase());
+    } catch (IllegalArgumentException e) {
+      return defaultValue;
+    }
+  }
+
+  private Student.Gender parseGender(String[] fields, int index, Student.Gender defaultValue) {
+    String value = safeTrim(fields, index);
+    if (value.isEmpty())
+      return defaultValue;
+    try {
+      // Cho phép viết tắt M/F
+      if ("M".equalsIgnoreCase(value)) {
+        return Student.Gender.MALE;
+      }
+      if ("F".equalsIgnoreCase(value)) {
+        return Student.Gender.FEMALE;
+      }
+      return Student.Gender.valueOf(value.trim().toUpperCase());
+    } catch (IllegalArgumentException e) {
+      return defaultValue;
+    }
+  }
+
+  private String csvValue(Object value) {
+    if (value == null) {
+      return "";
+    }
+    String text;
+    if (value instanceof java.math.BigDecimal) {
+      text = ((java.math.BigDecimal) value).toPlainString();
+    } else if (value instanceof java.sql.Timestamp) {
+      text = value.toString();
+    } else if (value instanceof java.sql.Date) {
+      text = value.toString();
+    } else {
+      text = value.toString();
+    }
+    return escapeCsv(text);
+  }
+
+  private String escapeCsv(String value) {
+    if (value == null || value.isEmpty()) {
+      return "";
+    }
+    boolean needsQuotes = value.contains(",") || value.contains("\"") || value.contains("\n") || value.contains("\r");
+    String escaped = value.replace("\"", "\"\"");
+    if (needsQuotes) {
+      return "\"" + escaped + "\"";
+    }
+    return escaped;
+  }
+
   private boolean writeStudentsToCSV(List<Student> students) {
     Path file = dataDir.resolve(STUDENTS_FILE);
-    try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
+    try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file, StandardCharsets.UTF_8))) {
       writer.println(
-          "studentId,username,studentCode,classCode,facultyCode,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt,fullName,email,phone,address");
+          "studentId,username,studentCode,classCode,facultyCode,admissionYear,studentStatus,gpa,totalCredits,birthDate,gender,citizenId,emergencyContact,emergencyPhone,createdAt");
       for (Student student : students) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%d,%s,%s,%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
-            student.getStudentId(),
-            student.getUsername() != null ? student.getUsername() : "",
-            student.getStudentCode(),
-            student.getClassCode() != null ? student.getClassCode() : "",
-            student.getFacultyCode(),
-            student.getAdmissionYear(),
-            student.getStudentStatus(),
-            student.getGpa(),
-            student.getTotalCredits(),
-            student.getBirthDate(),
-            student.getGender(),
-            student.getCitizenId(),
-            student.getEmergencyContact(),
-            student.getEmergencyPhone(),
-            student.getCreatedAt(),
-            student.getFullName(),
-            student.getEmail(),
-            student.getPhone(),
-            student.getAddress()));
+        String[] columns = new String[] {
+            csvValue(student.getStudentId()),
+            csvValue(student.getUsername()),
+            csvValue(student.getStudentCode()),
+            csvValue(student.getClassCode()),
+            csvValue(student.getFacultyCode()),
+            csvValue(student.getAdmissionYear()),
+            csvValue(student.getStudentStatus()),
+            csvValue(student.getGpa()),
+            csvValue(student.getTotalCredits()),
+            csvValue(student.getBirthDate()),
+            csvValue(student.getGender()),
+            csvValue(student.getCitizenId()),
+            csvValue(student.getEmergencyContact()),
+            csvValue(student.getEmergencyPhone()),
+            csvValue(student.getCreatedAt())
+        };
+        writer.println(String.join(",", columns));
       }
       return true;
     } catch (IOException e) {
@@ -332,38 +483,43 @@ public class CSVDataService {
 
   private User parseUserFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 10)
         return null;
       User user = new User();
-      user.setUserId(Integer.parseInt(fields[0].trim()));
-      user.setUsername(fields[1].trim());
-      user.setPassword(fields[2].trim());
-      user.setFullName(fields[3].trim());
-      user.setEmail(fields[4].trim());
-      user.setPhone(fields[5].trim());
-      user.setAddress(fields[6].trim());
-      user.setRole(User.UserRole.valueOf(fields[7].trim().toUpperCase()));
-      user.setActive(Boolean.parseBoolean(fields[8].trim()));
-      // Handle createdAt - có thể là null hoặc timestamp
-      if (fields.length > 9 && fields[9].trim() != null && !fields[9].trim().isEmpty()
-          && !fields[9].trim().equals("null")) {
+      user.setUserId(parseIntSafe(fields[0]));
+      user.setUsername(safeTrim(fields, 1));
+      user.setPassword(safeTrim(fields, 2));
+      user.setEmail(safeTrim(fields, 3));
+      user.setFullName(safeTrim(fields, 4));
+
+      String roleStr = safeTrim(fields, 5);
+      if (!roleStr.isEmpty()) {
         try {
-          user.setCreatedAt(java.sql.Timestamp.valueOf(fields[9].trim()));
-        } catch (Exception e) {
-          user.setCreatedAt(null);
+          user.setRole(User.UserRole.valueOf(roleStr.toUpperCase()));
+        } catch (IllegalArgumentException ex) {
+          user.setRole(User.UserRole.STUDENT);
         }
       } else {
-        user.setCreatedAt(null);
+        user.setRole(User.UserRole.STUDENT);
       }
-      // Handle facultyCode (field 10, optional)
-      if (fields.length > 10 && fields[10].trim() != null && !fields[10].trim().isEmpty()) {
-        user.setFacultyCode(fields[10].trim());
-      } else {
-        user.setFacultyCode(null);
+
+      user.setPhone(emptyToNull(safeTrim(fields, 6)));
+      user.setAddress(emptyToNull(safeTrim(fields, 7)));
+      user.setFacultyCode(emptyToNull(safeTrim(fields, 8)));
+      user.setCreatedAt(parseTimestampSafe(fields, 9, currentTimestamp()));
+      if (fields.length > 10) {
+        user.setUpdatedAt(parseTimestampSafe(fields, 10, currentTimestamp()));
+      }
+      if (fields.length > 11) {
+        String activeStr = safeTrim(fields, 11);
+        if (!activeStr.isEmpty()) {
+          user.setActive(Boolean.parseBoolean(activeStr));
+        }
       }
       return user;
     } catch (Exception e) {
+      LOGGER.warning("Không parse được dòng user: " + line + " - " + e.getMessage());
       return null;
     }
   }
@@ -371,20 +527,22 @@ public class CSVDataService {
   private boolean writeUsersToCSV(List<User> users) {
     Path file = dataDir.resolve(USERS_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
-      writer.println("userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode");
+      writer.println(
+          "userId,username,password,email,fullName,role,phone,address,facultyCode,createdAt,updatedAt,isActive");
       for (User user : users) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
             user.getUserId(),
             user.getUsername(),
             user.getPassword(),
-            user.getFullName(),
             user.getEmail(),
+            user.getFullName(),
+            user.getRole(),
             user.getPhone() != null ? user.getPhone() : "",
             user.getAddress() != null ? user.getAddress() : "",
-            user.getRole(),
-            user.isActive(),
-            user.getCreatedAt() != null ? user.getCreatedAt() : "null",
-            user.getFacultyCode() != null ? user.getFacultyCode() : ""));
+            user.getFacultyCode() != null ? user.getFacultyCode() : "",
+            user.getCreatedAt() != null ? user.getCreatedAt() : "",
+            user.getUpdatedAt() != null ? user.getUpdatedAt() : "",
+            user.isActive()));
       }
       return true;
     } catch (IOException e) {
@@ -424,7 +582,7 @@ public class CSVDataService {
 
   private Course parseCourseFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 17)
         return null;
       Course course = new Course();
@@ -463,9 +621,9 @@ public class CSVDataService {
         course.setCourseStatus(Course.CourseStatus.PLANNING);
       }
 
-      course.setStartDate(fields[14].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[14].trim()));
-      course.setEndDate(fields[15].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[15].trim()));
-      course.setCreatedAt(java.sql.Timestamp.valueOf(fields[16].trim()));
+      course.setStartDate(parseDateSafe(fields, 14));
+      course.setEndDate(parseDateSafe(fields, 15));
+      course.setCreatedAt(parseTimestampSafe(fields, 16, currentTimestamp()));
       return course;
     } catch (Exception e) {
       return null;
@@ -535,11 +693,7 @@ public class CSVDataService {
 
   private Enrollment parseEnrollmentFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
-      // File CSV có 9 cột (theo database schema):
-      // enrollmentId,studentCode,courseCode,enrollmentDate,enrollmentStatus,finalGrade,letterGrade,gradePoints,createdAt
-      // Lưu ý: File CSV cũ có thể có attendanceRate thay vì gradePoints, nhưng code
-      // sẽ đọc field[7] như gradePoints
+      String[] fields = parseCsvLine(line);
       if (fields.length < 8)
         return null;
       Enrollment enrollment = new Enrollment();
@@ -667,7 +821,7 @@ public class CSVDataService {
 
   private Faculty parseFacultyFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 5)
         return null;
       Faculty faculty = new Faculty();
@@ -675,7 +829,7 @@ public class CSVDataService {
       faculty.setFacultyCode(fields[1].trim());
       faculty.setFacultyName(fields[2].trim());
       faculty.setDescription(fields[3].trim().isEmpty() ? null : fields[3].trim());
-      faculty.setCreatedAt(java.sql.Timestamp.valueOf(fields[4].trim()));
+      faculty.setCreatedAt(parseTimestampSafe(fields, 4, currentTimestamp()));
       return faculty;
     } catch (Exception e) {
       return null;
@@ -735,7 +889,7 @@ public class CSVDataService {
 
   private Class parseClassFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 9)
         return null;
       Class clazz = new Class();
@@ -747,7 +901,7 @@ public class CSVDataService {
       clazz.setAcademicYear(fields[5].trim());
       clazz.setSemester(Integer.parseInt(fields[6].trim()));
       clazz.setMaxStudents(fields[7].trim().isEmpty() ? null : Integer.parseInt(fields[7].trim()));
-      clazz.setCreatedAt(java.sql.Timestamp.valueOf(fields[8].trim()));
+      clazz.setCreatedAt(parseTimestampSafe(fields, 8, currentTimestamp()));
       return clazz;
     } catch (Exception e) {
       return null;
@@ -809,7 +963,7 @@ public class CSVDataService {
 
   private Subject parseSubjectFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 9)
         return null;
       Subject subject = new Subject();
@@ -821,7 +975,7 @@ public class CSVDataService {
       subject.setPrerequisiteSubjectCode(fields[5].trim().isEmpty() ? null : fields[5].trim());
       subject.setDescription(fields[6].trim().isEmpty() ? null : fields[6].trim());
       subject.setRequired(Boolean.parseBoolean(fields[7].trim()));
-      subject.setCreatedAt(java.sql.Timestamp.valueOf(fields[8].trim()));
+      subject.setCreatedAt(parseTimestampSafe(fields, 8, currentTimestamp()));
       return subject;
     } catch (Exception e) {
       return null;
@@ -883,23 +1037,33 @@ public class CSVDataService {
 
   private Grade parseGradeFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 11)
         return null;
       Grade grade = new Grade();
-      grade.setGradeId(Integer.parseInt(fields[0].trim()));
-      grade.setStudentCode(fields[1].trim());
-      grade.setCourseCode(fields[2].trim());
-      grade.setGradeType(Grade.GradeType.valueOf(fields[3].trim().toUpperCase()));
-      grade.setGradeName(fields[4].trim().isEmpty() ? null : fields[4].trim());
-      grade.setScore(fields[5].trim().isEmpty() ? null : new java.math.BigDecimal(fields[5].trim()));
-      grade.setMaxScore(fields[6].trim().isEmpty() ? null : new java.math.BigDecimal(fields[6].trim()));
-      grade.setWeight(fields[7].trim().isEmpty() ? null : new java.math.BigDecimal(fields[7].trim()));
-      grade.setGradeDate(fields[8].trim().isEmpty() ? null : java.sql.Date.valueOf(fields[8].trim()));
-      grade.setNotes(fields[9].trim().isEmpty() ? null : fields[9].trim());
-      grade.setCreatedAt(java.sql.Timestamp.valueOf(fields[10].trim()));
+      grade.setGradeId(parseIntSafe(fields[0]));
+      grade.setStudentCode(safeTrim(fields, 1));
+      grade.setCourseCode(safeTrim(fields, 2));
+      String gradeTypeStr = safeTrim(fields, 3);
+      if (!gradeTypeStr.isEmpty()) {
+        try {
+          grade.setGradeType(Grade.GradeType.valueOf(gradeTypeStr.toUpperCase()));
+        } catch (IllegalArgumentException ignored) {
+        }
+      }
+      grade.setGradeName(emptyToNull(safeTrim(fields, 4)));
+      grade.setScore(parseBigDecimalSafe(fields, 5));
+      grade.setMaxScore(parseBigDecimalSafe(fields, 6));
+      grade.setWeight(parseBigDecimalSafe(fields, 7));
+      grade.setGradeDate(parseDateSafe(fields, 8));
+      grade.setNotes(emptyToNull(safeTrim(fields, 9)));
+      grade.setCreatedAt(parseTimestampSafe(fields, 10, currentTimestamp()));
+      if (fields.length > 11) {
+        grade.setUpdatedAt(parseTimestampSafe(fields, 11, currentTimestamp()));
+      }
       return grade;
     } catch (Exception e) {
+      LOGGER.warning("Không parse được dòng grade: " + line + " - " + e.getMessage());
       return null;
     }
   }
@@ -908,9 +1072,9 @@ public class CSVDataService {
     Path file = dataDir.resolve(GRADES_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
       writer.println(
-          "gradeId,studentCode,courseCode,gradeType,gradeName,score,maxScore,weight,gradeDate,notes,createdAt");
+          "gradeId,studentCode,courseCode,gradeType,gradeName,score,maxScore,weight,gradeDate,notes,createdAt,updatedAt");
       for (Grade g : grades) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
             g.getGradeId(),
             g.getStudentCode(),
             g.getCourseCode(),
@@ -921,7 +1085,8 @@ public class CSVDataService {
             g.getWeight() != null ? g.getWeight() : "",
             g.getGradeDate() != null ? g.getGradeDate() : "",
             g.getNotes() != null ? g.getNotes() : "",
-            g.getCreatedAt()));
+            g.getCreatedAt(),
+            g.getUpdatedAt() != null ? g.getUpdatedAt() : ""));
       }
       return true;
     } catch (IOException e) {
@@ -964,7 +1129,7 @@ public class CSVDataService {
 
   private ClassOpeningRequest parseClassOpeningRequestFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 16)
         return null;
       ClassOpeningRequest request = new ClassOpeningRequest();
@@ -983,13 +1148,15 @@ public class CSVDataService {
       request.setAdminNote(fields[11].trim().isEmpty() ? null : fields[11].trim());
       request.setApprovedByUsername(fields[12].trim().isEmpty() ? null : fields[12].trim());
       request.setApprovedCourseCode(fields[13].trim().isEmpty() ? null : fields[13].trim());
-      request.setRequestDate(fields[14].trim().isEmpty() ? null : java.sql.Timestamp.valueOf(fields[14].trim()));
+      request.setRequestDate(parseTimestampSafe(fields, 14));
       request.setDecisionDate(
-          fields.length > 15 && !fields[15].trim().isEmpty() ? java.sql.Timestamp.valueOf(fields[15].trim()) : null);
+          fields.length > 15 && !fields[15].trim().isEmpty() ? parseTimestampSafe(fields, 15) : null);
       request.setCreatedAt(
-          fields.length > 16 && !fields[16].trim().isEmpty() ? java.sql.Timestamp.valueOf(fields[16].trim()) : null);
-      request.setUpdatedAt(
-          fields.length > 17 && !fields[17].trim().isEmpty() ? java.sql.Timestamp.valueOf(fields[17].trim()) : null);
+          fields.length > 16 && !fields[16].trim().isEmpty() ? parseTimestampSafe(fields, 16, currentTimestamp())
+              : currentTimestamp());
+      request.setUpdatedAt(fields.length > 17 && !fields[17].trim().isEmpty()
+          ? parseTimestampSafe(fields, 17, currentTimestamp())
+          : currentTimestamp());
       return request;
     } catch (Exception e) {
       return null;
@@ -1060,22 +1227,31 @@ public class CSVDataService {
 
   private CourseRegistration parseCourseRegistrationFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 8)
         return null;
       CourseRegistration registration = new CourseRegistration();
-      registration.setRegistrationId(Integer.parseInt(fields[0].trim()));
-      registration.setStudentCode(fields[1].trim());
-      registration.setCourseCode(fields[2].trim());
-      registration.setRegistrationDate(java.sql.Timestamp.valueOf(fields[3].trim()));
-      registration.setRegistrationStatus(
-          fields[4].trim().isEmpty() ? null
-              : CourseRegistration.RegistrationStatus.valueOf(fields[4].trim().toUpperCase()));
-      registration.setCancelDate(fields[5].trim().isEmpty() ? null : java.sql.Timestamp.valueOf(fields[5].trim()));
-      registration.setNotes(fields[6].trim().isEmpty() ? null : fields[6].trim());
-      registration.setCreatedAt(java.sql.Timestamp.valueOf(fields[7].trim()));
+      registration.setRegistrationId(parseIntSafe(fields[0]));
+      registration.setStudentCode(safeTrim(fields, 1));
+      registration.setCourseCode(safeTrim(fields, 2));
+      registration.setRegistrationDate(parseTimestampSafe(fields, 3));
+      String statusStr = safeTrim(fields, 4);
+      if (!statusStr.isEmpty()) {
+        try {
+          registration.setRegistrationStatus(
+              CourseRegistration.RegistrationStatus.valueOf(statusStr.toUpperCase()));
+        } catch (IllegalArgumentException ignored) {
+        }
+      }
+      registration.setCancelDate(parseTimestampSafe(fields, 5));
+      registration.setNotes(emptyToNull(safeTrim(fields, 6)));
+      registration.setCreatedAt(parseTimestampSafe(fields, 7, currentTimestamp()));
+      if (fields.length > 8) {
+        registration.setUpdatedAt(parseTimestampSafe(fields, 8, currentTimestamp()));
+      }
       return registration;
     } catch (Exception e) {
+      LOGGER.warning("Không parse được dòng course registration: " + line + " - " + e.getMessage());
       return null;
     }
   }
@@ -1084,9 +1260,9 @@ public class CSVDataService {
     Path file = dataDir.resolve(COURSE_REGISTRATIONS_FILE);
     try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
       writer.println(
-          "registrationId,studentCode,courseCode,registrationDate,registrationStatus,cancelDate,notes,createdAt");
+          "registrationId,studentCode,courseCode,registrationDate,registrationStatus,cancelDate,notes,createdAt,updatedAt");
       for (CourseRegistration r : registrations) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s",
+        writer.println(String.format("%d,%s,%s,%s,%s,%s,%s,%s,%s",
             r.getRegistrationId(),
             r.getStudentCode(),
             r.getCourseCode(),
@@ -1094,7 +1270,8 @@ public class CSVDataService {
             r.getRegistrationStatus() != null ? r.getRegistrationStatus().name() : "",
             r.getCancelDate() != null ? r.getCancelDate() : "",
             r.getNotes() != null ? r.getNotes() : "",
-            r.getCreatedAt()));
+            r.getCreatedAt(),
+            r.getUpdatedAt() != null ? r.getUpdatedAt() : ""));
       }
       return true;
     } catch (IOException e) {
@@ -1134,7 +1311,7 @@ public class CSVDataService {
 
   private Notification parseNotificationFromCSV(String line) {
     try {
-      String[] fields = line.split(",");
+      String[] fields = parseCsvLine(line);
       if (fields.length < 10)
         return null;
       Notification notification = new Notification();
@@ -1146,8 +1323,8 @@ public class CSVDataService {
       notification.setTargetCode(fields[5].trim().isEmpty() ? null : fields[5].trim());
       notification.setPriority(Notification.Priority.valueOf(fields[6].trim().toUpperCase()));
       notification.setRead(Boolean.parseBoolean(fields[7].trim()));
-      notification.setCreatedAt(java.sql.Timestamp.valueOf(fields[8].trim()));
-      notification.setExpiresAt(fields[9].trim().isEmpty() ? null : java.sql.Timestamp.valueOf(fields[9].trim()));
+      notification.setCreatedAt(parseTimestampSafe(fields, 8, currentTimestamp()));
+      notification.setExpiresAt(fields[9].trim().isEmpty() ? null : parseTimestampSafe(fields, 9));
       return notification;
     } catch (Exception e) {
       return null;

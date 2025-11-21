@@ -568,8 +568,7 @@ public class ClientHandler implements Runnable, DataOriginHelper {
      */
     private boolean isPublicAction(String action) {
         return Constants.ACTION_LOGIN.equals(action) ||
-                Constants.ACTION_SYNC_CHECK.equals(action) ||
-                Constants.ACTION_DOWNLOAD_DATA.equals(action);
+                Constants.ACTION_SYNC_CHECK.equals(action);
     }
 
     /**

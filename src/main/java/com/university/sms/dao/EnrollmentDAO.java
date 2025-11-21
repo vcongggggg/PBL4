@@ -25,13 +25,17 @@ public class EnrollmentDAO {
         if (enrollment.getEnrollmentId() > 0) {
             Enrollment existing = findById(enrollment.getEnrollmentId());
             if (existing != null) {
-                return true;
+                return updateEnrollmentDetails(enrollment, existing);
             }
         }
 
         Integer existingId = findEnrollmentIdByKeys(enrollment.getStudentCode(), enrollment.getCourseCode());
         if (existingId != null) {
+            Enrollment existing = findById(existingId);
             enrollment.setEnrollmentId(existingId);
+            if (existing != null) {
+                return updateEnrollmentDetails(enrollment, existing);
+            }
             return true;
         }
 
@@ -121,6 +125,60 @@ public class EnrollmentDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Lỗi khi thêm enrollment", e);
+            return false;
+        }
+    }
+
+    private boolean updateEnrollmentDetails(Enrollment updated, Enrollment existing) {
+        if (updated.getEnrollmentStatus() == null) {
+            updated.setEnrollmentStatus(existing.getEnrollmentStatus());
+        }
+        if (updated.getEnrollmentDate() == null) {
+            updated.setEnrollmentDate(existing.getEnrollmentDate());
+        }
+        if (updated.getFinalGrade() == null) {
+            updated.setFinalGrade(existing.getFinalGrade());
+        }
+        if (updated.getLetterGrade() == null || updated.getLetterGrade().isEmpty()) {
+            updated.setLetterGrade(existing.getLetterGrade());
+        }
+        if (updated.getGradePoints() == null) {
+            updated.setGradePoints(existing.getGradePoints());
+        }
+
+        String sql = "UPDATE enrollments SET enrollment_date = ?, enrollment_status = ?, final_grade = ?, letter_grade = ?, grade_points = ? WHERE enrollment_id = ?";
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            if (updated.getEnrollmentDate() != null) {
+                stmt.setTimestamp(1, updated.getEnrollmentDate());
+            } else {
+                stmt.setNull(1, Types.TIMESTAMP);
+            }
+            stmt.setString(2, updated.getEnrollmentStatus() != null ? updated.getEnrollmentStatus().name().toLowerCase()
+                    : Enrollment.EnrollmentStatus.ENROLLED.name().toLowerCase());
+
+            if (updated.getFinalGrade() != null) {
+                stmt.setBigDecimal(3, updated.getFinalGrade());
+            } else {
+                stmt.setNull(3, Types.DECIMAL);
+            }
+
+            if (updated.getLetterGrade() != null) {
+                stmt.setString(4, updated.getLetterGrade());
+            } else {
+                stmt.setNull(4, Types.VARCHAR);
+            }
+
+            if (updated.getGradePoints() != null) {
+                stmt.setBigDecimal(5, updated.getGradePoints());
+            } else {
+                stmt.setNull(5, Types.DECIMAL);
+            }
+
+            stmt.setInt(6, updated.getEnrollmentId());
+            return stmt.executeUpdate() > 0;
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật thông tin enrollment", e);
             return false;
         }
     }
@@ -469,6 +527,29 @@ public class EnrollmentDAO {
         }
 
         return 0;
+    }
+
+    /**
+     * Đổi trạng thái toàn bộ enrollments của một lớp sang DROPPED (ví dụ khi admin
+     * hủy lớp)
+     */
+    public int dropEnrollmentsByCourse(String courseCode) {
+        String sql = "UPDATE enrollments SET enrollment_status = 'dropped' " +
+                "WHERE course_code = ? AND enrollment_status <> 'dropped'";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            stmt.setString(1, courseCode);
+            int updated = stmt.executeUpdate();
+            if (updated > 0) {
+                LOGGER.info(
+                        "Đã chuyển " + updated + " enrollment(s) sang trạng thái DROPPED cho khóa học " + courseCode);
+            }
+            return updated;
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật trạng thái DROPPED cho khóa học: " + courseCode, e);
+            return 0;
+        }
     }
 
     /**

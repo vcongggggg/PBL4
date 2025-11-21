@@ -1,4 +1,1 @@
 requestId,teacherUsername,subjectCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,reason,requestStatus,adminNote,approvedByUsername,approvedCourseCode,requestDate,decisionDate,createdAt,updatedAt
-1,gv02,NMN,2024-2025,1,"Thứ 2, Thứ 4","Tiết 2-3 (08:00-10:00)",Room A101,50,"Mở lớp NMN",approved,"OK",admin01,NMN_2425S1,2024-08-01,2024-08-03,2024-08-01,2024-08-03
-2,gv03,CTDL,2024-2025,1,"Thứ 3","09:00-11:00",LAB202,25,"Mở lớp CTDL",approved,"Duyệt",admin01,CTDL_2425S1,2024-08-02,2024-08-05,2024-08-02,2024-08-05
-3,gv04,CSDL,2024-2025,1,"Thứ 4","13:00-15:00",LAB303,25,"Mở lớp CSDL",approved,"Duyệt",admin02,CSDL_2425S1,2024-08-03,2024-08-06,2024-08-03,2024-08-06

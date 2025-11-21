@@ -16,7 +16,7 @@ import java.awt.geom.RoundRectangle2D;
 import javax.imageio.ImageIO;
 import java.io.IOException;
 import java.io.InputStream;
-import java.util.Map;
+import java.util.List;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -63,6 +63,7 @@ public class LoginFrame extends JFrame {
     private ConnectionFactory connectionFactory;
     private boolean isConnectedToServer = false;
     private boolean isPasswordVisible = false;
+    private LoadingOverlay loadingOverlay;
 
     // // Dark theme colors
     private static final Color BG_DARK = new Color(66, 71, 85);
@@ -88,6 +89,7 @@ public class LoginFrame extends JFrame {
         setupLayout();
         setupEventListeners();
         setDefaultServerSettings();
+        this.loadingOverlay = LoadingOverlay.forWindow(this);
     }
 
     private void initLookAndFeel() {
@@ -731,6 +733,7 @@ public class LoginFrame extends JFrame {
             }
         });
 
+        CsvSyncProgressMonitor.attach(this, serverConnection);
         usernameField.requestFocus();
     }
 
@@ -797,28 +800,12 @@ public class LoginFrame extends JFrame {
         User user = (User) response.getData(Constants.KEY_USER);
 
         if (user != null) {
-            setVisible(false);
-            SwingUtilities.invokeLater(() -> {
-                switch (user.getRole()) {
-                    case ADMIN:
-                        if (serverConnection instanceof CSVServerConnection) {
-                            uploadCSVDataForAdmin((CSVServerConnection) serverConnection, user);
-                        } else {
-                            new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection)
-                                    .setVisible(true);
-                        }
-                        break;
-                    case TEACHER:
-                        new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection)
-                                .setVisible(true);
-                        break;
-                    case STUDENT:
-                        new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection)
-                                .setVisible(true);
-                        break;
-                }
-                dispose();
-            });
+            if (serverConnection instanceof CSVServerConnection
+                    && user.getRole() == User.UserRole.ADMIN) {
+                performCsvAdminSync(user, (CSVServerConnection) serverConnection);
+            } else {
+                openMainFrameForUser(user);
+            }
         } else {
             showMessage("Lỗi: Không nhận được thông tin người dùng", "Lỗi", JOptionPane.ERROR_MESSAGE);
         }
@@ -835,152 +822,107 @@ public class LoginFrame extends JFrame {
         statusLabel.setForeground(TEXT_SECONDARY);
         progressBar.setVisible(true);
         progressBar.setIndeterminate(true);
+        if (loadingOverlay != null) {
+            loadingOverlay.show("Đang xử lý", message);
+        }
     }
 
     private void hideProgress() {
         progressBar.setVisible(false);
         progressBar.setIndeterminate(false);
+        if (loadingOverlay != null) {
+            loadingOverlay.hide();
+        }
     }
 
     private void showMessage(String message, String title, int messageType) {
         JOptionPane.showMessageDialog(this, message, title, messageType);
     }
 
-    private void uploadCSVDataForAdmin(CSVServerConnection csvConnection, User admin) {
-        // Hiển thị dialog progress
-        JDialog progressDialog = new JDialog(this, "Đang upload dữ liệu CSV", true);
-        JPanel panel = new JPanel(new BorderLayout(10, 10));
-        panel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+    private void openMainFrameForUser(User user) {
+        setVisible(false);
+        SwingUtilities.invokeLater(() -> {
+            switch (user.getRole()) {
+                case ADMIN:
+                    new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection).setVisible(true);
+                    break;
+                case TEACHER:
+                    new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection).setVisible(true);
+                    break;
+                case STUDENT:
+                    new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection).setVisible(true);
+                    break;
+            }
+            dispose();
+        });
+    }
 
-        JLabel messageLabel = new JLabel("Đang upload dữ liệu từ CSV lên server...");
-        JProgressBar pb = new JProgressBar();
-        pb.setIndeterminate(true);
+    private void performCsvAdminSync(User admin, CSVServerConnection csvConnection) {
+        if (loadingOverlay != null) {
+            loadingOverlay.show("Đang kiểm tra đồng bộ",
+                    "Đang xác minh quyền admin và phiên bản dữ liệu CSV...");
+        }
 
-        panel.add(messageLabel, BorderLayout.NORTH);
-        panel.add(pb, BorderLayout.CENTER);
-        progressDialog.add(panel);
-        progressDialog.setSize(420, 120);
-        progressDialog.setLocationRelativeTo(this);
-        progressDialog.setDefaultCloseOperation(JDialog.DO_NOTHING_ON_CLOSE);
-
-        SwingWorker<String, String> uploadWorker = new SwingWorker<String, String>() {
+        SwingWorker<Message, String> worker = new SwingWorker<Message, String>() {
             @Override
-            protected String doInBackground() throws Exception {
-                // Đợi một chút để đảm bảo session đã được thiết lập trên server sau khi đăng
-                // nhập
-                Thread.sleep(500);
-
-                StringBuilder result = new StringBuilder();
-
-                publish("Đang upload Users...");
-                Message usersResponse = csvConnection.uploadAllUsersFromCSV();
-                result.append("Users: ").append(usersResponse.getMessage()).append("\n");
-
-                publish("Đang upload Faculties...");
-                Message facultiesResponse = csvConnection.uploadAllFacultiesFromCSV();
-                result.append("Faculties: ").append(facultiesResponse.getMessage()).append("\n");
-
-                publish("Đang upload Subjects...");
-                Message subjectsResponse = csvConnection.uploadAllSubjectsFromCSV();
-                result.append("Subjects: ").append(subjectsResponse.getMessage()).append("\n");
-
-                publish("Đang upload Classes...");
-                Message classesResponse = csvConnection.uploadAllClassesFromCSV();
-                result.append("Classes: ").append(classesResponse.getMessage()).append("\n");
-
-                publish("Đang upload Students...");
-                Message studentsResponse = csvConnection.uploadAllStudentsFromCSV();
-                result.append("Students: ").append(studentsResponse.getMessage()).append("\n");
-
-                publish("Đang upload Courses...");
-                Message coursesResponse = csvConnection.uploadAllCoursesFromCSV();
-                result.append("Courses: ").append(coursesResponse.getMessage()).append("\n");
-
-                publish("Đang upload Enrollments...");
-                Message enrollmentsResponse = csvConnection.uploadAllEnrollmentsFromCSV();
-                result.append("Enrollments: ").append(enrollmentsResponse.getMessage()).append("\n");
-
-                publish("Đang upload Grades...");
-                Message gradesResponse = csvConnection.uploadAllGradesFromCSV();
-                result.append("Grades: ").append(gradesResponse.getMessage()).append("\n");
-
-                publish("Đang upload Notifications...");
-                Message notificationsResponse = csvConnection.uploadAllNotificationsFromCSV();
-                result.append("Notifications: ").append(notificationsResponse.getMessage()).append("\n");
-
-                publish("Đang upload Class Opening Requests...");
-                Message requestsResponse = csvConnection.uploadAllClassOpeningRequestsFromCSV();
-                result.append("Class Requests: ").append(requestsResponse.getMessage()).append("\n");
-
-                publish("Đang upload Course Registrations...");
-                Message registrationsResponse = csvConnection.uploadAllCourseRegistrationsFromCSV();
-                result.append("Course Registrations: ").append(registrationsResponse.getMessage()).append("\n");
-
-                // Cập nhật version client = version server sau khi upload thành công
-                // Đợi một chút để server cập nhật version xong
-                Thread.sleep(300);
-                publish("Đang cập nhật version...");
-                try {
-                    Message metadataResponse = csvConnection.sendMetadata();
-                    if (metadataResponse.isSuccess()) {
-                        @SuppressWarnings("unchecked")
-                        Map<String, Object> serverMetadata = (Map<String, Object>) metadataResponse
-                                .getData("server_metadata");
-                        if (serverMetadata != null) {
-                            Object csvVersionObj = serverMetadata.get("csv_version");
-                            if (csvVersionObj instanceof Integer) {
-                                csvConnection.getCsvDataService().setVersion((Integer) csvVersionObj);
-                                result.append("\nVersion đã được cập nhật: ").append(csvVersionObj).append("\n");
-                            } else if (csvVersionObj instanceof Long) {
-                                csvConnection.getCsvDataService().setVersion(((Long) csvVersionObj).intValue());
-                                result.append("\nVersion đã được cập nhật: ").append(csvVersionObj).append("\n");
-                            }
-                        }
-                    }
-                } catch (Exception e) {
-                    result.append("\nLỗi khi cập nhật version: ").append(e.getMessage()).append("\n");
+            protected Message doInBackground() throws Exception {
+                publish("Đang gửi metadata đến server...");
+                Message metadata = csvConnection.sendMetadata();
+                if (metadata == null || !metadata.isSuccess()) {
+                    return metadata;
                 }
 
-                return result.toString();
+                String syncAction = (String) metadata.getData("sync_action");
+                if (syncAction == null || "NO_SYNC_NEEDED".equals(syncAction)) {
+                    return Message.createSuccessResponse(Constants.ACTION_SYNC_DATA, "Dữ liệu đã đồng bộ");
+                }
+
+                if ("UPLOAD_TO_SERVER".equals(syncAction)) {
+                    publish("Đang upload dữ liệu CSV lên server...");
+                } else if ("DOWNLOAD_FROM_SERVER".equals(syncAction)) {
+                    publish("Đang download dữ liệu từ server...");
+                }
+
+                return csvConnection.syncData(syncAction);
             }
 
             @Override
-            protected void process(java.util.List<String> chunks) {
-                if (!chunks.isEmpty()) {
-                    messageLabel.setText(chunks.get(chunks.size() - 1));
+            protected void process(List<String> chunks) {
+                if (loadingOverlay != null && chunks != null && !chunks.isEmpty()) {
+                    loadingOverlay.updateMessage(chunks.get(chunks.size() - 1));
                 }
             }
 
             @Override
             protected void done() {
-                progressDialog.dispose();
+                Message result;
                 try {
-                    String result = get();
-
-                    JTextArea resultArea = new JTextArea(result);
-                    resultArea.setEditable(false);
-                    resultArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
-                    JScrollPane scrollPane = new JScrollPane(resultArea);
-                    scrollPane.setPreferredSize(new Dimension(520, 320));
-
-                    JOptionPane.showMessageDialog(LoginFrame.this,
-                            scrollPane,
-                            "Kết quả Upload CSV",
-                            JOptionPane.INFORMATION_MESSAGE);
-
-                    new com.university.sms.client.gui.admin.AdminMainFrame(admin, csvConnection).setVisible(true);
+                    result = get();
                 } catch (Exception e) {
-                    JOptionPane.showMessageDialog(LoginFrame.this,
-                            "Lỗi khi upload CSV: " + e.getMessage(),
-                            "Lỗi",
-                            JOptionPane.ERROR_MESSAGE);
-                    LOGGER.log(Level.SEVERE, "Lỗi khi upload dữ liệu CSV", e);
+                    result = Message.createErrorResponse(Constants.ACTION_SYNC_DATA,
+                            "Lỗi đồng bộ: " + e.getMessage());
                 }
+
+                if (loadingOverlay != null) {
+                    boolean success = result == null || result.isSuccess();
+                    String msg = (result != null && result.getMessage() != null && !result.getMessage().isEmpty())
+                            ? result.getMessage()
+                            : (success ? "Đã kiểm tra đồng bộ" : "Đồng bộ thất bại");
+                    loadingOverlay.complete(msg, success);
+                }
+
+                if (result != null && !result.isSuccess()) {
+                    JOptionPane.showMessageDialog(LoginFrame.this,
+                            "Lỗi đồng bộ CSV: " + result.getMessage(),
+                            "Lỗi đồng bộ",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+
+                openMainFrameForUser(admin);
             }
         };
 
-        uploadWorker.execute();
-        progressDialog.setVisible(true);
+        worker.execute();
     }
 
     // Custom rounded border

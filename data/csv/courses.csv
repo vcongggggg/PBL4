@@ -1,5 +1,2 @@
 courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,registrationStatus,courseStatus,startDate,endDate,createdAt
-1,NMN_2425S1,NMN,gv02,,2024-2025,1,"Thứ 2, Thứ 4","Tiết 2-3 (08:00-10:00)",Room A101,50,0,open,upcoming,2024-09-01,2024-12-15,2024-08-01
-2,CTDL_2425S1,CTDL,gv03,24CNTT_1,2024-2025,1,"Thứ 3","09:00-11:00",LAB202,25,0,open,upcoming,2024-09-02,2024-12-16,2024-08-02
-3,CSDL_2425S1,CSDL,gv04,24CNTT_2,2024-2025,1,"Thứ 4","13:00-15:00",LAB303,25,0,open,upcoming,2024-09-03,2024-12-16,2024-08-03
-4,MMT_2425S1,MMT,gv03,24CNTT_1,2024-2025,2,"Thứ 5","10:00-12:00",RM201,25,0,open,upcoming,2025-02-01,2025-05-30,2024-12-15
+2,DTDM_2425S1,DTDM,gv02,,2024-2025,1,Thứ 3, Thứ 5,Tiết 1-3,A203,50,44,LOCKED,CANCELLED,2024-09-05,2024-12-20,null

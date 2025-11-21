@@ -1,6 +1,1 @@
 notificationId,title,content,senderUsername,targetType,targetCode,priority,isRead,createdAt,expiresAt
-1,TB Lịch học,Cập nhật lịch học tuần,admin01,class,24CNTT_1,high,false,2024-09-01,2024-09-10
-2,TB Phòng học đổi,Phòng đổi sang LAB202,admin01,course,CTDL_2425S1,medium,false,2024-09-05,2024-09-12
-3,TB Điểm danh,Nhắc điểm danh buổi 2,gv02,course,NMN_2425S1,high,false,2024-09-07,2024-09-14
-4,TB Hủy lớp,Lớp bị hủy do mưa lớn,admin01,class,24CNTT_2,high,true,2024-10-02,2024-10-03
-5,TN Học phí,Đóng học phí kỳ 1,admin01,student,B01,low,false,2024-09-20,2024-10-20

@@ -131,19 +131,29 @@ public class SyncHandler {
         }
       }
 
+      boolean hasClientVersion = clientVersion > 0;
+      boolean hasSourceVersion = clientSourceVersion > 0;
+      boolean versionMatches = hasClientVersion
+          && ((hasSourceVersion && clientVersion == clientSourceVersion)
+              || (!hasSourceVersion && clientVersion == serverVersion));
+
       String syncAction;
-      if (currentSource != null && !"REGULAR".equals(currentSource) && !"UNKNOWN".equals(currentSource)) {
-        if (clientVersion == 0) {
+      if (versionMatches) {
+        syncAction = "NO_SYNC_NEEDED";
+      } else if (currentSource != null && !"REGULAR".equals(currentSource) && !"UNKNOWN".equals(currentSource)) {
+        if (!hasClientVersion) {
           syncAction = "UPLOAD_TO_SERVER";
         } else if (clientSourceVersion > clientVersion) {
           syncAction = "DOWNLOAD_FROM_SERVER";
-        } else if (clientVersion > clientSourceVersion) {
-          syncAction = "UPLOAD_TO_SERVER";
         } else {
-          syncAction = "NO_SYNC_NEEDED";
+          syncAction = "UPLOAD_TO_SERVER";
         }
       } else {
-        syncAction = "UPLOAD_TO_SERVER";
+        if (hasClientVersion && clientVersion >= serverVersion) {
+          syncAction = "NO_SYNC_NEEDED";
+        } else {
+          syncAction = "UPLOAD_TO_SERVER";
+        }
       }
 
       Message response = Message.createSuccessResponse(Constants.ACTION_SYNC_CHECK,
@@ -758,34 +768,36 @@ public class SyncHandler {
             continue;
           }
 
-          boolean exists = false;
-          try (Connection conn = DatabaseConnection.getConnection();
-              PreparedStatement checkStmt = conn.prepareStatement(
-                  "SELECT COUNT(*) FROM enrollments WHERE student_code = ? AND course_code = ?")) {
-            checkStmt.setString(1, e.getStudentCode());
-            checkStmt.setString(2, e.getCourseCode());
-            try (ResultSet rs = checkStmt.executeQuery()) {
-              if (rs.next() && rs.getInt(1) > 0) {
-                exists = true;
-                LOGGER.info("Enrollment already exists, using existing: student="
-                    + e.getStudentCode() + ", course=" + e.getCourseCode());
-              }
-            }
-          } catch (Exception checkEx) {
-            LOGGER.warning("Error checking enrollment duplicate: " + checkEx.getMessage());
+          Enrollment existingEnrollment = null;
+          if (e.getStudentCode() != null && !e.getStudentCode().trim().isEmpty() &&
+              e.getCourseCode() != null && !e.getCourseCode().trim().isEmpty()) {
+            existingEnrollment = enrollmentDAO.findByStudentAndCourse(
+                e.getStudentCode().trim(), e.getCourseCode().trim());
           }
 
-          if (!exists) {
-            e.setEnrollmentId(0);
+          if (existingEnrollment != null) {
+            e.setEnrollmentId(existingEnrollment.getEnrollmentId());
             boolean ok = enrollmentDAO.save(e);
-            if (ok && e.getEnrollmentId() > 0) {
-              dataOriginHelper.saveDataOrigin("enrollment", e.getEnrollmentId(), source);
+            if (ok) {
+              dataOriginHelper.updateDataOriginTimestamp("enrollment", existingEnrollment.getEnrollmentId());
               successCount++;
             } else {
               failCount++;
-              LOGGER.warning("Failed to save enrollment: studentCode=" + e.getStudentCode() +
+              LOGGER.warning("Failed to update enrollment: studentCode=" + e.getStudentCode() +
                   ", courseCode=" + e.getCourseCode());
             }
+            continue;
+          }
+
+          e.setEnrollmentId(0);
+          boolean ok = enrollmentDAO.save(e);
+          if (ok && e.getEnrollmentId() > 0) {
+            dataOriginHelper.saveDataOrigin("enrollment", e.getEnrollmentId(), source);
+            successCount++;
+          } else {
+            failCount++;
+            LOGGER.warning("Failed to save enrollment: studentCode=" + e.getStudentCode() +
+                ", courseCode=" + e.getCourseCode());
           }
         } catch (Exception ex) {
           failCount++;
@@ -1397,6 +1409,7 @@ public class SyncHandler {
           student.setCitizenId(rs.getString("citizen_id"));
           student.setEmergencyContact(rs.getString("emergency_contact"));
           student.setEmergencyPhone(rs.getString("emergency_phone"));
+          student.setCreatedAt(rs.getTimestamp("created_at"));
           student.setFullName(rs.getString("full_name"));
           student.setEmail(rs.getString("email"));
           student.setPhone(rs.getString("phone"));

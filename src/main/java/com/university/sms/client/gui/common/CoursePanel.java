@@ -674,7 +674,7 @@ public class CoursePanel extends JPanel {
                 ? new String[] { "MSSV", "Họ tên", "Số điện thoại", "Lớp sinh hoạt" }
                 : new String[] { "MSSV", "Họ tên", "Số điện thoại", "Lớp sinh hoạt", "Điểm BT", "Điểm GK",
                         "Điểm CK", "Điểm TK", "Xếp loại",
-                        "Tình trạng" };
+                "Tình trạng" };
         DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -802,9 +802,9 @@ public class CoursePanel extends JPanel {
                 table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
             }
         } else {
-            for (int i = 0; i < columnNames.length; i++) {
-                if (i != 1) { // Don't center student name
-                    table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+        for (int i = 0; i < columnNames.length; i++) {
+            if (i != 1) { // Don't center student name
+                table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
                 }
             }
         }

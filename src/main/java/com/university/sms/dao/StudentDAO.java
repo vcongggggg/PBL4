@@ -42,7 +42,11 @@ public class StudentDAO {
             } else {
                 stmt.setNull(7, Types.VARCHAR);
             }
-            stmt.setString(8, student.getCitizenId());
+            if (student.getCitizenId() != null && !student.getCitizenId().trim().isEmpty()) {
+                stmt.setString(8, student.getCitizenId());
+            } else {
+                stmt.setNull(8, Types.VARCHAR);
+            }
             stmt.setString(9, student.getEmergencyContact());
             stmt.setString(10, student.getEmergencyPhone());
 
@@ -111,7 +115,11 @@ public class StudentDAO {
             } else {
                 stmt.setNull(paramIndex++, Types.VARCHAR);
             }
-            stmt.setString(paramIndex++, student.getCitizenId());
+            if (student.getCitizenId() != null && !student.getCitizenId().trim().isEmpty()) {
+                stmt.setString(paramIndex++, student.getCitizenId());
+            } else {
+                stmt.setNull(paramIndex++, Types.VARCHAR);
+            }
             stmt.setString(paramIndex++, student.getEmergencyContact());
             stmt.setString(paramIndex++, student.getEmergencyPhone());
 
@@ -514,7 +522,11 @@ public class StudentDAO {
                     studentStmt.setNull(4, Types.VARCHAR);
                 }
 
-                studentStmt.setString(5, student.getCitizenId());
+                if (student.getCitizenId() != null && !student.getCitizenId().trim().isEmpty()) {
+                    studentStmt.setString(5, student.getCitizenId());
+                } else {
+                    studentStmt.setNull(5, Types.VARCHAR);
+                }
                 studentStmt.setString(6, student.getEmergencyContact());
                 studentStmt.setString(7, student.getEmergencyPhone());
 

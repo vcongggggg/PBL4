@@ -1,55 +1,52 @@
-userId,username,password,fullName,email,phone,address,role,isActive,createdAt,facultyCode
-1,admin01,adminpass,Admin One,admin01@university.edu.vn,0901000001,"HQ, HCM",admin,1,2024-07-01 08:00:00,
-2,gv02,password,Giáo viên GV02,gv02@university.edu.vn,0902000002,"Khoa CNTT, Cơ sở 1",teacher,1,2024-07-01 08:00:00,CNTT
-3,gv03,password,Giáo viên GV03,gv03@university.edu.vn,0902000003,"Khoa CNTT, Cơ sở 1",teacher,1,2024-07-02 08:00:00,CNTT
-4,gv04,password,Giáo viên GV04,gv04@university.edu.vn,0902000004,"Khoa CNTT, Cơ sở 2",teacher,1,2024-07-03 08:00:00,CNTT
-5,B01,password,Sinh viên B01,B01@university.edu.vn,0913000001,"KTX A - P101",student,1,2024-08-01 09:00:00,CNTT
-6,B02,password,Sinh viên B02,B02@university.edu.vn,0913000002,"KTX A - P102",student,1,2024-08-01 09:00:00,CNTT
-7,B03,password,Sinh viên B03,B03@university.edu.vn,0913000003,"KTX A - P103",student,1,2024-08-01 09:00:00,CNTT
-8,B04,password,Sinh viên B04,B04@university.edu.vn,0913000004,"KTX A - P104",student,1,2024-08-01 09:00:00,CNTT
-9,B05,password,Sinh viên B05,B05@university.edu.vn,0913000005,"KTX A - P105",student,1,2024-08-01 09:00:00,CNTT
-10,B06,password,Sinh viên B06,B06@university.edu.vn,0913000006,"KTX A - P106",student,1,2024-08-01 09:00:00,CNTT
-11,B07,password,Sinh viên B07,B07@university.edu.vn,0913000007,"KTX A - P107",student,1,2024-08-01 09:00:00,CNTT
-12,B08,password,Sinh viên B08,B08@university.edu.vn,0913000008,"KTX A - P108",student,1,2024-08-01 09:00:00,CNTT
-13,B09,password,Sinh viên B09,B09@university.edu.vn,0913000009,"KTX A - P109",student,1,2024-08-01 09:00:00,CNTT
-14,B10,password,Sinh viên B10,B10@university.edu.vn,0913000010,"KTX A - P110",student,1,2024-08-01 09:00:00,CNTT
-15,B11,password,Sinh viên B11,B11@university.edu.vn,0913000011,"KTX B - P201",student,1,2024-08-01 09:00:00,CNTT
-16,B12,password,Sinh viên B12,B12@university.edu.vn,0913000012,"KTX B - P202",student,1,2024-08-01 09:00:00,CNTT
-17,B13,password,Sinh viên B13,B13@university.edu.vn,0913000013,"KTX B - P203",student,1,2024-08-01 09:00:00,CNTT
-18,B14,password,Sinh viên B14,B14@university.edu.vn,0913000014,"KTX B - P204",student,1,2024-08-01 09:00:00,CNTT
-19,B15,password,Sinh viên B15,B15@university.edu.vn,0913000015,"KTX B - P205",student,1,2024-08-01 09:00:00,CNTT
-20,B16,password,Sinh viên B16,B16@university.edu.vn,0913000016,"KTX B - P206",student,1,2024-08-01 09:00:00,CNTT
-21,B17,password,Sinh viên B17,B17@university.edu.vn,0913000017,"KTX B - P207",student,1,2024-08-01 09:00:00,CNTT
-22,B18,password,Sinh viên B18,B18@university.edu.vn,0913000018,"KTX B - P208",student,1,2024-08-01 09:00:00,CNTT
-23,B19,password,Sinh viên B19,B19@university.edu.vn,0913000019,"KTX B - P209",student,1,2024-08-01 09:00:00,CNTT
-24,B20,password,Sinh viên B20,B20@university.edu.vn,0913000020,"KTX B - P210",student,1,2024-08-01 09:00:00,CNTT
-25,B21,password,Sinh viên B21,B21@university.edu.vn,0913000021,"KTX C - P301",student,1,2024-08-01 09:00:00,CNTT
-26,B22,password,Sinh viên B22,B22@university.edu.vn,0913000022,"KTX C - P302",student,1,2024-08-01 09:00:00,CNTT
-27,B23,password,Sinh viên B23,B23@university.edu.vn,0913000023,"KTX C - P303",student,1,2024-08-01 09:00:00,CNTT
-28,B24,password,Sinh viên B24,B24@university.edu.vn,0913000024,"KTX C - P304",student,1,2024-08-01 09:00:00,CNTT
-29,B25,password,Sinh viên B25,B25@university.edu.vn,0913000025,"KTX C - P305",student,1,2024-08-01 09:00:00,CNTT
-30,B26,password,Sinh viên B26,B26@university.edu.vn,0913000026,"KTX C - P306",student,1,2024-08-01 09:00:00,CNTT
-31,B27,password,Sinh viên B27,B27@university.edu.vn,0913000027,"KTX C - P307",student,1,2024-08-01 09:00:00,CNTT
-32,B28,password,Sinh viên B28,B28@university.edu.vn,0913000028,"KTX C - P308",student,1,2024-08-01 09:00:00,CNTT
-33,B29,password,Sinh viên B29,B29@university.edu.vn,0913000029,"KTX C - P309",student,1,2024-08-01 09:00:00,CNTT
-34,B30,password,Sinh viên B30,B30@university.edu.vn,0913000030,"KTX C - P310",student,1,2024-08-01 09:00:00,CNTT
-35,B31,password,Sinh viên B31,B31@university.edu.vn,0913000031,"Nhà trọ D - P1",student,1,2024-08-01 09:00:00,CNTT
-36,B32,password,Sinh viên B32,B32@university.edu.vn,0913000032,"Nhà trọ D - P2",student,1,2024-08-01 09:00:00,CNTT
-37,B33,password,Sinh viên B33,B33@university.edu.vn,0913000033,"Nhà trọ D - P3",student,1,2024-08-01 09:00:00,CNTT
-38,B34,password,Sinh viên B34,B34@university.edu.vn,0913000034,"Nhà trọ D - P4",student,1,2024-08-01 09:00:00,CNTT
-39,B35,password,Sinh viên B35,B35@university.edu.vn,0913000035,"Nhà trọ D - P5",student,1,2024-08-01 09:00:00,CNTT
-40,B36,password,Sinh viên B36,B36@university.edu.vn,0913000036,"Nhà trọ E - P1",student,1,2024-08-01 09:00:00,CNTT
-41,B37,password,Sinh viên B37,B37@university.edu.vn,0913000037,"Nhà trọ E - P2",student,1,2024-08-01 09:00:00,CNTT
-42,B38,password,Sinh viên B38,B38@university.edu.vn,0913000038,"Nhà trọ E - P3",student,1,2024-08-01 09:00:00,CNTT
-43,B39,password,Sinh viên B39,B39@university.edu.vn,0913000039,"Nhà trọ E - P4",student,1,2024-08-01 09:00:00,CNTT
-44,B40,password,Sinh viên B40,B40@university.edu.vn,0913000040,"Nhà trọ E - P5",student,1,2024-08-01 09:00:00,CNTT
-45,B41,password,Sinh viên B41,B41@university.edu.vn,0913000041,"KTX D - P401",student,1,2024-08-01 09:00:00,CNTT
-46,B42,password,Sinh viên B42,B42@university.edu.vn,0913000042,"KTX D - P402",student,1,2024-08-01 09:00:00,CNTT
-47,B43,password,Sinh viên B43,B43@university.edu.vn,0913000043,"KTX D - P403",student,1,2024-08-01 09:00:00,CNTT
-48,B44,password,Sinh viên B44,B44@university.edu.vn,0913000044,"KTX D - P404",student,1,2024-08-01 09:00:00,CNTT
-49,B45,password,Sinh viên B45,B45@university.edu.vn,0913000045,"KTX D - P405",student,1,2024-08-01 09:00:00,CNTT
-50,B46,password,Sinh viên B46,B46@university.edu.vn,0913000046,"KTX E - P1",student,1,2024-08-01 09:00:00,CNTT
-51,B47,password,Sinh viên B47,B47@university.edu.vn,0913000047,"KTX E - P2",student,1,2024-08-01 09:00:00,CNTT
-52,B48,password,Sinh viên B48,B48@university.edu.vn,0913000048,"KTX E - P3",student,1,2024-08-01 09:00:00,CNTT
-53,B49,password,Sinh viên B49,B49@university.edu.vn,0913000049,"KTX E - P4",student,1,2024-08-01 09:00:00,CNTT
-54,B50,password,Sinh viên B50,B50@university.edu.vn,0913000050,"KTX E - P5",student,1,2024-08-01 09:00:00,CNTT
+userId,username,password,email,fullName,role,phone,address,facultyCode,createdAt,updatedAt,isActive
+83,gv02,password,gv02@university.edu.vn,Giáo viên GV02,TEACHER,,,,,,true
+84,B01,password,B01@university.edu.vn,Sinh viên B01,STUDENT,,,,,,true
+85,B02,password,B02@university.edu.vn,Sinh viên B02,STUDENT,,,,,,true
+86,B03,password,B03@university.edu.vn,Sinh viên B03,STUDENT,,,,,,true
+87,B04,password,B04@university.edu.vn,Sinh viên B04,STUDENT,,,,,,true
+88,B05,password,B05@university.edu.vn,Sinh viên B05,STUDENT,,,,,,true
+89,B06,password,B06@university.edu.vn,Sinh viên B06,STUDENT,,,,,,true
+90,B07,password,B07@university.edu.vn,Sinh viên B07,STUDENT,,,,,,true
+91,B08,password,B08@university.edu.vn,Sinh viên B08,STUDENT,,,,,,true
+92,B09,password,B09@university.edu.vn,Sinh viên B09,STUDENT,,,,,,true
+93,B10,password,B10@university.edu.vn,Sinh viên B10,STUDENT,,,,,,false
+94,B11,password,B11@university.edu.vn,Sinh viên B11,STUDENT,,,,,,true
+95,B12,password,B12@university.edu.vn,Sinh viên B12,STUDENT,,,,,,true
+96,B13,password,B13@university.edu.vn,Sinh viên B13,STUDENT,,,,,,true
+97,B14,password,B14@university.edu.vn,Sinh viên B14,STUDENT,,,,,,true
+98,B15,password,B15@university.edu.vn,Sinh viên B15,STUDENT,,,,,,false
+99,B16,password,B16@university.edu.vn,Sinh viên B16,STUDENT,,,,,,true
+100,B17,password,B17@university.edu.vn,Sinh viên B17,STUDENT,,,,,,true
+101,B18,password,B18@university.edu.vn,Sinh viên B18,STUDENT,,,,,,true
+102,B19,password,B19@university.edu.vn,Sinh viên B19,STUDENT,,,,,,true
+103,B20,password,B20@university.edu.vn,Sinh viên B20,STUDENT,,,,,,true
+104,B21,password,B21@university.edu.vn,Sinh viên B21,STUDENT,,,,,,true
+105,B22,password,B22@university.edu.vn,Sinh viên B22,STUDENT,,,,,,true
+106,B23,password,B23@university.edu.vn,Sinh viên B23,STUDENT,,,,,,true
+107,B24,password,B24@university.edu.vn,Sinh viên B24,STUDENT,,,,,,false
+108,B25,password,B25@university.edu.vn,Sinh viên B25,STUDENT,,,,,,true
+109,B26,password,B26@university.edu.vn,Sinh viên B26,STUDENT,,,,,,true
+110,B27,password,B27@university.edu.vn,Sinh viên B27,STUDENT,,,,,,true
+111,B28,password,B28@university.edu.vn,Sinh viên B28,STUDENT,,,,,,true
+112,B29,password,B29@university.edu.vn,Sinh viên B29,STUDENT,,,,,,true
+113,B30,password,B30@university.edu.vn,Sinh viên B30,STUDENT,,,,,,true
+114,B31,password,B31@university.edu.vn,Sinh viên B31,STUDENT,,,,,,true
+115,B32,password,B32@university.edu.vn,Sinh viên B32,STUDENT,,,,,,true
+116,B33,password,B33@university.edu.vn,Sinh viên B33,STUDENT,,,,,,true
+117,B34,password,B34@university.edu.vn,Sinh viên B34,STUDENT,,,,,,true
+118,B35,password,B35@university.edu.vn,Sinh viên B35,STUDENT,,,,,,true
+119,B36,password,B36@university.edu.vn,Sinh viên B36,STUDENT,,,,,,true
+120,B37,password,B37@university.edu.vn,Sinh viên B37,STUDENT,,,,,,true
+121,B38,password,B38@university.edu.vn,Sinh viên B38,STUDENT,,,,,,true
+122,B39,password,B39@university.edu.vn,Sinh viên B39,STUDENT,,,,,,true
+123,B40,password,B40@university.edu.vn,Sinh viên B40,STUDENT,,,,,,true
+124,B41,password,B41@university.edu.vn,Sinh viên B41,STUDENT,,,,,,true
+125,B42,password,B42@university.edu.vn,Sinh viên B42,STUDENT,,,,,,true
+126,B43,password,B43@university.edu.vn,Sinh viên B43,STUDENT,,,,,,true
+127,B44,password,B44@university.edu.vn,Sinh viên B44,STUDENT,,,,,,false
+128,B45,password,B45@university.edu.vn,Sinh viên B45,STUDENT,,,,,,false
+129,B46,password,B46@university.edu.vn,Sinh viên B46,STUDENT,,,,,,true
+130,B47,password,B47@university.edu.vn,Sinh viên B47,STUDENT,,,,,,true
+131,B48,password,B48@university.edu.vn,Sinh viên B48,STUDENT,,,,,,true
+132,B49,password,B49@university.edu.vn,Sinh viên B49,STUDENT,,,,,,true
+133,B50,password,B50@university.edu.vn,Sinh viên B50,STUDENT,,,,,,true

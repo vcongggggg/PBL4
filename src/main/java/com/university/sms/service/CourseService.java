@@ -310,12 +310,22 @@ public class CourseService {
                             + course.getCourseCode());
                 }
 
+                int droppedEnrollments = 0;
+                if (course.getCourseStatus() == Course.CourseStatus.ONGOING && enrollments.size() >= 30) {
+                    droppedEnrollments = enrollmentDAO.dropEnrollmentsByCourse(course.getCourseCode());
+                    if (droppedEnrollments > 0) {
+                        LOGGER.info("Đã chuyển " + droppedEnrollments
+                                + " sinh viên sang trạng thái DROPPED vì lớp bị hủy sau khi đã duyệt >30 SV: "
+                                + courseCode);
+                    }
+                }
+
                 // Chuyển course status thành CANCELLED (không xóa dữ liệu)
                 boolean success = courseDAO.updateCourseStatus(course.getCourseId(), Course.CourseStatus.CANCELLED);
                 if (success) {
                     LOGGER.info("Đã hủy khóa học thành công: " + courseCode +
                             " (Đã hủy " + registrationsCancelled + " đăng ký đang chờ, " +
-                            "giữ lại " + enrollments.size() + " ghi danh, " +
+                            "chuyển " + droppedEnrollments + " ghi danh sang DROPPED, " +
                             grades.size() + " điểm)");
                 } else {
                     LOGGER.warning("Không thể hủy khóa học: " + courseCode);

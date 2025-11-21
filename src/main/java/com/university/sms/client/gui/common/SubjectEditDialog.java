@@ -174,41 +174,41 @@ public class SubjectEditDialog extends JDialog {
     }
 
     try {
-      Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
-      Message response = serverConnection.sendRequest(request);
+        Message request = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
+        Message response = serverConnection.sendRequest(request);
 
-      if (response != null && response.isSuccess()) {
-        @SuppressWarnings("unchecked")
-        List<Faculty> faculties = (List<Faculty>) response.getData("faculties");
+        if (response != null && response.isSuccess()) {
+          @SuppressWarnings("unchecked")
+          List<Faculty> faculties = (List<Faculty>) response.getData("faculties");
 
-        if (faculties != null) {
-          for (Faculty faculty : faculties) {
-            facultyCombo.addItem(new FacultyItem(faculty.getFacultyCode(), faculty.getFacultyName()));
-          }
+          if (faculties != null) {
+            for (Faculty faculty : faculties) {
+              facultyCombo.addItem(new FacultyItem(faculty.getFacultyCode(), faculty.getFacultyName()));
+            }
           facultiesLoaded = true;
 
-          if (subject != null) {
-            for (int i = 0; i < facultyCombo.getItemCount(); i++) {
-              FacultyItem item = facultyCombo.getItemAt(i);
-              if (item.code != null && item.code.equals(subject.getFacultyCode())) {
-                facultyCombo.setSelectedIndex(i);
-                break;
+            if (subject != null) {
+              for (int i = 0; i < facultyCombo.getItemCount(); i++) {
+                FacultyItem item = facultyCombo.getItemAt(i);
+                if (item.code != null && item.code.equals(subject.getFacultyCode())) {
+                  facultyCombo.setSelectedIndex(i);
+                  break;
+                }
               }
-            }
           } else if (facultyCombo.getItemCount() > 0) {
             facultyCombo.setSelectedIndex(0);
-          }
+            }
         }
       } else {
         showServerError("khoa", response);
-      }
-    } catch (Exception e) {
+          }
+        } catch (Exception e) {
       JOptionPane.showMessageDialog(this,
-          "Lỗi khi tải danh sách khoa: " + e.getMessage(),
-          "Lỗi",
-          JOptionPane.ERROR_MESSAGE);
-    }
-  }
+              "Lỗi khi tải danh sách khoa: " + e.getMessage(),
+              "Lỗi",
+              JOptionPane.ERROR_MESSAGE);
+        }
+      }
 
   private synchronized void loadSubjects() {
     if (subjectsLoaded) {
@@ -216,28 +216,28 @@ public class SubjectEditDialog extends JDialog {
     }
 
     try {
-      Message request = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
-      Message response = serverConnection.sendRequest(request);
+        Message request = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
+        Message response = serverConnection.sendRequest(request);
 
-      if (response != null && response.isSuccess()) {
-        @SuppressWarnings("unchecked")
+        if (response != null && response.isSuccess()) {
+          @SuppressWarnings("unchecked")
         List<Subject> subjects = (List<Subject>) response.getData(Constants.KEY_SUBJECTS);
 
-        if (subjects != null && !subjects.isEmpty()) {
+          if (subjects != null && !subjects.isEmpty()) {
           allSubjects = subjects;
-          subjects.sort((s1, s2) -> {
-            String code1 = s1.getSubjectCode() != null ? s1.getSubjectCode() : "";
-            String code2 = s2.getSubjectCode() != null ? s2.getSubjectCode() : "";
-            return code1.compareToIgnoreCase(code2);
-          });
+            subjects.sort((s1, s2) -> {
+              String code1 = s1.getSubjectCode() != null ? s1.getSubjectCode() : "";
+              String code2 = s2.getSubjectCode() != null ? s2.getSubjectCode() : "";
+              return code1.compareToIgnoreCase(code2);
+            });
 
-          for (Subject subj : subjects) {
-            if (subject == null
-                || (subj.getSubjectCode() != null && !subj.getSubjectCode().equals(subject.getSubjectCode()))) {
-              String displayText = subj.getSubjectCode() + " - " + subj.getSubjectName();
-              prerequisiteCombo.addItem(new SubjectItem(subj.getSubjectCode(), displayText));
+            for (Subject subj : subjects) {
+              if (subject == null
+                  || (subj.getSubjectCode() != null && !subj.getSubjectCode().equals(subject.getSubjectCode()))) {
+                String displayText = subj.getSubjectCode() + " - " + subj.getSubjectName();
+                prerequisiteCombo.addItem(new SubjectItem(subj.getSubjectCode(), displayText));
+              }
             }
-          }
         } else {
           allSubjects = Collections.emptyList();
         }
@@ -246,13 +246,13 @@ public class SubjectEditDialog extends JDialog {
         subjectsLoaded = true;
       } else {
         showServerError("môn học", response);
-      }
-    } catch (Exception e) {
+          }
+        } catch (Exception e) {
       JOptionPane.showMessageDialog(this,
-          "Lỗi khi tải danh sách môn học: " + e.getMessage(),
-          "Lỗi",
-          JOptionPane.ERROR_MESSAGE);
-    }
+              "Lỗi khi tải danh sách môn học: " + e.getMessage(),
+              "Lỗi",
+              JOptionPane.ERROR_MESSAGE);
+        }
   }
 
   private void populateFields() {
