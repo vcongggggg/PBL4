@@ -1,5 +1,6 @@
 notificationId,title,content,senderUsername,targetType,targetCode,priority,isRead,createdAt,expiresAt
-100,Thong bao he thong,Day la thong bao thu nghiem tu he thong,admin,ALL,,MEDIUM,false,2024-11-01 08:00:00,2025-01-31 23:59:59
-101,Thong bao khoa DTVT,Khoa Dien tu Vien thong co thong bao quan trong,gv01,FACULTY,DTVT,HIGH,false,2024-11-05 09:00:00,2024-12-31 23:59:59
-102,Thong bao lop DTVT22A,Lop DTVT22A co lich hoc bu,gv01,CLASS,DTVT22A,MEDIUM,false,2024-11-10 10:00:00,2024-11-30 23:59:59
-103,Nhan cho sinh vien,Ban can cap nhat thong tin ca nhan,admin,STUDENT,ST2022001,LOW,false,2024-11-12 11:00:00,
+1,TB Lịch học,Cập nhật lịch học tuần,admin01,class,24CNTT_1,high,false,2024-09-01,2024-09-10
+2,TB Phòng học đổi,Phòng đổi sang LAB202,admin01,course,CTDL_2425S1,medium,false,2024-09-05,2024-09-12
+3,TB Điểm danh,Nhắc điểm danh buổi 2,gv02,course,NMN_2425S1,high,false,2024-09-07,2024-09-14
+4,TB Hủy lớp,Lớp bị hủy do mưa lớn,admin01,class,24CNTT_2,high,true,2024-10-02,2024-10-03
+5,TN Học phí,Đóng học phí kỳ 1,admin01,student,B01,low,false,2024-09-20,2024-10-20

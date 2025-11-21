@@ -1,7 +1,5 @@
 subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt
-20,DTVT101,Ky thuat so,4,DTVT,,Mon hoc Ky thuat so,true,2024-06-01 07:00:00
-21,DTVT201,Vi xu ly,3,DTVT,DTVT101,Mon hoc Vi xu ly,true,2024-06-01 07:00:00
-22,DTVT301,Truyen thong so,4,DTVT,DTVT201,Mon hoc Truyen thong so,true,2024-06-01 07:00:00
-23,QTKD101,Marketing co ban,3,QTKD,,Mon hoc Marketing co ban,true,2024-06-01 07:00:00
-24,QTKD201,Quan tri nhan luc,3,QTKD,,Mon hoc Quan tri nhan luc,true,2024-06-01 07:00:00
-25,XDDD101,Co hoc ket cau,4,XDDD,,Mon hoc Co hoc ket cau,true,2024-06-01 07:00:00
+1,NMN,Nhập môn lập trình,3,CNTT,,Môn nhập môn lập trình,true,2024-01-01
+2,CTDL,Cấu trúc dữ liệu,3,CNTT,NMN,Basic data structures,true,2024-01-02
+3,CSDL,Cơ sở dữ liệu,3,CNTT,NMN,Database fundamentals,true,2024-01-03
+4,MMT,Mạng máy tính,3,CNTT,,Computer networks,false,2024-01-04

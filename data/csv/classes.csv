@@ -1,4 +1,3 @@
 classId,classCode,className,facultyCode,teacherUsername,academicYear,semester,maxStudents,createdAt
-20,DTVT22A,Dien tu Vien thong K22A,DTVT,gv01,2024-2025,1,40,2024-06-01 07:00:00
-21,QTKD22A,Quan tri Kinh doanh K22A,QTKD,gv02,2024-2025,1,45,2024-06-01 07:00:00
-22,XDDD22A,Xay dung Dan dung K22A,XDDD,gv03,2024-2025,1,35,2024-06-01 07:00:00
+1,24CNTT_1,Lớp 24 CNTT 1,CNTT,gv02,2024-2025,1,25,2024-07-20
+2,24CNTT_2,Lớp 24 CNTT 2,CNTT,gv03,2024-2025,1,25,2024-07-20

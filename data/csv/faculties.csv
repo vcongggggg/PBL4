@@ -1,4 +1,2 @@
 facultyId,facultyCode,facultyName,description,createdAt
-10,DTVT,Khoa Dien tu Vien thong,Dao tao chuyen nganh Dien tu Vien thong,2024-06-01 07:00:00
-11,QTKD,Khoa Quan tri Kinh doanh,Dao tao kinh doanh va quan tri,2024-06-01 07:00:00
-12,XDDD,Khoa Xay dung Dan dung,Dao tao ky su xay dung dan dung,2024-06-01 07:00:00
+1,CNTT,Công nghệ thông tin,Khoa CNTT,2024-05-01
