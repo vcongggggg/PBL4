@@ -32,18 +32,16 @@ public class StudentPanel extends JPanel {
     private JButton searchButton;
     private JButton refreshButton;
     private JCheckBox showInactiveCheckbox;
-    private AdvancedSearchPanel advancedSearchPanel; // Optional advanced search
+    private AdvancedSearchPanel advancedSearchPanel;
     private JButton addButton;
     private JButton deleteButton;
     private JButton activateButton;
 
     private java.util.List<Student> currentStudents = new java.util.ArrayList<>();
 
-    // Flag to prevent multiple simultaneous refresh
     private boolean isRefreshing = false;
     private boolean isInitialized = false;
 
-    // Log area components
     private JTextArea logArea;
     private JScrollPane logScrollPane;
 
@@ -55,18 +53,16 @@ public class StudentPanel extends JPanel {
         initializeComponents();
         setupLayout();
         setupEventListeners();
-        isInitialized = true; // Mark as initialized after setup
-        // loadInitialData(); // Bỏ - để ComponentListener handle auto-refresh
+        isInitialized = true;
     }
 
     private void initializeComponents() {
-        // Create table with Edit button column
         String[] columnNames = { "Mã SV", "Họ tên", "Email", "Khoa", "Lớp", "GPA", "Tín chỉ", "Trạng thái",
                 "Thao tác" };
         tableModel = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
-                return column == 8; // Only the "Thao tác" column is editable
+                return column == 8;
             }
 
             @Override
@@ -78,40 +74,33 @@ public class StudentPanel extends JPanel {
         studentTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
         studentTable.setRowHeight(30);
 
-        // Add button renderer and editor for Edit column
         studentTable.getColumn("Thao tác").setCellRenderer(new ButtonRenderer());
         studentTable.getColumn("Thao tác").setCellEditor(new ButtonEditor(new JCheckBox()));
 
-        // Create search components
         searchField = new JTextField(20);
         searchButton = new JButton("Tìm kiếm");
         refreshButton = new JButton("Làm mới");
         showInactiveCheckbox = new JCheckBox("Hiển thị tài khoản đã vô hiệu hóa");
 
-        // Create action buttons
         addButton = new JButton("Thêm");
         deleteButton = new JButton("Xóa");
         activateButton = new JButton("Kích hoạt lại");
         activateButton.setEnabled(false);
 
-        // Create log area
         logArea = new JTextArea();
         logArea.setEditable(false);
         logArea.setFont(new Font("Monospaced", Font.PLAIN, 12));
         logScrollPane = new JScrollPane(logArea);
         logScrollPane.setBorder(BorderFactory.createTitledBorder("Log hoạt động"));
 
-        // Set button states based on user role and read-only mode
         setupButtonStates();
     }
 
     private void setupLayout() {
         setLayout(new BorderLayout());
 
-        // Top panel with search and buttons
         JPanel topPanel = new JPanel(new BorderLayout());
 
-        // Search panel - có thể dùng AdvancedSearchPanel hoặc search đơn giản
         JPanel searchPanel = new JPanel(new FlowLayout(FlowLayout.LEFT));
         searchPanel.add(new JLabel("Tìm kiếm:"));
         searchPanel.add(searchField);
@@ -121,23 +110,19 @@ public class StudentPanel extends JPanel {
             searchPanel.add(showInactiveCheckbox);
         }
 
-        // Nút để toggle advanced search (tùy chọn)
         JButton advancedSearchButton = new JButton("🔍 Nâng cao");
         advancedSearchButton.addActionListener(e -> toggleAdvancedSearch());
         searchPanel.add(advancedSearchButton);
 
         topPanel.add(searchPanel, BorderLayout.WEST);
 
-        // Advanced search panel (ẩn mặc định)
         advancedSearchPanel = new AdvancedSearchPanel();
         advancedSearchPanel.setVisible(false);
         advancedSearchPanel.setSearchListener((searchText, filters) -> {
             performAdvancedSearch(searchText, filters);
         });
 
-        // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-        // Chỉ hiển thị các nút khi không phải Teacher (isReadOnly = false)
         if (!isReadOnly) {
             buttonPanel.add(addButton);
             buttonPanel.add(deleteButton);
@@ -145,30 +130,25 @@ public class StudentPanel extends JPanel {
         }
         topPanel.add(buttonPanel, BorderLayout.EAST);
 
-        // Container panel cho top panel và advanced search
         JPanel topContainer = new JPanel(new BorderLayout());
         topContainer.add(topPanel, BorderLayout.NORTH);
         topContainer.add(advancedSearchPanel, BorderLayout.CENTER);
 
         add(topContainer, BorderLayout.NORTH);
 
-        // Center panel with table and log area
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setResizeWeight(0.7);
 
-        // Table panel
         JScrollPane tableScrollPane = new JScrollPane(studentTable);
         tableScrollPane.setPreferredSize(new Dimension(0, 400));
         splitPane.setTopComponent(tableScrollPane);
 
-        // Log panel
         splitPane.setBottomComponent(logScrollPane);
 
         add(splitPane, BorderLayout.CENTER);
     }
 
     private void setupEventListeners() {
-        // Search button
         searchButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -176,7 +156,6 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Refresh button
         refreshButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -184,7 +163,6 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Show inactive checkbox
         showInactiveCheckbox.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -192,7 +170,6 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Add button
         addButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -200,7 +177,6 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Delete button
         deleteButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -208,7 +184,6 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Activate button
         activateButton.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -216,7 +191,6 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Search field enter key
         searchField.addActionListener(new ActionListener() {
             @Override
             public void actionPerformed(ActionEvent e) {
@@ -224,18 +198,15 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        // Table selection listener
         studentTable.getSelectionModel().addListSelectionListener(e -> {
             if (!e.getValueIsAdjusting()) {
                 updateButtonStates();
             }
         });
 
-        // Auto-refresh khi panel được hiển thị (chỉ sau khi đã khởi tạo xong)
         addComponentListener(new ComponentAdapter() {
             @Override
             public void componentShown(ComponentEvent e) {
-                // Chỉ refresh nếu panel đã được khởi tạo hoàn toàn
                 if (isInitialized && !isRefreshing) {
                     refreshData();
                 }
@@ -578,7 +549,6 @@ public class StudentPanel extends JPanel {
         };
         classWorker.execute();
 
-        // Add listener to filter classes by selected faculty
         facultyCombo.addActionListener(e -> {
             FacultyItem selected = (FacultyItem) facultyCombo.getSelectedItem();
             if (selected != null && selected.code != null) {
@@ -874,7 +844,6 @@ public class StudentPanel extends JPanel {
         }
     }
 
-    // Show Student Detail Dialog
     private void showStudentDetailDialog(Student student) {
         StudentDetailDialog dialog = new StudentDetailDialog(
                 (Frame) SwingUtilities.getWindowAncestor(this),

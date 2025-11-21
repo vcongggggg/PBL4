@@ -418,8 +418,10 @@ public class StudentProfilePanel extends JPanel {
     facultyLabel.setText(studentInfo.getFacultyName() != null ? studentInfo.getFacultyName() : "Chưa cập nhật");
     classLabel.setText(studentInfo.getClassName() != null ? studentInfo.getClassName() : "Chưa cập nhật");
 
-    if (studentInfo.getGpa() != null) {
+    if (studentInfo.getGpa() != null && studentInfo.getGpa().compareTo(java.math.BigDecimal.ZERO) > 0) {
       gpaLabel.setText(String.format("%.2f", studentInfo.getGpa()));
+    } else {
+      gpaLabel.setText("Chưa có");
     }
 
     creditsLabel.setText(String.valueOf(studentInfo.getTotalCredits()));

@@ -144,7 +144,7 @@ public class ReportPanel extends JPanel {
                         Message subjectsRequest = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
                         Message subjectsResponse = serverConnection.sendRequest(subjectsRequest);
 
-                        Message classesRequest = Message.createRequest(Constants.ACTION_GET_CLASSES);
+                        Message classesRequest = Message.createRequest(Constants.ACTION_GET_ALL_CLASSES);
                         Message classesResponse = serverConnection.sendRequest(classesRequest);
 
                         Message facultiesRequest = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);
@@ -471,7 +471,7 @@ public class ReportPanel extends JPanel {
             Message subjectsRequest = Message.createRequest(Constants.ACTION_GET_ALL_SUBJECTS);
             Message subjectsResponse = serverConnection.sendRequest(subjectsRequest);
 
-            Message classesRequest = Message.createRequest(Constants.ACTION_GET_CLASSES);
+            Message classesRequest = Message.createRequest(Constants.ACTION_GET_ALL_CLASSES);
             Message classesResponse = serverConnection.sendRequest(classesRequest);
 
             Message facultiesRequest = Message.createRequest(Constants.ACTION_GET_ALL_FACULTIES);

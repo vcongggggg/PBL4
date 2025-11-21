@@ -38,7 +38,6 @@ public class Constants {
 
     // Course Actions
     public static final String ACTION_GET_ALL_COURSES = "GET_ALL_COURSES";
-    public static final String ACTION_GET_COURSES = "GET_COURSES";
     public static final String ACTION_GET_COURSE_INFO = "GET_COURSE_INFO";
     public static final String ACTION_ADD_COURSE = "ADD_COURSE";
     public static final String ACTION_UPDATE_COURSE = "UPDATE_COURSE";
@@ -61,13 +60,11 @@ public class Constants {
     public static final String ACTION_CALCULATE_FINAL_GRADE = "CALCULATE_FINAL_GRADE";
 
     // Faculty Actions
-    public static final String ACTION_GET_FACULTIES = "GET_FACULTIES";
     public static final String ACTION_GET_ALL_FACULTIES = "GET_ALL_FACULTIES";
     public static final String ACTION_ADD_FACULTY = "ADD_FACULTY";
     public static final String ACTION_UPDATE_FACULTY = "UPDATE_FACULTY";
 
     // Subject Actions
-    public static final String ACTION_GET_SUBJECTS = "GET_SUBJECTS";
     public static final String ACTION_GET_ALL_SUBJECTS = "GET_ALL_SUBJECTS";
     public static final String ACTION_SEARCH_SUBJECTS = "SEARCH_SUBJECTS";
     public static final String ACTION_ADD_SUBJECT = "ADD_SUBJECT";
@@ -75,7 +72,6 @@ public class Constants {
     public static final String ACTION_DELETE_SUBJECT = "DELETE_SUBJECT";
 
     // Class Actions
-    public static final String ACTION_GET_CLASSES = "GET_CLASSES";
     public static final String ACTION_GET_ALL_CLASSES = "GET_ALL_CLASSES";
     public static final String ACTION_ADD_CLASS = "ADD_CLASS";
     public static final String ACTION_UPDATE_CLASS = "UPDATE_CLASS";
@@ -139,6 +135,7 @@ public class Constants {
     public static final String ACTION_VALIDATE_REGISTRATION = "VALIDATE_REGISTRATION";
     public static final String ACTION_GET_STUDENT_CREDITS = "GET_STUDENT_CREDITS";
     public static final String ACTION_GET_REGISTRATION_STATS = "GET_REGISTRATION_STATS";
+    public static final String ACTION_GET_COMPLETED_SUBJECT_CODES = "GET_COMPLETED_SUBJECT_CODES";
 
     // Data Keys
     public static final String KEY_USER = "user";
@@ -195,6 +192,7 @@ public class Constants {
     public static final String KEY_GRADES = "grades";
     public static final String KEY_FACULTIES = "faculties";
     public static final String KEY_SUBJECTS = "subjects";
+    public static final String KEY_SUBJECT_CODES = "subjectCodes";
     public static final String KEY_CLASSES = "classes";
     public static final String KEY_NOTIFICATIONS = "notifications";
     public static final String KEY_CLASS_REQUESTS = "classRequests";

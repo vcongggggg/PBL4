@@ -96,12 +96,6 @@ public class ServerConnection extends BaseServerConnection {
     }
 
     @Override
-    public Message getCourses() {
-        Message request = Message.createRequest(Constants.ACTION_GET_COURSES);
-        return sendRequest(request);
-    }
-
-    @Override
     public Message getCourseInfo(int courseId) {
         Message request = Message.createRequest(Constants.ACTION_GET_COURSE_INFO);
         request.addData(Constants.KEY_COURSE_ID, courseId);

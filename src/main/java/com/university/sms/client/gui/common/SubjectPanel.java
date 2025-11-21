@@ -158,10 +158,6 @@ public class SubjectPanel extends JPanel {
     });
   }
 
-  private void loadInitialData() {
-    refreshData();
-  }
-
   public void refreshData() {
     // Prevent multiple simultaneous refreshes
     if (isRefreshing) {

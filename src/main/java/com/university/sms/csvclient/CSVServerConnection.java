@@ -186,14 +186,6 @@ public class CSVServerConnection extends BaseServerConnection {
    * Lấy danh sách khóa học
    */
   @Override
-  public Message getCourses() {
-    return getAllCourses();
-  }
-
-  /**
-   * Lấy thông tin khóa học
-   */
-  @Override
   public Message getCourseInfo(int courseId) {
     try {
       Message request = Message.createRequest(Constants.ACTION_GET_COURSE_INFO);

@@ -59,7 +59,7 @@ public class EnrollmentDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.WARNING,
-                    "Error checking enrollment existence: student_code=" + studentCode + ", course_code=" + courseCode,
+                    "Lỗi khi kiểm tra enrollment tồn tại: student_code=" + studentCode + ", course_code=" + courseCode,
                     e);
         }
 
@@ -115,12 +115,12 @@ public class EnrollmentDAO {
                 }
             }
 
-            LOGGER.info("Enrollment processed: Student " + enrollment.getStudentCode() +
-                    " -> Course " + enrollment.getCourseCode() + " (inserted=" + (result > 0) + ")");
+            LOGGER.info("Đã xử lý enrollment: Sinh viên " + enrollment.getStudentCode() +
+                    " -> Khóa học " + enrollment.getCourseCode() + " (đã chèn=" + (result > 0) + ")");
             return true; // Always return true for INSERT IGNORE
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error adding enrollment", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi thêm enrollment", e);
             return false;
         }
     }
@@ -146,13 +146,13 @@ public class EnrollmentDAO {
                         enrollment.setEnrollmentId(rs.getInt(1));
                     }
                 }
-                LOGGER.info("Enrollment added successfully: Student " + enrollment.getStudentCode() +
-                        " -> Course " + enrollment.getCourseCode());
+                LOGGER.info("Đã thêm enrollment thành công: Sinh viên " + enrollment.getStudentCode() +
+                        " -> Khóa học " + enrollment.getCourseCode());
                 return true;
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error adding enrollment", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi thêm enrollment", e);
         }
 
         return false;
@@ -185,7 +185,7 @@ public class EnrollmentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding enrollment by ID", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm enrollment theo ID", e);
         }
 
         return null;
@@ -220,7 +220,7 @@ public class EnrollmentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding enrollments by student code: " + studentCode, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm enrollments theo mã sinh viên: " + studentCode, e);
         }
 
         return enrollments;
@@ -255,10 +255,45 @@ public class EnrollmentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding enrollments by course code: " + courseCode, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm enrollments theo mã khóa học: " + courseCode, e);
         }
 
         return enrollments;
+    }
+
+    /**
+     * Lấy danh sách mã môn học đã hoàn thành (đạt môn tiên quyết)
+     */
+    public List<String> findCompletedSubjectCodes(String studentCode) {
+        String sql = "SELECT DISTINCT sub.subject_code " +
+                "FROM enrollments e " +
+                "JOIN courses c ON e.course_code = c.course_code " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "WHERE e.student_code = ? " +
+                "AND e.enrollment_status = 'completed' " +
+                "AND COALESCE(e.grade_points, 0) > 0";
+
+        List<String> subjectCodes = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, studentCode);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    String code = rs.getString("subject_code");
+                    if (code != null && !code.trim().isEmpty()) {
+                        subjectCodes.add(code.trim());
+                    }
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm mã môn đã hoàn thành cho sinh viên: " + studentCode, e);
+        }
+
+        return subjectCodes;
     }
 
     /**
@@ -289,7 +324,7 @@ public class EnrollmentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error finding enrollment by student and course", e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi tìm enrollment theo sinh viên và khóa học", e);
         }
 
         return null;
@@ -310,12 +345,12 @@ public class EnrollmentDAO {
             int result = stmt.executeUpdate();
 
             if (result > 0) {
-                LOGGER.info("Enrollment status updated successfully: " + enrollmentId);
+                LOGGER.info("Đã cập nhật trạng thái enrollment thành công: " + enrollmentId);
                 return true;
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error updating enrollment status: " + enrollmentId, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật trạng thái enrollment: " + enrollmentId, e);
         }
 
         return false;
@@ -383,7 +418,7 @@ public class EnrollmentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error updating final grade: " + enrollmentId, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật điểm cuối kỳ: " + enrollmentId, e);
         }
 
         return false;
@@ -408,7 +443,7 @@ public class EnrollmentDAO {
             }
 
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error deleting enrollment: " + enrollmentId, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi xóa enrollment: " + enrollmentId, e);
         }
 
         return false;
@@ -430,7 +465,7 @@ public class EnrollmentDAO {
                 }
             }
         } catch (SQLException e) {
-            LOGGER.log(Level.SEVERE, "Error counting enrollments for course: " + courseCode, e);
+            LOGGER.log(Level.SEVERE, "Lỗi khi đếm enrollments cho khóa học: " + courseCode, e);
         }
 
         return 0;
