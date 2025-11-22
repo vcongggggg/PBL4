@@ -496,8 +496,10 @@ public class SyncHandler {
 
           if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
             if (!isValidEmailFormat(student.getEmail().trim())) {
-              return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS,
-                  "Email không hợp lệ. Email phải có định dạng: example@domain.com");
+              failCount++;
+              LOGGER.warning("Không thể upload student: email không hợp lệ - " +
+                  "studentCode=" + student.getStudentCode() + ", email=" + student.getEmail());
+              continue;
             }
           }
 
@@ -505,24 +507,32 @@ public class SyncHandler {
           if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
             normalizedStudentPhone = normalizePhoneNumber(student.getPhone().trim());
             if (!isValidPhoneFormat(normalizedStudentPhone)) {
-              return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS,
-                  "Số điện thoại không hợp lệ. Số điện thoại phải có 10 số (bắt đầu bằng 0) hoặc 11 số (bắt đầu bằng +84). Ví dụ: 0912345678 hoặc +84912345678");
+              failCount++;
+              LOGGER.warning("Không thể upload student: số điện thoại không hợp lệ - " +
+                  "studentCode=" + student.getStudentCode() + ", phone=" + student.getPhone());
+              continue;
             }
           }
 
           if (student.getEmail() != null && !student.getEmail().trim().isEmpty()) {
             User existingUserByEmail = userDAO.findByEmail(student.getEmail().trim());
-            if (existingUserByEmail != null) {
-              return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS,
-                  "Email đã được sử dụng bởi user khác: " + student.getEmail());
+            if (existingUserByEmail != null && !existingUserByEmail.getUsername().equals(username)) {
+              failCount++;
+              LOGGER.warning("Không thể upload student: email đã được sử dụng bởi user khác - " +
+                  "studentCode=" + student.getStudentCode() + ", email=" + student.getEmail() +
+                  ", existingUser=" + existingUserByEmail.getUsername());
+              continue;
             }
           }
 
           if (normalizedStudentPhone != null && !normalizedStudentPhone.isEmpty()) {
             User existingUserByPhone = userDAO.findByPhone(normalizedStudentPhone);
-            if (existingUserByPhone != null) {
-              return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS,
-                  "Số điện thoại đã được sử dụng bởi user khác: " + normalizedStudentPhone);
+            if (existingUserByPhone != null && !existingUserByPhone.getUsername().equals(username)) {
+              failCount++;
+              LOGGER.warning("Không thể upload student: số điện thoại đã được sử dụng bởi user khác - " +
+                  "studentCode=" + student.getStudentCode() + ", phone=" + normalizedStudentPhone +
+                  ", existingUser=" + existingUserByPhone.getUsername());
+              continue;
             }
           }
 
@@ -547,15 +557,20 @@ public class SyncHandler {
             classObj = classDAO.findByCode(student.getClassCode());
             if (classObj == null) {
               classOk = false;
-              LOGGER.warning("Không tìm thấy mã lớp: " + student.getClassCode());
+              LOGGER.warning("Không tìm thấy mã lớp: " + student.getClassCode() +
+                  " - Sẽ upload sinh viên " + student.getStudentCode() + " không có lớp");
+              // Set classCode = null để upload sinh viên không có lớp
+              student.setClassCode(null);
             } else {
               // Kiểm tra lớp đã đầy chưa
               if (classObj.getMaxStudents() != null) {
                 int currentStudentCount = studentDAO.countByClassCode(student.getClassCode());
                 if (currentStudentCount >= classObj.getMaxStudents()) {
-                  classOk = false;
                   LOGGER.warning("Lớp đã đầy (" + currentStudentCount + "/" + classObj.getMaxStudents() +
-                      "): " + student.getClassCode() + " - Không thể thêm sinh viên " + student.getStudentCode());
+                      "): " + student.getClassCode() + " - Sẽ upload sinh viên " + student.getStudentCode()
+                      + " không có lớp");
+                  // Set classCode = null để upload sinh viên không có lớp thay vì từ chối
+                  student.setClassCode(null);
                 }
               }
             }
@@ -766,9 +781,23 @@ public class SyncHandler {
             }
           }
 
+          // Kiểm tra maxStudents > currentStudents
+          boolean capacityOk = true;
+          if (course.getMaxStudents() <= 0) {
+            capacityOk = false;
+            LOGGER.warning("Không thể upload course: maxStudents phải lớn hơn 0 - " +
+                "courseCode=" + course.getCourseCode() + ", maxStudents=" + course.getMaxStudents());
+          } else if (course.getMaxStudents() <= course.getCurrentStudents()) {
+            capacityOk = false;
+            LOGGER.warning("Không thể upload course: maxStudents phải lớn hơn currentStudents - " +
+                "courseCode=" + course.getCourseCode() +
+                ", maxStudents=" + course.getMaxStudents() +
+                ", currentStudents=" + course.getCurrentStudents());
+          }
+
           Course existing = courseDAO.findByCourseCode(course.getCourseCode());
           if (existing == null) {
-            if (subjectOk && classOk && userOk && !scheduleConflict && courseDAO.addCourse(course)) {
+            if (subjectOk && classOk && userOk && !scheduleConflict && capacityOk && courseDAO.addCourse(course)) {
               if (course.getCourseId() > 0) {
                 dataOriginHelper.saveDataOrigin("course", course.getCourseId(), source);
                 successCount++;
@@ -789,6 +818,8 @@ public class SyncHandler {
               if (scheduleConflict)
                 reason += " (trùng lịch học: " + course.getScheduleDay() + " " + course.getScheduleTime() + ", Phòng: "
                     + course.getRoom() + ")";
+              if (!capacityOk)
+                reason += " (maxStudents <= currentStudents hoặc maxStudents <= 0)";
               LOGGER.warning("Không thể lưu khóa học: " + course.getCourseCode() + reason);
             }
           } else {
