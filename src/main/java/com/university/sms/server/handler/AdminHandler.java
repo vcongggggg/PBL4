@@ -142,6 +142,7 @@ public class AdminHandler {
       boolean success = userDAO.addUser(newTeacher);
 
       if (success) {
+        // Chỉ lưu source khi admin thêm mới (đã kiểm tra role ở đầu method)
         if (newTeacher.getUserId() > 0) {
           dataOriginHelper.saveDataOrigin("user", newTeacher.getUserId(), clientSource);
         }
@@ -299,8 +300,12 @@ public class AdminHandler {
       }
 
       if (success) {
+        // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
         if (teacher.getUserId() > 0) {
-          dataOriginHelper.saveDataOrigin("user", teacher.getUserId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("user", teacher.getUserId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("user", teacher.getUserId());
+          }
         }
         LOGGER.info("Teacher updated: " + teacher.getUsername() + " by " + currentUser.getUsername());
         return Message.createSuccessResponse(request.getAction(), "Cập nhật giảng viên thành công");
@@ -443,7 +448,11 @@ public class AdminHandler {
       if (success) {
         User activatedUser = userDAO.findById(userId);
         if (activatedUser != null) {
-          dataOriginHelper.saveDataOrigin("user", activatedUser.getUserId(), clientSource);
+          // Khi activate: chỉ update timestamp nếu đã có source, không tạo mới source
+          String existingSource = dataOriginHelper.getDataOrigin("user", activatedUser.getUserId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("user", activatedUser.getUserId());
+          }
         }
 
         String userType = user.getRole() == User.UserRole.TEACHER ? "giảng viên"
@@ -460,7 +469,11 @@ public class AdminHandler {
           Student student = studentDAO.findByUsername(user.getUsername());
           if (student != null) {
             studentDAO.updateStudentStatus(student.getStudentId(), Student.StudentStatus.ACTIVE);
-            dataOriginHelper.saveDataOrigin("student", student.getStudentId(), clientSource);
+            // Khi activate: chỉ update timestamp nếu đã có source, không tạo mới source
+            String existingSource = dataOriginHelper.getDataOrigin("student", student.getStudentId());
+            if (existingSource != null) {
+              dataOriginHelper.updateDataOriginTimestamp("student", student.getStudentId());
+            }
             student = studentDAO.findByUsername(user.getUsername());
             if (student != null) {
               LOGGER.info("Student status updated to ACTIVE: " + student.getStudentCode());
@@ -570,8 +583,13 @@ public class AdminHandler {
       if (success) {
         LOGGER.info("Admin " + currentUser.getUsername() + " approved request " + requestId);
         ClassOpeningRequest updatedRequest = classRequestService.getRequestById(requestId);
+        // Khi approve: chỉ update timestamp nếu đã có source, không tạo mới source
         if (updatedRequest != null && updatedRequest.getRequestId() > 0) {
-          dataOriginHelper.saveDataOrigin("class_opening_request", updatedRequest.getRequestId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("class_opening_request",
+              updatedRequest.getRequestId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("class_opening_request", updatedRequest.getRequestId());
+          }
         }
         Message response = Message.createSuccessResponse(request.getAction(), "Đã duyệt yêu cầu thành công");
         if (updatedRequest != null) {
@@ -614,8 +632,13 @@ public class AdminHandler {
       if (success) {
         LOGGER.info("Admin " + currentUser.getUsername() + " rejected request " + requestId);
         ClassOpeningRequest updatedRequest = classRequestService.getRequestById(requestId);
+        // Khi reject: chỉ update timestamp nếu đã có source, không tạo mới source
         if (updatedRequest != null && updatedRequest.getRequestId() > 0) {
-          dataOriginHelper.saveDataOrigin("class_opening_request", updatedRequest.getRequestId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("class_opening_request",
+              updatedRequest.getRequestId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("class_opening_request", updatedRequest.getRequestId());
+          }
         }
         Message response = Message.createSuccessResponse(request.getAction(), "Đã từ chối yêu cầu");
         if (updatedRequest != null) {

@@ -142,7 +142,8 @@ public class SubjectHandler {
 
       boolean success = subjectService.addSubject(subject);
       if (success) {
-        if (subject.getSubjectId() > 0) {
+        // Chỉ lưu source khi admin thêm mới
+        if (subject.getSubjectId() > 0 && currentUser.getRole() == User.UserRole.ADMIN) {
           dataOriginHelper.saveDataOrigin("subject", subject.getSubjectId(), clientSource);
         }
         LOGGER.info("Subject added: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
@@ -209,8 +210,12 @@ public class SubjectHandler {
 
       boolean success = subjectService.updateSubject(subject);
       if (success) {
+        // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
         if (subject.getSubjectId() > 0) {
-          dataOriginHelper.saveDataOrigin("subject", subject.getSubjectId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("subject", subject.getSubjectId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("subject", subject.getSubjectId());
+          }
         }
         LOGGER.info("Subject updated: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
         return Message.createSuccessResponse(request.getAction(), "Cập nhật môn học thành công");

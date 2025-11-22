@@ -79,7 +79,10 @@ public class CourseHandler {
 
     boolean ok = courseService.addCourse(course);
     if (ok) {
-      dataOriginHelper.saveDataOrigin("course", course.getCourseId(), clientSource);
+      // Chỉ lưu source khi admin thêm mới
+      if (currentUser.getRole() == User.UserRole.ADMIN) {
+        dataOriginHelper.saveDataOrigin("course", course.getCourseId(), clientSource);
+      }
       return Message.createSuccessResponse(Constants.ACTION_ADD_COURSE, Constants.MSG_SUCCESS);
     }
     return Message.createErrorResponse(Constants.ACTION_ADD_COURSE, Constants.MSG_DATABASE_ERROR);
@@ -98,7 +101,11 @@ public class CourseHandler {
 
     boolean ok = courseService.updateCourse(course);
     if (ok) {
-      dataOriginHelper.saveDataOrigin("course", course.getCourseId(), clientSource);
+      // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
+      String existingSource = dataOriginHelper.getDataOrigin("course", course.getCourseId());
+      if (existingSource != null) {
+        dataOriginHelper.updateDataOriginTimestamp("course", course.getCourseId());
+      }
       return Message.createSuccessResponse(Constants.ACTION_UPDATE_COURSE, Constants.MSG_SUCCESS);
     }
     return Message.createErrorResponse(Constants.ACTION_UPDATE_COURSE, Constants.MSG_DATABASE_ERROR);
@@ -131,7 +138,9 @@ public class CourseHandler {
 
     if (course.getCourseId() > 0) {
       String existingSource = dataOriginHelper.getDataOrigin("course", course.getCourseId());
-      if ("CSV".equals(existingSource)) {
+      // Chỉ update timestamp nếu đã có source, không tạo mới source khi xóa
+      // Không kiểm tra source cụ thể, chỉ cần có source là update timestamp
+      if (existingSource != null) {
         dataOriginHelper.updateDataOriginTimestamp("course", course.getCourseId());
       }
     }

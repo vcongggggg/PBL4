@@ -347,7 +347,7 @@ public class CSVDataService {
 
   private java.sql.Timestamp parseTimestampSafe(String[] fields, int index, java.sql.Timestamp defaultValue) {
     String value = safeTrim(fields, index);
-    if (value.isEmpty()) {
+    if (value.isEmpty() || value.equalsIgnoreCase("null")) {
       return defaultValue;
     }
     try {
@@ -557,14 +557,27 @@ public class CSVDataService {
     Path file = dataDir.resolve(COURSES_FILE);
     try (BufferedReader reader = Files.newBufferedReader(file)) {
       String line = reader.readLine(); // Skip header
+      int lineNumber = 1;
+      int parsedCount = 0;
+      int skippedCount = 0;
       while ((line = reader.readLine()) != null) {
+        lineNumber++;
+        if (line.trim().isEmpty()) {
+          continue; // Bỏ qua dòng trống
+        }
         Course course = parseCourseFromCSV(line);
         if (course != null) {
           courses.add(course);
+          parsedCount++;
+        } else {
+          skippedCount++;
+          LOGGER
+              .warning("Bỏ qua khóa học ở dòng " + lineNumber + ": " + line.substring(0, Math.min(50, line.length())));
         }
       }
+      LOGGER.info("Đã parse " + parsedCount + " khóa học từ CSV (bỏ qua " + skippedCount + " dòng không hợp lệ)");
     } catch (IOException e) {
-      // Ignore
+      LOGGER.warning("Lỗi khi đọc courses.csv: " + e.getMessage());
     }
     return courses;
   }
@@ -582,22 +595,27 @@ public class CSVDataService {
 
   private Course parseCourseFromCSV(String line) {
     try {
+      if (line == null || line.trim().isEmpty()) {
+        return null; // Bỏ qua dòng trống
+      }
       String[] fields = parseCsvLine(line);
-      if (fields.length < 17)
+      if (fields.length < 17) {
+        LOGGER.warning("Không parse được course từ CSV: thiếu cột (cần 17, có " + fields.length + ") - Line: " + line);
         return null;
+      }
       Course course = new Course();
-      course.setCourseId(Integer.parseInt(fields[0].trim()));
-      course.setCourseCode(fields[1].trim());
-      course.setSubjectCode(fields[2].trim());
-      course.setTeacherUsername(fields[3].trim());
-      course.setClassCode(fields[4].trim().isEmpty() ? null : fields[4].trim());
-      course.setAcademicYear(fields[5].trim());
-      course.setSemester(Integer.parseInt(fields[6].trim()));
-      course.setScheduleDay(fields[7].trim().isEmpty() ? null : fields[7].trim());
-      course.setScheduleTime(fields[8].trim().isEmpty() ? null : fields[8].trim());
-      course.setRoom(fields[9].trim().isEmpty() ? null : fields[9].trim());
-      course.setMaxStudents(Integer.parseInt(fields[10].trim()));
-      course.setCurrentStudents(Integer.parseInt(fields[11].trim()));
+      course.setCourseId(parseIntSafe(fields[0]));
+      course.setCourseCode(safeTrim(fields, 1));
+      course.setSubjectCode(safeTrim(fields, 2));
+      course.setTeacherUsername(safeTrim(fields, 3));
+      course.setClassCode(emptyToNull(safeTrim(fields, 4)));
+      course.setAcademicYear(safeTrim(fields, 5));
+      course.setSemester(parseIntSafe(fields[6]));
+      course.setScheduleDay(emptyToNull(safeTrim(fields, 7)));
+      course.setScheduleTime(emptyToNull(safeTrim(fields, 8)));
+      course.setRoom(emptyToNull(safeTrim(fields, 9)));
+      course.setMaxStudents(parseIntSafe(fields[10]));
+      course.setCurrentStudents(parseIntSafe(fields[11]));
 
       String registrationStatusStr = fields[12].trim();
       if (!registrationStatusStr.isEmpty()) {
@@ -626,37 +644,40 @@ public class CSVDataService {
       course.setCreatedAt(parseTimestampSafe(fields, 16, currentTimestamp()));
       return course;
     } catch (Exception e) {
+      LOGGER.warning("Lỗi khi parse course từ CSV: " + e.getMessage() + " - Line: " + line);
       return null;
     }
   }
 
   private boolean writeCoursesToCSV(List<Course> courses) {
     Path file = dataDir.resolve(COURSES_FILE);
-    try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file))) {
+    try (PrintWriter writer = new PrintWriter(Files.newBufferedWriter(file, StandardCharsets.UTF_8))) {
       writer.println(
           "courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,registrationStatus,courseStatus,startDate,endDate,createdAt");
       for (Course course : courses) {
-        writer.println(String.format("%d,%s,%s,%s,%s,%s,%d,%s,%s,%s,%d,%d,%s,%s,%s,%s,%s",
-            course.getCourseId(),
-            course.getCourseCode(),
-            course.getSubjectCode(),
-            course.getTeacherUsername(),
-            course.getClassCode() != null ? course.getClassCode() : "",
-            course.getAcademicYear(),
-            course.getSemester(),
-            course.getScheduleDay() != null ? course.getScheduleDay() : "",
-            course.getScheduleTime() != null ? course.getScheduleTime() : "",
-            course.getRoom() != null ? course.getRoom() : "",
-            course.getMaxStudents(),
-            course.getCurrentStudents(),
-            course.getRegistrationStatus() != null ? course.getRegistrationStatus() : Course.RegistrationStatus.LOCKED,
-            course.getCourseStatus() != null ? course.getCourseStatus() : Course.CourseStatus.PLANNING,
-            course.getStartDate() != null ? course.getStartDate() : "",
-            course.getEndDate() != null ? course.getEndDate() : "",
-            course.getCreatedAt()));
+        writer.println(String.format("%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s,%s",
+            csvValue(course.getCourseId()),
+            csvValue(course.getCourseCode()),
+            csvValue(course.getSubjectCode()),
+            csvValue(course.getTeacherUsername()),
+            csvValue(course.getClassCode()),
+            csvValue(course.getAcademicYear()),
+            csvValue(course.getSemester()),
+            csvValue(course.getScheduleDay()),
+            csvValue(course.getScheduleTime()),
+            csvValue(course.getRoom()),
+            csvValue(course.getMaxStudents()),
+            csvValue(course.getCurrentStudents()),
+            csvValue(course.getRegistrationStatus() != null ? course.getRegistrationStatus()
+                : Course.RegistrationStatus.LOCKED),
+            csvValue(course.getCourseStatus() != null ? course.getCourseStatus() : Course.CourseStatus.PLANNING),
+            csvValue(course.getStartDate()),
+            csvValue(course.getEndDate()),
+            csvValue(course.getCreatedAt())));
       }
       return true;
     } catch (IOException e) {
+      LOGGER.warning("Lỗi khi ghi courses.csv: " + e.getMessage());
       return false;
     }
   }

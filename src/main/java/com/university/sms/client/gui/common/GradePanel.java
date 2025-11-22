@@ -212,13 +212,13 @@ public class GradePanel extends JPanel {
                 List<Map<String, Object>> gradeList = new ArrayList<>();
 
                 if (currentUser.getRole() == User.UserRole.STUDENT) {
-                    // Student: Get own grades
-                    Message request = Message.createRequest(Constants.ACTION_GET_STUDENT_GRADES);
+                    // Student: Get own enrollments
+                    Message request = Message.createRequest(Constants.ACTION_GET_ENROLLMENTS);
                     Message response = serverConnection.sendRequest(request);
 
                     if (response != null && response.isSuccess()) {
                         @SuppressWarnings("unchecked")
-                        List<Enrollment> enrollments = (List<Enrollment>) response.getData(Constants.KEY_GRADES);
+                        List<Enrollment> enrollments = (List<Enrollment>) response.getData(Constants.KEY_ENROLLMENTS);
 
                         if (enrollments != null) {
                             // Get detailed grades for each enrollment

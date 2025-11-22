@@ -89,8 +89,13 @@ public class TeacherHandler {
       boolean success = classRequestService.submitRequest(classRequest);
 
       if (success) {
+        // Chỉ admin mới lưu source khi thêm mới, teacher không lưu source
+        // Nếu đã có source thì chỉ update timestamp
         if (classRequest != null && classRequest.getRequestId() > 0) {
-          dataOriginHelper.saveDataOrigin("class_opening_request", classRequest.getRequestId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("class_opening_request", classRequest.getRequestId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("class_opening_request", classRequest.getRequestId());
+          }
         }
         return Message.createSuccessResponse(request.getAction(), "Request submitted successfully");
       } else {
@@ -108,8 +113,12 @@ public class TeacherHandler {
       boolean success = classRequestService.updateRequest(classRequest);
 
       if (success) {
+        // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
         if (classRequest != null && classRequest.getRequestId() > 0) {
-          dataOriginHelper.saveDataOrigin("class_opening_request", classRequest.getRequestId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("class_opening_request", classRequest.getRequestId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("class_opening_request", classRequest.getRequestId());
+          }
         }
         return Message.createSuccessResponse(request.getAction(), "Request updated successfully");
       } else {
@@ -257,8 +266,13 @@ public class TeacherHandler {
             .findFirst()
             .orElse(grade);
 
+        // Chỉ admin mới lưu source khi thêm mới, teacher không lưu source
+        // Nếu đã có source thì chỉ update timestamp
         if (savedGrade != null && savedGrade.getGradeId() > 0) {
-          dataOriginHelper.saveDataOrigin("grade", savedGrade.getGradeId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("grade", savedGrade.getGradeId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("grade", savedGrade.getGradeId());
+          }
         }
 
         Message response = Message.createSuccessResponse(request.getAction(), "Thêm điểm thành công");
@@ -284,11 +298,15 @@ public class TeacherHandler {
       boolean result = gradeService.updateGrade(grade);
 
       if (result) {
+        // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
         Grade updatedGrade = gradeService.getGradeById(grade.getGradeId());
-        if (updatedGrade != null && updatedGrade.getGradeId() > 0) {
-          dataOriginHelper.saveDataOrigin("grade", updatedGrade.getGradeId(), clientSource);
-        } else if (grade.getGradeId() > 0) {
-          dataOriginHelper.saveDataOrigin("grade", grade.getGradeId(), clientSource);
+        int gradeId = (updatedGrade != null && updatedGrade.getGradeId() > 0) ? updatedGrade.getGradeId()
+            : grade.getGradeId();
+        if (gradeId > 0) {
+          String existingSource = dataOriginHelper.getDataOrigin("grade", gradeId);
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("grade", gradeId);
+          }
         }
         Message response = Message.createSuccessResponse(request.getAction(), "Cập nhật điểm thành công");
         if (updatedGrade != null) {
@@ -451,8 +469,13 @@ public class TeacherHandler {
         CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
         CourseRegistration registration = registrationDAO.findById(registrationId);
 
+        // Khi approve: chỉ update timestamp nếu đã có source, không tạo mới source
         if (registration != null) {
-          dataOriginHelper.saveDataOrigin("course_registration", registration.getRegistrationId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("course_registration",
+              registration.getRegistrationId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
+          }
         }
 
         Message response = Message.createSuccessResponse(request.getAction(),
@@ -480,8 +503,13 @@ public class TeacherHandler {
       if (success) {
         CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
         CourseRegistration registration = registrationDAO.findById(registrationId);
+        // Khi reject: chỉ update timestamp nếu đã có source, không tạo mới source
         if (registration != null) {
-          dataOriginHelper.saveDataOrigin("course_registration", registration.getRegistrationId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("course_registration",
+              registration.getRegistrationId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
+          }
         }
 
         return Message.createSuccessResponse(request.getAction(), "Registration rejected successfully");

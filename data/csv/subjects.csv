@@ -1,2 +1,2 @@
 subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt
-2,DTDM,Điện tử đại cương,3,CNTT,NMN,Môn ĐTĐM,false,null
+2,DTDM,Điện tử đại cương,3,CNTT,,Môn ĐTĐM,false,null

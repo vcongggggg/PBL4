@@ -531,12 +531,25 @@ public class CourseService {
                 registrations = List.of();
             }
 
+            // Đếm số enrollments hiện tại trước khi tạo enrollments mới
+            int currentEnrolledCount = enrollmentDAO.countByCourse(course.getCourseCode());
+
             for (CourseRegistration registration : registrations) {
                 // Chỉ xử lý các registration đã APPROVED (bao gồm cả PENDING đã được approve ở
                 // trên)
                 if (registration.getRegistrationStatus() != CourseRegistration.RegistrationStatus.APPROVED) {
                     continue;
                 }
+
+                // Kiểm tra course đã đầy chưa
+                if (currentEnrolledCount >= course.getMaxStudents()) {
+                    LOGGER.warning("Không thể tạo enrollment: khóa học đã đầy (" +
+                            currentEnrolledCount + "/" + course.getMaxStudents() +
+                            ") - studentCode=" + registration.getStudentCode() +
+                            ", courseCode=" + registration.getCourseCode());
+                    continue;
+                }
+
                 // Kiểm tra xem đã có enrollment chưa
                 Enrollment existing = enrollmentDAO.findByStudentAndCourse(
                         registration.getStudentCode(), registration.getCourseCode());
@@ -545,6 +558,7 @@ public class CourseService {
                     Enrollment enrollment = new Enrollment(registration.getStudentCode(), registration.getCourseCode());
                     enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.ENROLLED);
                     enrollmentDAO.save(enrollment);
+                    currentEnrolledCount++; // Tăng counter sau khi tạo enrollment
                 }
             }
 

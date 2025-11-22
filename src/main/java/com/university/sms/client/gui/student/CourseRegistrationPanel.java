@@ -846,6 +846,40 @@ public class CourseRegistrationPanel extends JPanel {
             }
         }
 
+        // Check if any course is full before submitting - refresh course list first
+        Message refreshRequest = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
+        Message refreshResponse = serverConnection.sendRequest(refreshRequest);
+        Map<String, Course> latestCourses = new HashMap<>();
+        if (refreshResponse != null && refreshResponse.isSuccess()) {
+            @SuppressWarnings("unchecked")
+            List<Course> allCourses = (List<Course>) refreshResponse.getData(Constants.KEY_COURSES);
+            if (allCourses != null) {
+                for (Course c : allCourses) {
+                    latestCourses.put(c.getCourseCode(), c);
+                }
+            }
+        }
+
+        List<Course> fullCourses = new ArrayList<>();
+        for (Course course : selectedCourses) {
+            Course updatedCourse = latestCourses.get(course.getCourseCode());
+            if (updatedCourse != null && updatedCourse.getCurrentStudents() >= updatedCourse.getMaxStudents()) {
+                fullCourses.add(updatedCourse);
+            }
+        }
+
+        if (!fullCourses.isEmpty()) {
+            StringBuilder message = new StringBuilder("Các lớp học sau đã đầy và không thể đăng ký:\n\n");
+            for (Course course : fullCourses) {
+                message.append(String.format("- %s (%s): %d/%d sinh viên\n",
+                        course.getCourseCode(), course.getCourseName(),
+                        course.getCurrentStudents(), course.getMaxStudents()));
+            }
+            message.append("\nVui lòng xóa các lớp đã đầy khỏi danh sách trước khi đăng ký.");
+            JOptionPane.showMessageDialog(this, message.toString(), "Lớp đã đầy", JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
         int confirm = JOptionPane.showConfirmDialog(this,
                 String.format("Bạn có chắc muốn đăng ký %d môn học?\nTổng: %d tín chỉ",
                         selectedCourses.size(), getTotalCredits()),
@@ -861,7 +895,28 @@ public class CourseRegistrationPanel extends JPanel {
             protected Map<Course, String> doInBackground() throws Exception {
                 Map<Course, String> results = new HashMap<>();
 
+                // Refresh course list to get latest currentStudents before submitting
+                Message refreshRequest = Message.createRequest(Constants.ACTION_GET_ALL_COURSES);
+                Message refreshResponse = serverConnection.sendRequest(refreshRequest);
+                Map<String, Course> latestCoursesMap = new HashMap<>();
+                if (refreshResponse != null && refreshResponse.isSuccess()) {
+                    @SuppressWarnings("unchecked")
+                    List<Course> allCourses = (List<Course>) refreshResponse.getData(Constants.KEY_COURSES);
+                    if (allCourses != null) {
+                        for (Course c : allCourses) {
+                            latestCoursesMap.put(c.getCourseCode(), c);
+                        }
+                    }
+                }
+
                 for (Course course : selectedCourses) {
+                    // Double check before sending request using latest course data
+                    Course latestCourse = latestCoursesMap.get(course.getCourseCode());
+                    if (latestCourse != null && latestCourse.getCurrentStudents() >= latestCourse.getMaxStudents()) {
+                        results.put(course, "Lỗi: Lớp đã đầy");
+                        continue;
+                    }
+
                     Message request = Message.createRequest(Constants.ACTION_REGISTER_COURSE);
                     request.addData("studentCode", studentCode);
                     request.addData("courseCode", course.getCourseCode());

@@ -731,7 +731,7 @@ public class CSVServerConnection extends BaseServerConnection {
     try {
       List<Course> courses = csvDataService.getAllCourses();
       if (courses.isEmpty()) {
-        return Message.createSuccessResponse("UPLOAD_COURSES", "CSV file is empty, nothing to upload");
+        return Message.createSuccessResponse("UPLOAD_COURSES", "File CSV trống, không có gì để tải lên");
       }
       LOGGER.info("Bắt đầu tải lên " + courses.size() + " khóa học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_COURSES");
@@ -746,7 +746,7 @@ public class CSVServerConnection extends BaseServerConnection {
       return response;
     } catch (Exception e) {
       LOGGER.severe("Lỗi khi tải lên khóa học từ CSV: " + e.getMessage());
-      return Message.createErrorResponse("UPLOAD_COURSES", "Error: " + e.getMessage());
+      return Message.createErrorResponse("UPLOAD_COURSES", "Lỗi: " + e.getMessage());
     }
   }
 

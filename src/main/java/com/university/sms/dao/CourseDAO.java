@@ -735,4 +735,38 @@ public class CourseDAO {
 
         return courses;
     }
+
+    /**
+     * Tìm các course có trùng lịch học (schedule_day, schedule_time, room)
+     */
+    public List<Course> findByScheduleAndRoom(String scheduleDay, String scheduleTime, String room) {
+        String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
+                "u.full_name AS teacher_name, cl.class_name " +
+                "FROM courses c " +
+                "JOIN subjects sub ON c.subject_code = sub.subject_code " +
+                "JOIN users u ON c.teacher_username = u.username " +
+                "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
+                "WHERE c.schedule_day = ? AND c.schedule_time = ? AND c.room = ?";
+
+        List<Course> courses = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, scheduleDay);
+            stmt.setString(2, scheduleTime);
+            stmt.setString(3, room);
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    courses.add(mapResultSetToCourse(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding courses by schedule and room", e);
+        }
+
+        return courses;
+    }
 }

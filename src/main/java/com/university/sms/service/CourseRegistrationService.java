@@ -2,6 +2,7 @@ package com.university.sms.service;
 
 import com.university.sms.dao.CourseDAO;
 import com.university.sms.dao.CourseRegistrationDAO;
+import com.university.sms.dao.EnrollmentDAO;
 import com.university.sms.dao.StudentDAO;
 import com.university.sms.model.Course;
 import com.university.sms.model.CourseRegistration;
@@ -163,6 +164,19 @@ public class CourseRegistrationService {
 
             if (registration.getRegistrationStatus() != RegistrationStatus.PENDING) {
                 throw new IllegalStateException("Can only approve PENDING registrations");
+            }
+
+            // Kiểm tra course đã đầy chưa trước khi approve (vì database trigger sẽ tạo
+            // enrollment)
+            CourseDAO courseDAO = new CourseDAO();
+            EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+            Course course = courseDAO.findByCourseCode(registration.getCourseCode());
+            if (course != null) {
+                int currentEnrolledCount = enrollmentDAO.countByCourse(registration.getCourseCode());
+                if (currentEnrolledCount >= course.getMaxStudents()) {
+                    throw new IllegalStateException("Khóa học đã đầy (" + currentEnrolledCount + "/"
+                            + course.getMaxStudents() + "), không thể duyệt đăng ký");
+                }
             }
 
             registration.setRegistrationStatus(RegistrationStatus.APPROVED);

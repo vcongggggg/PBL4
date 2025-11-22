@@ -247,6 +247,42 @@ public class SyncHandler {
 
       for (User u : users) {
         try {
+          // Kiểm tra email format và uniqueness
+          if (u.getEmail() != null && !u.getEmail().trim().isEmpty()) {
+            if (!isValidEmailFormat(u.getEmail().trim())) {
+              failCount++;
+              LOGGER.warning("Không thể upload user: email không hợp lệ - username=" +
+                  u.getUsername() + ", email=" + u.getEmail());
+              continue;
+            }
+            User existingUserByEmail = userDAO.findByEmail(u.getEmail().trim());
+            if (existingUserByEmail != null && !existingUserByEmail.getUsername().equals(u.getUsername())) {
+              failCount++;
+              LOGGER.warning("Không thể upload user: email đã được sử dụng - username=" +
+                  u.getUsername() + ", email=" + u.getEmail());
+              continue;
+            }
+          }
+
+          // Kiểm tra phone format và uniqueness
+          String normalizedPhone = null;
+          if (u.getPhone() != null && !u.getPhone().trim().isEmpty()) {
+            normalizedPhone = normalizePhoneNumber(u.getPhone().trim());
+            if (!isValidPhoneFormat(normalizedPhone)) {
+              failCount++;
+              LOGGER.warning("Không thể upload user: số điện thoại không hợp lệ - username=" +
+                  u.getUsername() + ", phone=" + u.getPhone());
+              continue;
+            }
+            User existingUserByPhone = userDAO.findByPhone(normalizedPhone);
+            if (existingUserByPhone != null && !existingUserByPhone.getUsername().equals(u.getUsername())) {
+              failCount++;
+              LOGGER.warning("Không thể upload user: số điện thoại đã được sử dụng - username=" +
+                  u.getUsername() + ", phone=" + normalizedPhone);
+              continue;
+            }
+          }
+
           boolean facultyOk = true;
           if (u.getFacultyCode() != null && !u.getFacultyCode().trim().isEmpty()) {
             com.university.sms.model.Faculty existingFaculty = facultyDAO
@@ -254,22 +290,28 @@ public class SyncHandler {
             if (existingFaculty == null) {
               facultyOk = false;
               LOGGER.warning(
-                  "Faculty code not found: " + u.getFacultyCode() + " for user " + u.getUsername());
+                  "Không tìm thấy mã khoa: " + u.getFacultyCode() + " cho user " + u.getUsername());
             }
           }
 
           User existing = userDAO.findByUsername(u.getUsername());
           if (existing == null) {
             u.setUserId(0);
+            if (normalizedPhone != null) {
+              u.setPhone(normalizedPhone);
+            }
             if (facultyOk && userDAO.addUser(u)) {
               dataOriginHelper.saveDataOrigin("user", u.getUserId(), source);
               successCount++;
+              LOGGER.info("Đã upload user: username=" + u.getUsername() + ", role=" + u.getRole());
             } else {
               failCount++;
               LOGGER.warning(
-                  "Failed to save user: " + u.getUsername() +
-                      (facultyOk ? " (check email/phone uniqueness)" : " (faculty_code not found)"));
+                  "Không thể lưu user: " + u.getUsername() +
+                      (facultyOk ? " (kiểm tra email/phone uniqueness)" : " (faculty_code not found)"));
             }
+          } else {
+            LOGGER.info("User đã tồn tại, bỏ qua: " + u.getUsername());
           }
         } catch (Exception ex) {
           failCount++;
@@ -377,15 +419,16 @@ public class SyncHandler {
           if (c.getTeacherUsername() != null && !c.getTeacherUsername().isEmpty()) {
             User existingUser = userDAO.findByUsername(c.getTeacherUsername());
             if (existingUser == null) {
-              User u = new User();
-              u.setUsername(c.getTeacherUsername());
-              u.setPassword("password");
-              u.setFullName(c.getTeacherUsername());
-              u.setEmail(c.getTeacherUsername() + "@csv-teacher.edu.vn");
-              u.setRole(User.UserRole.TEACHER);
-              userOk = userDAO.addUser(u);
-              if (userOk) {
-                dataOriginHelper.saveDataOrigin("user", u.getUserId(), source);
+              userOk = false;
+              LOGGER.warning("Không thể upload class: teacher không tồn tại - " +
+                  "classCode=" + c.getClassCode() + ", teacherUsername=" + c.getTeacherUsername());
+            } else {
+              // Kiểm tra role của user phải là TEACHER
+              if (existingUser.getRole() != User.UserRole.TEACHER) {
+                userOk = false;
+                LOGGER.warning("Không thể upload class: user không phải là giáo viên - " +
+                    "classCode=" + c.getClassCode() + ", teacherUsername=" + c.getTeacherUsername() +
+                    ", role=" + existingUser.getRole());
               }
             }
           }
@@ -485,26 +528,36 @@ public class SyncHandler {
 
           User byUsername = userDAO.findByUsername(username);
           if (byUsername == null) {
-            User u = new User();
-            u.setUsername(username);
-            u.setPassword("password");
-            u.setFullName(student.getFullName());
-            u.setEmail(student.getEmail());
-            u.setPhone(normalizedStudentPhone);
-            u.setAddress(student.getAddress());
-            u.setRole(User.UserRole.STUDENT);
-            userOk = userDAO.addUser(u);
-            if (userOk) {
-              dataOriginHelper.saveDataOrigin("user", u.getUserId(), source);
+            userOk = false;
+            LOGGER.warning("Không thể upload student: user không tồn tại - " +
+                "studentCode=" + student.getStudentCode() + ", username=" + username);
+          } else {
+            // Kiểm tra role của user phải là STUDENT
+            if (byUsername.getRole() != User.UserRole.STUDENT) {
+              userOk = false;
+              LOGGER.warning("Không thể upload student: user không phải là sinh viên - " +
+                  "studentCode=" + student.getStudentCode() + ", username=" + username +
+                  ", role=" + byUsername.getRole());
             }
           }
 
           boolean classOk = true;
+          com.university.sms.model.Class classObj = null;
           if (student.getClassCode() != null && !student.getClassCode().trim().isEmpty()) {
-            com.university.sms.model.Class classObj = classDAO.findByCode(student.getClassCode());
+            classObj = classDAO.findByCode(student.getClassCode());
             if (classObj == null) {
               classOk = false;
-              LOGGER.warning("Class code not found: " + student.getClassCode());
+              LOGGER.warning("Không tìm thấy mã lớp: " + student.getClassCode());
+            } else {
+              // Kiểm tra lớp đã đầy chưa
+              if (classObj.getMaxStudents() != null) {
+                int currentStudentCount = studentDAO.countByClassCode(student.getClassCode());
+                if (currentStudentCount >= classObj.getMaxStudents()) {
+                  classOk = false;
+                  LOGGER.warning("Lớp đã đầy (" + currentStudentCount + "/" + classObj.getMaxStudents() +
+                      "): " + student.getClassCode() + " - Không thể thêm sinh viên " + student.getStudentCode());
+                }
+              }
             }
           }
 
@@ -582,7 +635,18 @@ public class SyncHandler {
             if (prerequisite == null) {
               prerequisiteOk = false;
               LOGGER.warning(
-                  "Prerequisite subject code not found: " + s.getPrerequisiteSubjectCode());
+                  "Không tìm thấy môn học tiên quyết: " + s.getPrerequisiteSubjectCode() +
+                      " cho môn học " + s.getSubjectCode());
+            } else {
+              // Kiểm tra circular dependency: nếu prerequisite có prerequisite là subject
+              // hiện tại
+              if (prerequisite.getPrerequisiteSubjectCode() != null &&
+                  prerequisite.getPrerequisiteSubjectCode().equals(s.getSubjectCode())) {
+                prerequisiteOk = false;
+                LOGGER.warning("Không thể upload subject: circular dependency - " +
+                    s.getSubjectCode() + " requires " + s.getPrerequisiteSubjectCode() +
+                    " but " + s.getPrerequisiteSubjectCode() + " requires " + s.getSubjectCode());
+              }
             }
           }
 
@@ -592,10 +656,19 @@ public class SyncHandler {
             if (facultyOk && prerequisiteOk && subjectDAO.save(s)) {
               dataOriginHelper.saveDataOrigin("subject", s.getSubjectId(), source);
               successCount++;
+              LOGGER.info("Đã upload subject: " + s.getSubjectCode() + " - " + s.getSubjectName());
             } else {
               failCount++;
-              LOGGER.warning("Failed to save subject: " + s.getSubjectCode() + " - " + s.getSubjectName());
+              String reason = "";
+              if (!facultyOk)
+                reason += " (không tìm thấy khoa: " + s.getFacultyCode() + ")";
+              if (!prerequisiteOk)
+                reason += " (không tìm thấy/circular dependency môn tiên quyết: " +
+                    s.getPrerequisiteSubjectCode() + ")";
+              LOGGER.warning("Không thể lưu subject: " + s.getSubjectCode() + " - " + s.getSubjectName() + reason);
             }
+          } else {
+            LOGGER.info("Subject đã tồn tại, bỏ qua: " + s.getSubjectCode());
           }
         } catch (Exception ex) {
           failCount++;
@@ -627,7 +700,7 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSES, "No courses to upload");
       }
 
-      LOGGER.info("Uploading " + courses.size() + " courses from client");
+      LOGGER.info("Đang tải lên " + courses.size() + " khóa học từ client");
 
       int successCount = 0;
       int failCount = 0;
@@ -645,7 +718,7 @@ public class SyncHandler {
             if (subject == null) {
               subjectOk = false;
               LOGGER.warning(
-                  "Subject code not found: " + course.getSubjectCode() + " for course " + course.getCourseCode());
+                  "Không tìm thấy mã môn học: " + course.getSubjectCode() + " cho khóa học " + course.getCourseCode());
             }
           }
 
@@ -655,7 +728,7 @@ public class SyncHandler {
             if (cls == null) {
               classOk = false;
               LOGGER.warning(
-                  "Class code not found: " + course.getClassCode() + " for course " + course.getCourseCode());
+                  "Không tìm thấy mã lớp: " + course.getClassCode() + " cho khóa học " + course.getCourseCode());
             }
           }
 
@@ -663,43 +736,64 @@ public class SyncHandler {
           if (course.getTeacherUsername() != null && !course.getTeacherUsername().isEmpty()) {
             User existingUser = userDAO.findByUsername(course.getTeacherUsername());
             if (existingUser == null) {
-              String facultyCode = null;
-              if (course.getSubjectCode() != null && !course.getSubjectCode().isEmpty()) {
-                Subject subject = subjectDAO.findByCode(course.getSubjectCode());
-                if (subject != null) {
-                  facultyCode = subject.getFacultyCode();
-                }
+              userOk = false;
+              LOGGER.warning("Không thể upload course: teacher không tồn tại - " +
+                  "courseCode=" + course.getCourseCode() + ", teacherUsername=" + course.getTeacherUsername());
+            } else {
+              // Kiểm tra role của user phải là TEACHER
+              if (existingUser.getRole() != User.UserRole.TEACHER) {
+                userOk = false;
+                LOGGER.warning("Không thể upload course: user không phải là giáo viên - " +
+                    "courseCode=" + course.getCourseCode() + ", teacherUsername=" + course.getTeacherUsername() +
+                    ", role=" + existingUser.getRole());
               }
+            }
+          }
 
-              User u = new User();
-              u.setUsername(course.getTeacherUsername());
-              u.setPassword("password");
-              u.setFullName(course.getTeacherName() != null ? course.getTeacherName()
-                  : course.getTeacherUsername());
-              u.setEmail(course.getTeacherUsername() + "@csv-teacher.edu.vn");
-              u.setRole(User.UserRole.TEACHER);
-              u.setFacultyCode(facultyCode);
-              userOk = userDAO.addUser(u);
-              if (userOk) {
-                dataOriginHelper.saveDataOrigin("user", u.getUserId(), source);
-              }
+          // Kiểm tra trùng lịch học (schedule_day, schedule_time, room) với các course
+          // khác
+          boolean scheduleConflict = false;
+          if (course.getScheduleDay() != null && !course.getScheduleDay().isEmpty() &&
+              course.getScheduleTime() != null && !course.getScheduleTime().isEmpty() &&
+              course.getRoom() != null && !course.getRoom().isEmpty()) {
+            List<Course> existingCourses = courseDAO.findByScheduleAndRoom(
+                course.getScheduleDay(), course.getScheduleTime(), course.getRoom());
+            if (!existingCourses.isEmpty()) {
+              scheduleConflict = true;
+              LOGGER.warning("Trùng lịch học: " + course.getCourseCode() +
+                  " - Lịch: " + course.getScheduleDay() + " " + course.getScheduleTime() +
+                  ", Phòng: " + course.getRoom());
             }
           }
 
           Course existing = courseDAO.findByCourseCode(course.getCourseCode());
           if (existing == null) {
-            if (subjectOk && classOk && userOk && courseDAO.addCourse(course)) {
+            if (subjectOk && classOk && userOk && !scheduleConflict && courseDAO.addCourse(course)) {
               if (course.getCourseId() > 0) {
                 dataOriginHelper.saveDataOrigin("course", course.getCourseId(), source);
                 successCount++;
+                LOGGER.info("Đã tải lên thành công khóa học: " + course.getCourseCode());
               } else {
                 failCount++;
-                LOGGER.warning("Failed to save course: " + course.getCourseCode() + " - ID not set");
+                LOGGER.warning("Không thể lưu khóa học: " + course.getCourseCode() + " - ID chưa được thiết lập");
               }
             } else {
               failCount++;
-              LOGGER.warning("Failed to save course: " + course.getCourseCode());
+              String reason = "";
+              if (!subjectOk)
+                reason += " (không tìm thấy môn học: " + course.getSubjectCode() + ")";
+              if (!classOk)
+                reason += " (không tìm thấy lớp: " + course.getClassCode() + ")";
+              if (!userOk)
+                reason += " (không tìm thấy/tạo được người dùng giáo viên: " + course.getTeacherUsername() + ")";
+              if (scheduleConflict)
+                reason += " (trùng lịch học: " + course.getScheduleDay() + " " + course.getScheduleTime() + ", Phòng: "
+                    + course.getRoom() + ")";
+              LOGGER.warning("Không thể lưu khóa học: " + course.getCourseCode() + reason);
             }
+          } else {
+            LOGGER.info("Khóa học đã tồn tại, bỏ qua: " + course.getCourseCode() + " (ID hiện tại: "
+                + existing.getCourseId() + ")");
           }
         } catch (Exception ex) {
           failCount++;
@@ -739,7 +833,10 @@ public class SyncHandler {
       EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
       StudentDAO studentDAO = new StudentDAO();
       CourseDAO courseDAO = new CourseDAO();
+      CourseRegistrationDAO courseRegistrationDAO = new CourseRegistrationDAO();
       String source = getClientSource();
+      // Set để lưu các course cần cập nhật currentStudents sau khi upload xong
+      java.util.Set<String> coursesToUpdate = new java.util.HashSet<>();
 
       for (Enrollment e : enrollments) {
         try {
@@ -748,25 +845,31 @@ public class SyncHandler {
             Student student = studentDAO.findByStudentCode(e.getStudentCode().trim());
             if (student == null) {
               studentOk = false;
-              LOGGER.warning("Student code not found: " + e.getStudentCode() + " for enrollment");
+              LOGGER.warning("Không tìm thấy mã sinh viên: " + e.getStudentCode() + " cho enrollment");
             }
           }
 
+          Course course = null;
           boolean courseOk = true;
           if (e.getCourseCode() != null && !e.getCourseCode().trim().isEmpty()) {
-            Course course = courseDAO.findByCourseCode(e.getCourseCode().trim());
+            course = courseDAO.findByCourseCode(e.getCourseCode().trim());
             if (course == null) {
               courseOk = false;
-              LOGGER.warning("Course code not found: " + e.getCourseCode() + " for enrollment");
+              LOGGER.warning("Không tìm thấy mã khóa học: " + e.getCourseCode() + " cho enrollment");
             }
           }
 
           if (!studentOk || !courseOk) {
             failCount++;
-            LOGGER.warning("Failed to save enrollment: studentCode=" + e.getStudentCode() +
+            LOGGER.warning("Không thể lưu enrollment: studentCode=" + e.getStudentCode() +
                 ", courseCode=" + e.getCourseCode() + " (FK validation failed)");
             continue;
           }
+
+          // Kiểm tra xem enrollment status có tính vào currentStudents không
+          boolean countsAsEnrolled = (e.getEnrollmentStatus() == Enrollment.EnrollmentStatus.ENROLLED ||
+              e.getEnrollmentStatus() == Enrollment.EnrollmentStatus.COMPLETED ||
+              e.getEnrollmentStatus() == Enrollment.EnrollmentStatus.FAILED);
 
           Enrollment existingEnrollment = null;
           if (e.getStudentCode() != null && !e.getStudentCode().trim().isEmpty() &&
@@ -776,17 +879,77 @@ public class SyncHandler {
           }
 
           if (existingEnrollment != null) {
+            // Update enrollment hiện tại
+            Enrollment.EnrollmentStatus oldStatus = existingEnrollment.getEnrollmentStatus();
+            boolean oldCountsAsEnrolled = (oldStatus == Enrollment.EnrollmentStatus.ENROLLED ||
+                oldStatus == Enrollment.EnrollmentStatus.COMPLETED ||
+                oldStatus == Enrollment.EnrollmentStatus.FAILED);
+
+            // Nếu status cũ không tính nhưng status mới tính, cần kiểm tra course đã đầy
+            // chưa
+            if (!oldCountsAsEnrolled && countsAsEnrolled) {
+              // Đếm số enrollments hiện tại với status ENROLLED/COMPLETED/FAILED
+              int currentEnrolledCount = enrollmentDAO.countByCourse(e.getCourseCode().trim());
+              if (currentEnrolledCount >= course.getMaxStudents()) {
+                failCount++;
+                LOGGER.warning("Không thể cập nhật enrollment: khóa học đã đầy (" +
+                    currentEnrolledCount + "/" + course.getMaxStudents() +
+                    ") - studentCode=" + e.getStudentCode() + ", courseCode=" + e.getCourseCode());
+                continue;
+              }
+            }
+
             e.setEnrollmentId(existingEnrollment.getEnrollmentId());
             boolean ok = enrollmentDAO.save(e);
             if (ok) {
               dataOriginHelper.updateDataOriginTimestamp("enrollment", existingEnrollment.getEnrollmentId());
               successCount++;
+              coursesToUpdate.add(e.getCourseCode().trim());
+              LOGGER.info("Đã cập nhật enrollment: studentCode=" + e.getStudentCode() +
+                  ", courseCode=" + e.getCourseCode() + ", status=" + e.getEnrollmentStatus());
             } else {
               failCount++;
-              LOGGER.warning("Failed to update enrollment: studentCode=" + e.getStudentCode() +
+              LOGGER.warning("Không thể cập nhật enrollment: studentCode=" + e.getStudentCode() +
                   ", courseCode=" + e.getCourseCode());
             }
             continue;
+          }
+
+          // Enrollment mới
+          // Nếu status tính vào currentStudents, kiểm tra course đã đầy chưa
+          if (countsAsEnrolled) {
+            // Đếm số enrollments hiện tại với status ENROLLED/COMPLETED/FAILED
+            int currentEnrolledCount = enrollmentDAO.countByCourse(e.getCourseCode().trim());
+            if (currentEnrolledCount >= course.getMaxStudents()) {
+              failCount++;
+              LOGGER.warning("Không thể thêm enrollment: khóa học đã đầy (" +
+                  currentEnrolledCount + "/" + course.getMaxStudents() +
+                  ") - studentCode=" + e.getStudentCode() + ", courseCode=" + e.getCourseCode());
+              continue;
+            }
+
+            // Kiểm tra schedule conflict với các enrollment/registration khác của cùng
+            // student
+            if (courseRegistrationDAO.hasScheduleConflict(e.getStudentCode().trim(), e.getCourseCode().trim())) {
+              failCount++;
+              LOGGER.warning("Không thể thêm enrollment: xung đột lịch học - studentCode=" +
+                  e.getStudentCode() + ", courseCode=" + e.getCourseCode());
+              continue;
+            }
+
+            // Kiểm tra credits limit (MAX_CREDITS_PER_SEMESTER = 24)
+            int currentCredits = courseRegistrationDAO.getTotalCredits(
+                e.getStudentCode().trim(),
+                course.getAcademicYear(),
+                course.getSemester());
+            int courseCredits = course.getCredits();
+            if (currentCredits + courseCredits > 24) {
+              failCount++;
+              LOGGER.warning("Không thể thêm enrollment: vượt quá số tín chỉ tối đa (24) - " +
+                  "Hiện tại: " + currentCredits + ", Khóa học: " + courseCredits +
+                  " - studentCode=" + e.getStudentCode() + ", courseCode=" + e.getCourseCode());
+              continue;
+            }
           }
 
           e.setEnrollmentId(0);
@@ -794,14 +957,33 @@ public class SyncHandler {
           if (ok && e.getEnrollmentId() > 0) {
             dataOriginHelper.saveDataOrigin("enrollment", e.getEnrollmentId(), source);
             successCount++;
+            if (countsAsEnrolled) {
+              coursesToUpdate.add(e.getCourseCode().trim());
+            }
+            LOGGER.info("Đã thêm enrollment: studentCode=" + e.getStudentCode() +
+                ", courseCode=" + e.getCourseCode() + ", status=" + e.getEnrollmentStatus());
           } else {
             failCount++;
-            LOGGER.warning("Failed to save enrollment: studentCode=" + e.getStudentCode() +
+            LOGGER.warning("Không thể lưu enrollment: studentCode=" + e.getStudentCode() +
                 ", courseCode=" + e.getCourseCode());
           }
         } catch (Exception ex) {
           failCount++;
           LOGGER.log(Level.SEVERE, "Lỗi khi lưu đăng ký học phần", ex);
+        }
+      }
+
+      // Cập nhật currentStudents cho tất cả các course đã được upload enrollments
+      for (String courseCode : coursesToUpdate) {
+        try {
+          int actualCount = enrollmentDAO.countByCourse(courseCode);
+          Course course = courseDAO.findByCourseCode(courseCode);
+          if (course != null) {
+            courseDAO.updateCurrentStudents(course.getCourseId(), actualCount);
+            LOGGER.info("Đã cập nhật currentStudents cho khóa học " + courseCode + ": " + actualCount);
+          }
+        } catch (Exception ex) {
+          LOGGER.warning("Lỗi khi cập nhật currentStudents cho khóa học " + courseCode + ": " + ex.getMessage());
         }
       }
 
@@ -835,10 +1017,76 @@ public class SyncHandler {
       int successCount = 0;
       int failCount = 0;
       GradeDAO gradeDAO = new GradeDAO();
+      EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
       String source = getClientSource();
 
       for (Grade g : grades) {
         try {
+          // Kiểm tra enrollment tồn tại
+          Enrollment enrollment = enrollmentDAO.findByStudentAndCourse(
+              g.getStudentCode(), g.getCourseCode());
+          if (enrollment == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: enrollment không tồn tại - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode());
+            continue;
+          }
+
+          // Kiểm tra grade value hợp lệ
+          if (g.getScore() == null || g.getMaxScore() == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: điểm không được để trống - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode());
+            continue;
+          }
+
+          if (g.getScore().compareTo(java.math.BigDecimal.ZERO) < 0) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: điểm không được âm - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode() + ", score=" + g.getScore());
+            continue;
+          }
+
+          if (g.getMaxScore().compareTo(java.math.BigDecimal.ZERO) <= 0) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: điểm tối đa phải > 0 - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode() + ", maxScore=" + g.getMaxScore());
+            continue;
+          }
+
+          if (g.getScore().compareTo(new java.math.BigDecimal("10")) > 0) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: điểm không được vượt quá 10 - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode() + ", score=" + g.getScore());
+            continue;
+          }
+
+          if (g.getMaxScore().compareTo(new java.math.BigDecimal("10")) > 0) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: điểm tối đa không được vượt quá 10 - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode() + ", maxScore=" + g.getMaxScore());
+            continue;
+          }
+
+          if (g.getScore().compareTo(g.getMaxScore()) > 0) {
+            failCount++;
+            LOGGER.warning("Không thể upload grade: điểm không được vượt quá điểm tối đa - studentCode=" +
+                g.getStudentCode() + ", courseCode=" + g.getCourseCode() +
+                ", score=" + g.getScore() + ", maxScore=" + g.getMaxScore());
+            continue;
+          }
+
+          // Kiểm tra weight hợp lệ (nếu có)
+          if (g.getWeight() != null) {
+            if (g.getWeight().compareTo(java.math.BigDecimal.ZERO) <= 0 ||
+                g.getWeight().compareTo(java.math.BigDecimal.ONE) > 0) {
+              failCount++;
+              LOGGER.warning("Không thể upload grade: trọng số phải trong khoảng (0.0, 1.0] - studentCode=" +
+                  g.getStudentCode() + ", courseCode=" + g.getCourseCode() + ", weight=" + g.getWeight());
+              continue;
+            }
+          }
+
           boolean exists = false;
           try (Connection conn = DatabaseConnection.getConnection();
               PreparedStatement checkStmt = conn.prepareStatement(
@@ -915,6 +1163,42 @@ public class SyncHandler {
 
       for (ClassOpeningRequest r : requests) {
         try {
+          // Kiểm tra teacher tồn tại
+          UserDAO userDAO = new UserDAO();
+          User teacher = userDAO.findByUsername(r.getTeacherUsername());
+          if (teacher == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload class opening request: teacher không tồn tại - " +
+                "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode());
+            continue;
+          }
+
+          // Kiểm tra subject tồn tại
+          SubjectDAO subjectDAO = new SubjectDAO();
+          Subject subject = subjectDAO.findByCode(r.getSubjectCode());
+          if (subject == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload class opening request: subject không tồn tại - " +
+                "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode());
+            continue;
+          }
+
+          // Kiểm tra schedule conflict với các course/request khác (nếu có schedule)
+          if (r.getScheduleDay() != null && !r.getScheduleDay().isEmpty() &&
+              r.getScheduleTime() != null && !r.getScheduleTime().isEmpty() &&
+              r.getRoom() != null && !r.getRoom().isEmpty()) {
+            CourseDAO courseDAO = new CourseDAO();
+            List<Course> conflictingCourses = courseDAO.findByScheduleAndRoom(
+                r.getScheduleDay(), r.getScheduleTime(), r.getRoom());
+            if (!conflictingCourses.isEmpty()) {
+              failCount++;
+              LOGGER.warning("Không thể upload class opening request: trùng lịch học - " +
+                  "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode() +
+                  ", schedule=" + r.getScheduleDay() + " " + r.getScheduleTime() + ", room=" + r.getRoom());
+              continue;
+            }
+          }
+
           List<ClassOpeningRequest> existingRequests = requestDAO.findByTeacher(r.getTeacherUsername());
           boolean exists = false;
           for (ClassOpeningRequest existing : existingRequests) {
@@ -982,10 +1266,54 @@ public class SyncHandler {
       int successCount = 0;
       int failCount = 0;
       CourseRegistrationDAO dao = new CourseRegistrationDAO();
+      CourseDAO courseDAO = new CourseDAO();
+      EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
       String source = getClientSource();
+      // Set để lưu các course cần cập nhật currentStudents sau khi upload xong
+      java.util.Set<String> coursesToUpdate = new java.util.HashSet<>();
+      final int MAX_CREDITS_PER_SEMESTER = 24;
 
       for (CourseRegistration r : registrations) {
         try {
+          // Kiểm tra nếu status là APPROVED, cần kiểm tra course đã đầy chưa
+          Course course = null;
+          if (r.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
+            course = courseDAO.findByCourseCode(r.getCourseCode());
+            if (course != null) {
+              // Đếm số enrollments hiện tại với status ENROLLED/COMPLETED/FAILED
+              int currentEnrolledCount = enrollmentDAO.countByCourse(r.getCourseCode());
+              if (currentEnrolledCount >= course.getMaxStudents()) {
+                failCount++;
+                LOGGER.warning("Không thể upload course registration với status APPROVED: khóa học đã đầy (" +
+                    currentEnrolledCount + "/" + course.getMaxStudents() +
+                    ") - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+                continue;
+              }
+
+              // Kiểm tra schedule conflict
+              if (dao.hasScheduleConflict(r.getStudentCode(), r.getCourseCode())) {
+                failCount++;
+                LOGGER.warning("Không thể upload course registration: xung đột lịch học - studentCode=" +
+                    r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+                continue;
+              }
+
+              // Kiểm tra credits limit
+              int currentCredits = dao.getTotalCredits(
+                  r.getStudentCode(),
+                  course.getAcademicYear(),
+                  course.getSemester());
+              int courseCredits = course.getCredits();
+              if (currentCredits + courseCredits > MAX_CREDITS_PER_SEMESTER) {
+                failCount++;
+                LOGGER.warning("Không thể upload course registration: vượt quá số tín chỉ tối đa (" +
+                    MAX_CREDITS_PER_SEMESTER + ") - Hiện tại: " + currentCredits + ", Khóa học: " + courseCredits +
+                    " - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+                continue;
+              }
+            }
+          }
+
           boolean exists = false;
           try (Connection conn = DatabaseConnection.getConnection();
               PreparedStatement checkStmt = conn.prepareStatement(
@@ -995,13 +1323,13 @@ public class SyncHandler {
             try (ResultSet rs = checkStmt.executeQuery()) {
               if (rs.next() && rs.getInt(1) > 0) {
                 exists = true;
-                LOGGER.info("CourseRegistration already exists, skipping: student="
+                LOGGER.info("CourseRegistration đã tồn tại, bỏ qua: student="
                     + r.getStudentCode() +
                     ", course=" + r.getCourseCode());
               }
             }
           } catch (Exception checkEx) {
-            LOGGER.warning("Error checking course registration duplicate: " + checkEx.getMessage());
+            LOGGER.warning("Lỗi khi kiểm tra trùng lặp course registration: " + checkEx.getMessage());
           }
 
           if (!exists) {
@@ -1009,13 +1337,37 @@ public class SyncHandler {
             if (dao.save(r)) {
               dataOriginHelper.saveDataOrigin("course_registration", r.getRegistrationId(), source);
               successCount++;
+              // Nếu status là APPROVED, database trigger có thể tự động tạo enrollment
+              // Cần cập nhật currentStudents sau khi upload xong
+              if (r.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
+                coursesToUpdate.add(r.getCourseCode());
+              }
+              LOGGER.info("Đã upload course registration: studentCode=" + r.getStudentCode() +
+                  ", courseCode=" + r.getCourseCode() + ", status=" + r.getRegistrationStatus());
             } else {
               failCount++;
+              LOGGER.warning("Không thể lưu course registration: studentCode=" + r.getStudentCode() +
+                  ", courseCode=" + r.getCourseCode());
             }
           }
         } catch (Exception ex) {
           failCount++;
           LOGGER.log(Level.SEVERE, "Lỗi khi tải lên course registration", ex);
+        }
+      }
+
+      // Cập nhật currentStudents cho tất cả các course có registration status
+      // APPROVED
+      for (String courseCode : coursesToUpdate) {
+        try {
+          int actualCount = enrollmentDAO.countByCourse(courseCode);
+          Course course = courseDAO.findByCourseCode(courseCode);
+          if (course != null) {
+            courseDAO.updateCurrentStudents(course.getCourseId(), actualCount);
+            LOGGER.info("Đã cập nhật currentStudents cho khóa học " + courseCode + ": " + actualCount);
+          }
+        } catch (Exception ex) {
+          LOGGER.warning("Lỗi khi cập nhật currentStudents cho khóa học " + courseCode + ": " + ex.getMessage());
         }
       }
 
@@ -1059,18 +1411,52 @@ public class SyncHandler {
           if (senderUsername != null && !senderUsername.isEmpty()) {
             User existingUser = userDAO.findByUsername(senderUsername);
             if (existingUser == null) {
-              User u = new User();
-              u.setUsername(senderUsername);
-              u.setPassword("password");
-              u.setFullName(notification.getSenderName() != null ? notification.getSenderName()
-                  : senderUsername);
-              u.setEmail(senderUsername + "@csv-admin.edu.vn");
-              u.setRole(User.UserRole.ADMIN);
-              userOk = userDAO.addUser(u);
-              if (userOk) {
-                dataOriginHelper.saveDataOrigin("user", u.getUserId(), source);
+              userOk = false;
+              LOGGER.warning("Không thể upload notification: sender không tồn tại - " +
+                  "senderUsername=" + senderUsername);
+            }
+          }
+
+          // Kiểm tra targetType và targetCode hợp lệ
+          boolean targetOk = true;
+          if (notification.getTargetType() != null && notification.getTargetType() != Notification.TargetType.ALL) {
+            String targetCode = notification.getTargetCode();
+            if (targetCode == null || targetCode.trim().isEmpty()) {
+              targetOk = false;
+              LOGGER.warning("Không thể upload notification: targetCode không được để trống khi targetType=" +
+                  notification.getTargetType());
+            } else {
+              switch (notification.getTargetType()) {
+                case FACULTY:
+                  FacultyDAO facultyDAO = new FacultyDAO();
+                  if (facultyDAO.findByCode(targetCode) == null) {
+                    targetOk = false;
+                    LOGGER.warning("Không thể upload notification: faculty không tồn tại - targetCode=" + targetCode);
+                  }
+                  break;
+                case CLASS:
+                  ClassDAO classDAO = new ClassDAO();
+                  if (classDAO.findByCode(targetCode) == null) {
+                    targetOk = false;
+                    LOGGER.warning("Không thể upload notification: class không tồn tại - targetCode=" + targetCode);
+                  }
+                  break;
+                case STUDENT:
+                  StudentDAO studentDAO = new StudentDAO();
+                  if (studentDAO.findByStudentCode(targetCode) == null) {
+                    targetOk = false;
+                    LOGGER.warning("Không thể upload notification: student không tồn tại - targetCode=" + targetCode);
+                  }
+                  break;
+                default:
+                  break;
               }
             }
+          }
+
+          if (!userOk || !targetOk) {
+            failCount++;
+            continue;
           }
 
           boolean exists = false;

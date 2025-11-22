@@ -84,13 +84,25 @@ public class EnrollmentHandler {
       boolean ok;
       com.university.sms.model.Enrollment enrollment = null;
       if (existing == null) {
+        // Kiểm tra course đã đầy chưa trước khi tạo enrollment
+        if (!courseService.canEnrollInCourse(courseCode)) {
+          return Message.createErrorResponse(Constants.ACTION_ENROLL_COURSE,
+              "Khóa học đã đầy, không thể đăng ký thêm");
+        }
         com.university.sms.model.Enrollment e = new com.university.sms.model.Enrollment();
         e.setStudentCode(studentCode);
         e.setCourseCode(courseCode);
         ok = enrollmentDAO.save(e);
         if (ok) {
           courseService.incrementCurrentStudents(courseCode);
-          dataOriginHelper.saveDataOrigin("enrollment", e.getEnrollmentId(), clientSource);
+          // Chỉ admin mới lưu source khi thêm mới, enroll course không lưu source
+          // Nếu đã có source thì chỉ update timestamp
+          if (e.getEnrollmentId() > 0) {
+            String existingSource = dataOriginHelper.getDataOrigin("enrollment", e.getEnrollmentId());
+            if (existingSource != null) {
+              dataOriginHelper.updateDataOriginTimestamp("enrollment", e.getEnrollmentId());
+            }
+          }
           enrollment = enrollmentDAO.findByStudentAndCourse(studentCode, courseCode);
         }
       } else {

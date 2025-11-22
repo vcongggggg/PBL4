@@ -281,6 +281,29 @@ public class StudentDAO {
     }
 
     /**
+     * Đếm số sinh viên trong một lớp
+     */
+    public int countByClassCode(String classCode) {
+        String sql = "SELECT COUNT(*) AS total FROM students WHERE class_code = ?";
+        
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+            
+            stmt.setString(1, classCode);
+            
+            try (ResultSet rs = stmt.executeQuery()) {
+                if (rs.next()) {
+                    return rs.getInt("total");
+                }
+            }
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi đếm sinh viên theo lớp: " + classCode, e);
+        }
+        
+        return 0;
+    }
+
+    /**
      * ✅ REFACTORED: Lấy danh sách sinh viên theo khoa (dùng faculty_code)
      */
     public List<Student> findByFacultyCode(String facultyCode) {

@@ -172,8 +172,14 @@ public class StudentHandler {
             .filter(r -> courseCode.equals(r.getCourseCode()))
             .findFirst()
             .orElse(null);
+        // Chỉ admin mới lưu source khi thêm mới, student register không lưu source
+        // Nếu đã có source thì chỉ update timestamp
         if (registration != null && registration.getRegistrationId() > 0) {
-          dataOriginHelper.saveDataOrigin("course_registration", registration.getRegistrationId(), clientSource);
+          String existingSource = dataOriginHelper.getDataOrigin("course_registration",
+              registration.getRegistrationId());
+          if (existingSource != null) {
+            dataOriginHelper.updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
+          }
         }
         return Message.createSuccessResponse(request.getAction(), "Registration submitted successfully");
       } else {
@@ -425,7 +431,11 @@ public class StudentHandler {
         && (currentUser.getRole() == User.UserRole.ADMIN || currentUser.getRole() == User.UserRole.TEACHER)) {
       boolean ok = studentService.updateStudent(student);
       if (ok) {
-        dataOriginHelper.saveDataOrigin("student", student.getStudentId(), clientSource);
+        // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
+        String existingSource = dataOriginHelper.getDataOrigin("student", student.getStudentId());
+        if (existingSource != null) {
+          dataOriginHelper.updateDataOriginTimestamp("student", student.getStudentId());
+        }
         return Message.createSuccessResponse(Constants.ACTION_UPDATE_STUDENT, Constants.MSG_SUCCESS);
       }
       return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, Constants.MSG_DATABASE_ERROR);
@@ -459,20 +469,19 @@ public class StudentHandler {
       for (Enrollment enrollment : enrollments) {
         try {
           String enrollmentSource = dataOriginHelper.getDataOrigin("enrollment", enrollment.getEnrollmentId());
-          if (enrollmentSource == null) {
-            dataOriginHelper.saveDataOrigin("enrollment", enrollment.getEnrollmentId(), "CSV");
-            enrollmentSource = "CSV";
-          }
 
           if (enrollment.getEnrollmentStatus() != Enrollment.EnrollmentStatus.COMPLETED) {
             if (enrollmentDAO.updateEnrollmentStatus(enrollment.getEnrollmentId(),
                 Enrollment.EnrollmentStatus.DROPPED)) {
               enrollmentsUpdated++;
-              dataOriginHelper.updateDataOriginTimestamp("enrollment", enrollment.getEnrollmentId());
+              // Chỉ update timestamp nếu đã có source, không tạo mới source
+              if (enrollmentSource != null) {
+                dataOriginHelper.updateDataOriginTimestamp("enrollment", enrollment.getEnrollmentId());
+              }
               LOGGER.info("Đã cập nhật enrollment ID: " + enrollment.getEnrollmentId()
                   + " của sinh viên " + studentCode
                   + " từ status: " + enrollment.getEnrollmentStatus().name()
-                  + " → DROPPED (Thôi học), source: " + enrollmentSource);
+                  + " → DROPPED (Thôi học)" + (enrollmentSource != null ? ", source: " + enrollmentSource : ""));
             } else {
               LOGGER.warning("Không thể cập nhật enrollment ID: " + enrollment.getEnrollmentId()
                   + " của sinh viên " + studentCode);
@@ -523,20 +532,19 @@ public class StudentHandler {
           Student.StudentStatus.SUSPENDED);
 
       if (userDeactivated && statusUpdated) {
+        // Chỉ update timestamp nếu đã có source, không tạo mới source khi xóa
         if (existingSource != null) {
           dataOriginHelper.updateDataOriginTimestamp("student", student.getStudentId());
-        } else {
-          dataOriginHelper.saveDataOrigin("student", student.getStudentId(), "CSV");
         }
 
         User user = userDAO.findByUsername(student.getUsername());
         if (user != null) {
           String userSource = dataOriginHelper.getDataOrigin("user", user.getUserId());
+          // Chỉ update timestamp nếu đã có source, không tạo mới source khi xóa
           if (userSource != null) {
             dataOriginHelper.updateDataOriginTimestamp("user", user.getUserId());
-          } else {
-            dataOriginHelper.saveDataOrigin("user", user.getUserId(), "CSV");
           }
+          // Không tạo source mới khi xóa
         }
 
         LOGGER.info("Đã vô hiệu hóa sinh viên: " + student.getStudentCode()
@@ -688,7 +696,11 @@ public class StudentHandler {
 
     boolean ok = studentService.updateStudent(currentStudent);
     if (ok) {
-      dataOriginHelper.saveDataOrigin("student", currentStudent.getStudentId(), clientSource);
+      // Khi sửa: chỉ update timestamp nếu đã có source, không tạo mới source
+      String existingSource = dataOriginHelper.getDataOrigin("student", currentStudent.getStudentId());
+      if (existingSource != null) {
+        dataOriginHelper.updateDataOriginTimestamp("student", currentStudent.getStudentId());
+      }
       return Message.createSuccessResponse(Constants.ACTION_UPDATE_STUDENT, "Cập nhật thông tin thành công");
     }
     return Message.createErrorResponse(Constants.ACTION_UPDATE_STUDENT, "Lỗi khi cập nhật thông tin");

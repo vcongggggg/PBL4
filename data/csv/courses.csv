@@ -1,2 +1,2 @@
 courseId,courseCode,subjectCode,teacherUsername,classCode,academicYear,semester,scheduleDay,scheduleTime,room,maxStudents,currentStudents,registrationStatus,courseStatus,startDate,endDate,createdAt
-2,DTDM_2425S1,DTDM,gv02,,2024-2025,1,Thứ 3, Thứ 5,Tiết 1-3,A203,50,44,LOCKED,CANCELLED,2024-09-05,2024-12-20,null
+2,DTDM_2425S1,DTDM,gv02,,2024-2025,1,Thứ 3, Thứ 5,Tiết 1-3,A203,50,44,LOCKED,OPEN,2024-09-05,2024-12-20,null

@@ -328,7 +328,14 @@ public class StudentMainFrame extends JFrame {
     private void returnToLogin() {
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
-            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame();
+            // Check if this is a CSV client and create appropriate LoginFrame
+            com.university.sms.client.gui.common.LoginFrame.ConnectionFactory factory;
+            if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
+                factory = new com.university.sms.client.gui.common.LoginFrame.CsvConnectionFactory();
+            } else {
+                factory = new com.university.sms.client.gui.common.LoginFrame.RegularConnectionFactory();
+            }
+            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame(factory);
             loginFrame.setVisible(true);
             dispose();
         });
