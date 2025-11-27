@@ -3,24 +3,34 @@ package com.university.sms.common;
 import java.io.Serializable;
 import java.util.HashMap;
 import java.util.Map;
+import java.util.UUID;
 
 /**
  * Lớp Message để giao tiếp giữa Client và Server
  */
 public class Message implements Serializable {
     private static final long serialVersionUID = 1L;
-    
+
     private MessageType type;
     private String action;
     private Map<String, Object> data;
     private boolean success;
     private String message;
     private long timestamp;
+    private String requestId;
 
     public enum MessageType {
-        REQUEST,    // Yêu cầu từ client
-        RESPONSE,   // Phản hồi từ server
+        REQUEST, // Yêu cầu từ client
+        RESPONSE, // Phản hồi từ server
         NOTIFICATION // Thông báo từ server
+    }
+
+    public String getRequestId() {
+        return requestId;
+    }
+
+    public void setRequestId(String requestId) {
+        this.requestId = requestId;
     }
 
     // Constructors
@@ -109,7 +119,9 @@ public class Message implements Serializable {
 
     // Factory methods for common message types
     public static Message createRequest(String action) {
-        return new Message(MessageType.REQUEST, action);
+        Message message = new Message(MessageType.REQUEST, action);
+        message.setRequestId(UUID.randomUUID().toString());
+        return message;
     }
 
     public static Message createResponse(String action, boolean success, String message) {
@@ -140,5 +152,3 @@ public class Message implements Serializable {
                 '}';
     }
 }
-
-

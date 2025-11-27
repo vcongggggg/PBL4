@@ -309,30 +309,37 @@ public class UserDAO {
      * Lấy danh sách giáo viên chưa chủ nhiệm lớp nào (hoặc đang chủ nhiệm lớp hiện
      * tại)
      */
-    public List<User> findAvailableClassTeachers(String classCode) {
+    public List<User> findAvailableClassTeachers(String classCode, String facultyCode) {
         boolean includeCurrentClass = classCode != null && !classCode.trim().isEmpty();
-        String sql;
-        if (includeCurrentClass) {
-            sql = "SELECT u.* FROM users u " +
-                    "WHERE u.role = ? AND u.is_active = TRUE AND (" +
-                    "NOT EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username) " +
-                    "OR EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username AND c.class_code = ?)) " +
-                    "ORDER BY u.full_name";
-        } else {
-            sql = "SELECT u.* FROM users u " +
-                    "WHERE u.role = ? AND u.is_active = TRUE AND " +
-                    "NOT EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username) " +
-                    "ORDER BY u.full_name";
+        boolean filterByFaculty = facultyCode != null && !facultyCode.trim().isEmpty();
+
+        StringBuilder sql = new StringBuilder("SELECT u.* FROM users u WHERE u.role = ? AND u.is_active = TRUE ");
+
+        if (filterByFaculty) {
+            sql.append("AND u.faculty_code = ? ");
         }
+
+        if (includeCurrentClass) {
+            sql.append("AND (NOT EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username) ")
+                    .append("OR EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username AND c.class_code = ?)) ");
+        } else {
+            sql.append("AND NOT EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username) ");
+        }
+
+        sql.append("ORDER BY u.full_name");
 
         List<User> users = new ArrayList<>();
 
         try (Connection conn = DatabaseConnection.getConnection();
-                PreparedStatement stmt = conn.prepareStatement(sql)) {
+                PreparedStatement stmt = conn.prepareStatement(sql.toString())) {
 
-            stmt.setString(1, User.UserRole.TEACHER.name().toLowerCase());
+            int paramIndex = 1;
+            stmt.setString(paramIndex++, User.UserRole.TEACHER.name().toLowerCase());
+            if (filterByFaculty) {
+                stmt.setString(paramIndex++, facultyCode.trim());
+            }
             if (includeCurrentClass) {
-                stmt.setString(2, classCode.trim());
+                stmt.setString(paramIndex++, classCode.trim());
             }
 
             try (ResultSet rs = stmt.executeQuery()) {

@@ -2,9 +2,15 @@ package com.university.sms.server.handler;
 
 import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
+import com.university.sms.dao.CourseRegistrationDAO;
+import com.university.sms.dao.EnrollmentDAO;
+import com.university.sms.model.Course;
+import com.university.sms.model.CourseRegistration;
+import com.university.sms.model.Enrollment;
 import com.university.sms.model.User;
 import com.university.sms.service.CourseService;
 
+import java.util.List;
 import java.util.logging.Level;
 import java.util.function.Supplier;
 import java.util.logging.Logger;
@@ -19,6 +25,8 @@ public class CourseHandler {
   private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
   private final CourseService courseService;
+  private final CourseRegistrationDAO courseRegistrationDAO;
+  private final EnrollmentDAO enrollmentDAO;
 
   public CourseHandler(User currentUser,
       Supplier<String> clientSourceSupplier,
@@ -28,6 +36,8 @@ public class CourseHandler {
     this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
     this.courseService = courseService;
+    this.courseRegistrationDAO = new CourseRegistrationDAO();
+    this.enrollmentDAO = new EnrollmentDAO();
   }
 
   private void touchCourseDataOrigin(int courseId) {
@@ -37,6 +47,44 @@ public class CourseHandler {
     String existingSource = dataOriginHelper.getDataOrigin("course", courseId);
     if (existingSource != null) {
       dataOriginHelper.updateDataOriginTimestamp("course", courseId);
+    }
+  }
+
+  private void touchCourseRegistrations(String courseCode) {
+    if (courseCode == null || courseCode.isEmpty()) {
+      return;
+    }
+    List<CourseRegistration> registrations = courseRegistrationDAO.findByCourse(courseCode);
+    for (CourseRegistration registration : registrations) {
+      int registrationId = registration.getRegistrationId();
+      if (registrationId <= 0) {
+        continue;
+      }
+      String existingSource = dataOriginHelper.getDataOrigin("course_registration", registrationId);
+      if (existingSource == null) {
+        dataOriginHelper.saveDataOrigin("course_registration", registrationId, getClientSource());
+      } else {
+        dataOriginHelper.updateDataOriginTimestamp("course_registration", registrationId);
+      }
+    }
+  }
+
+  private void touchCourseEnrollments(String courseCode) {
+    if (courseCode == null || courseCode.isEmpty()) {
+      return;
+    }
+    List<Enrollment> enrollments = enrollmentDAO.findByCourseCode(courseCode);
+    for (Enrollment enrollment : enrollments) {
+      int enrollmentId = enrollment.getEnrollmentId();
+      if (enrollmentId <= 0) {
+        continue;
+      }
+      String existingSource = dataOriginHelper.getDataOrigin("enrollment", enrollmentId);
+      if (existingSource == null) {
+        dataOriginHelper.saveDataOrigin("enrollment", enrollmentId, getClientSource());
+      } else {
+        dataOriginHelper.updateDataOriginTimestamp("enrollment", enrollmentId);
+      }
     }
   }
 
@@ -203,9 +251,22 @@ public class CourseHandler {
       return Message.createErrorResponse(request.getAction(), Constants.MSG_INVALID_DATA);
     }
 
+    Course course = courseService.getCourseById(courseId);
+    if (course == null) {
+      return Message.createErrorResponse(request.getAction(), "Không tìm thấy lớp học phần");
+    }
+
     try {
       CourseService.RegistrationClosureResult result = courseService.closeRegistration(courseId);
       touchCourseDataOrigin(courseId);
+      String courseCode = course.getCourseCode();
+      if (courseCode != null && !courseCode.isEmpty()) {
+        // Always ping course registrations so clients pick up status changes
+        touchCourseRegistrations(courseCode);
+        if (result.getFinalStatus() == Course.CourseStatus.ONGOING) {
+          touchCourseEnrollments(courseCode);
+        }
+      }
       Message response = Message.createSuccessResponse(request.getAction(),
           result.getMessage() != null ? result.getMessage() : Constants.MSG_SUCCESS);
       response.addData("registrations", result.getRegistrations());

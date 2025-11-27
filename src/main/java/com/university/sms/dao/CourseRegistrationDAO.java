@@ -6,7 +6,10 @@ import com.university.sms.util.DatabaseConnection;
 
 import java.sql.*;
 import java.util.ArrayList;
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -473,7 +476,7 @@ public class CourseRegistrationDAO {
                 "JOIN courses c1 ON cr1.course_code = c1.course_code " +
                 "JOIN courses c2 ON c2.course_code = ? " +
                 "WHERE cr1.student_code = ? " +
-                "AND cr1.registration_status = 'APPROVED' " +
+                "AND cr1.registration_status <> 'CANCELLED' " +
                 "AND c1.schedule_day = c2.schedule_day " +
                 "AND c1.schedule_time = c2.schedule_time " +
                 "AND c1.course_code != c2.course_code";
@@ -494,6 +497,47 @@ public class CourseRegistrationDAO {
         }
 
         return false;
+    }
+
+    public Map<String, Integer> getPendingCountsByCourseCodes(Set<String> courseCodes) {
+        Map<String, Integer> counts = new HashMap<>();
+        if (courseCodes == null || courseCodes.isEmpty()) {
+            return counts;
+        }
+
+        StringBuilder placeholders = new StringBuilder();
+        for (int i = 0; i < courseCodes.size(); i++) {
+            if (i > 0) {
+                placeholders.append(", ");
+            }
+            placeholders.append("?");
+        }
+
+        String sql = "SELECT course_code, COUNT(*) AS pending_count " +
+                "FROM course_registrations " +
+                "WHERE registration_status = 'PENDING' " +
+                "AND course_code IN (" + placeholders + ") " +
+                "GROUP BY course_code";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            int index = 1;
+            for (String code : courseCodes) {
+                pstmt.setString(index++, code);
+            }
+
+            try (ResultSet rs = pstmt.executeQuery()) {
+                while (rs.next()) {
+                    counts.put(rs.getString("course_code"), rs.getInt("pending_count"));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi lấy số lượng đăng ký Pending theo course_code", e);
+        }
+
+        return counts;
     }
 
     /**

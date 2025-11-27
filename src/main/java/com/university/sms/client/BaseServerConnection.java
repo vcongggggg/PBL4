@@ -8,7 +8,9 @@ import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.net.Socket;
 import java.net.SocketException;
+import java.util.Map;
 import java.util.concurrent.CompletableFuture;
+import java.util.concurrent.ConcurrentHashMap;
 import java.util.concurrent.TimeUnit;
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -30,6 +32,7 @@ public abstract class BaseServerConnection implements IServerConnection {
   protected final int serverPort;
 
   private ResponseHandler responseHandler;
+  private final Map<String, PendingRequest> pendingRequests = new ConcurrentHashMap<>();
 
   protected BaseServerConnection(String serverHost, int serverPort) {
     this.serverHost = serverHost;
@@ -116,6 +119,13 @@ public abstract class BaseServerConnection implements IServerConnection {
       while (connected && !socket.isClosed()) {
         try {
           Message message = (Message) inputStream.readObject();
+          if (message.getRequestId() != null) {
+            PendingRequest pending = pendingRequests.remove(message.getRequestId());
+            if (pending != null) {
+              pending.future.complete(message);
+              continue;
+            }
+          }
           if (responseHandler != null) {
             responseHandler.onResponse(message);
           }
@@ -136,6 +146,9 @@ public abstract class BaseServerConnection implements IServerConnection {
     connected = false;
     if (responseHandler != null)
       responseHandler.onError("Connection error occurred");
+    pendingRequests.values().forEach(pending -> pending.future
+        .complete(Message.createErrorResponse(pending.action, "Connection error occurred")));
+    pendingRequests.clear();
     CompletableFuture.runAsync(() -> {
       try {
         Thread.sleep(5000);
@@ -165,44 +178,34 @@ public abstract class BaseServerConnection implements IServerConnection {
   }
 
   protected Message sendRequestAndWait(Message request, long timeoutSeconds) {
+    if (request.getRequestId() == null) {
+      request.setRequestId(java.util.UUID.randomUUID().toString());
+    }
+
+    CompletableFuture<Message> future = new CompletableFuture<>();
+    pendingRequests.put(request.getRequestId(), new PendingRequest(request.getAction(), future));
+
     if (!sendRequestInternal(request)) {
+      pendingRequests.remove(request.getRequestId());
       return Message.createErrorResponse(request.getAction(), "Failed to send request");
     }
 
     try {
-      CompletableFuture<Message> future = new CompletableFuture<>();
-      ResponseHandler original;
-      synchronized (this) {
-        original = this.responseHandler;
-      }
-      ResponseHandler waitingHandler = new ResponseHandler() {
-        @Override
-        public void onResponse(Message response) {
-          if (response.getAction() != null && response.getAction().equals(request.getAction())) {
-            future.complete(response);
-            setResponseHandler(original);
-          } else if (original != null) {
-            original.onResponse(response);
-          }
-        }
-
-        @Override
-        public void onError(String error) {
-          future.complete(Message.createErrorResponse(request.getAction(), error));
-          setResponseHandler(original);
-        }
-
-        @Override
-        public void onDisconnected() {
-          future.complete(Message.createErrorResponse(request.getAction(), "Connection lost"));
-          setResponseHandler(original);
-        }
-      };
-      setResponseHandler(waitingHandler);
       return future.get(timeoutSeconds, TimeUnit.SECONDS);
     } catch (Exception e) {
+      pendingRequests.remove(request.getRequestId());
       LOGGER.log(Level.SEVERE, "Error waiting for response", e);
       return Message.createErrorResponse(request.getAction(), "Timeout or error waiting for response");
+    }
+  }
+
+  private static class PendingRequest {
+    private final String action;
+    private final CompletableFuture<Message> future;
+
+    private PendingRequest(String action, CompletableFuture<Message> future) {
+      this.action = action;
+      this.future = future;
     }
   }
 

@@ -1,3 +1,2 @@
 subjectId,subjectCode,subjectName,credits,facultyCode,prerequisiteSubjectCode,description,isRequired,createdAt
 2,DTDM,Điện tử đại cương,3,CNTT,,Môn ĐTĐM,false,null
-4,CNW,Công nghệ Web,3,CNTT,,,true,null

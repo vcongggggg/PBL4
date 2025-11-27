@@ -54,7 +54,7 @@ public class Transcript implements Serializable {
 
         for (SemesterRecord semester : semesterRecords) {
             for (CourseRecord course : semester.getCourses()) {
-                if (course.getGradePoints() != null && course.getCredits() > 0) {
+                if (course.isCompletedWithFinalGrade()) {
                     BigDecimal weightedPoint = course.getGradePoints()
                             .multiply(new BigDecimal(course.getCredits()));
                     totalWeightedPoints = totalWeightedPoints.add(weightedPoint);
@@ -67,6 +67,9 @@ public class Transcript implements Serializable {
             this.cumulativeGPA = totalWeightedPoints
                     .divide(new BigDecimal(totalCredits), 2, RoundingMode.HALF_UP);
             this.totalCreditsEarned = totalCredits;
+        } else {
+            this.cumulativeGPA = BigDecimal.ZERO;
+            this.totalCreditsEarned = 0;
         }
 
         // Xếp loại học tập
@@ -227,6 +230,11 @@ public class Transcript implements Serializable {
         public boolean isPassed() {
             return gradePoints != null && gradePoints.compareTo(BigDecimal.ZERO) > 0
                     && !"failed".equals(status);
+        }
+
+        public boolean isCompletedWithFinalGrade() {
+            return gradePoints != null && gradePoints.compareTo(BigDecimal.ZERO) > 0
+                    && ("completed".equals(status) || "failed".equals(status));
         }
 
         // Getters and Setters

@@ -785,9 +785,9 @@ public class CsvHandler {
             capacityOk = false;
             LOGGER.warning("Không thể upload course: maxStudents phải lớn hơn 0 - " +
                 "courseCode=" + course.getCourseCode() + ", maxStudents=" + course.getMaxStudents());
-          } else if (course.getMaxStudents() <= course.getCurrentStudents()) {
+          } else if (course.getCurrentStudents() > course.getMaxStudents()) {
             capacityOk = false;
-            LOGGER.warning("Không thể upload course: maxStudents phải lớn hơn currentStudents - " +
+            LOGGER.warning("Không thể upload course: maxStudents phải >= currentStudents - " +
                 "courseCode=" + course.getCourseCode() +
                 ", maxStudents=" + course.getMaxStudents() +
                 ", currentStudents=" + course.getCurrentStudents());
