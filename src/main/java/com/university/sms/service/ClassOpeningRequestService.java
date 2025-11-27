@@ -12,6 +12,8 @@ import java.sql.Timestamp;
 import java.util.Calendar;
 import java.util.List;
 import java.util.logging.Logger;
+import java.util.regex.Matcher;
+import java.util.regex.Pattern;
 
 public class ClassOpeningRequestService {
     private static final Logger LOGGER = Logger.getLogger(ClassOpeningRequestService.class.getName());
@@ -456,38 +458,38 @@ public class ClassOpeningRequestService {
             // Vì có thể có nhiều request được approve cùng lúc
             // LƯU Ý: Chỉ kiểm tra với APPROVED requests, bỏ qua REJECTED và PENDING
             // (cho phép gửi yêu cầu mới nếu trùng lịch với yêu cầu đã bị hủy)
-            List<ClassOpeningRequest> approvedRequests = requestDAO.findByTeacher(request.getTeacherUsername());
-            if (approvedRequests != null && !approvedRequests.isEmpty()) {
-                for (ClassOpeningRequest approvedReq : approvedRequests) {
-                    // Bỏ qua chính request này (khi đang update hoặc approve)
-                    if (approvedReq.getRequestId() == request.getRequestId()) {
+            List<ClassOpeningRequest> teacherRequests = requestDAO.findByTeacher(request.getTeacherUsername());
+            if (teacherRequests != null && !teacherRequests.isEmpty()) {
+                for (ClassOpeningRequest otherRequest : teacherRequests) {
+                    if (otherRequest.getRequestId() == request.getRequestId()) {
                         continue;
                     }
 
-                    // Chỉ kiểm tra các request đã được APPROVED, bỏ qua REJECTED và PENDING
-                    // Cho phép gửi yêu cầu mới nếu trùng lịch với yêu cầu đã bị hủy
-                    if (approvedReq.getRequestStatus() != RequestStatus.APPROVED) {
+                    if (otherRequest.getRequestStatus() == RequestStatus.REJECTED) {
                         continue;
                     }
 
-                    if (!approvedReq.getAcademicYear().equals(request.getAcademicYear())
-                            || approvedReq.getSemester() != request.getSemester()) {
+                    if (!otherRequest.getAcademicYear().equals(request.getAcademicYear())
+                            || otherRequest.getSemester() != request.getSemester()) {
                         continue;
                     }
 
-                    // Kiểm tra trùng ngày và thời gian
-                    int approvedStartPeriod = parseStartPeriod(approvedReq.getScheduleTime());
-                    int approvedEndPeriod = parseEndPeriod(approvedReq.getScheduleTime());
+                    int otherStartPeriod = parseStartPeriod(otherRequest.getScheduleTime());
+                    int otherEndPeriod = parseEndPeriod(otherRequest.getScheduleTime());
 
-                    if (approvedStartPeriod > 0 && approvedEndPeriod > 0) {
-                        List<String> approvedDays = parseScheduleDays(approvedReq.getScheduleDay());
+                    if (otherStartPeriod > 0 && otherEndPeriod > 0) {
+                        List<String> otherDays = parseScheduleDays(otherRequest.getScheduleDay());
                         if (hasScheduleConflict(requestDays, startPeriod, endPeriod,
-                                approvedDays, approvedStartPeriod, approvedEndPeriod)) {
+                                otherDays, otherStartPeriod, otherEndPeriod)) {
+                            String statusLabel = otherRequest.getRequestStatus() == RequestStatus.APPROVED
+                                    ? "đã được duyệt"
+                                    : "đang chờ duyệt";
                             throw new IllegalArgumentException(
                                     String.format(
-                                            "Lịch học bị trùng với yêu cầu đã được duyệt khác (%s - %s). Vui lòng chọn lịch khác.",
-                                            approvedReq.getScheduleDay(),
-                                            approvedReq.getScheduleTime()));
+                                            "Lịch học bị trùng với yêu cầu %s khác (%s - %s). Vui lòng chọn lịch khác.",
+                                            statusLabel,
+                                            otherRequest.getScheduleDay(),
+                                            otherRequest.getScheduleTime()));
                         }
                     }
                 }
@@ -510,13 +512,24 @@ public class ClassOpeningRequestService {
             return days;
         }
 
-        // Tách theo dấu phẩy
-        String[] parts = scheduleDay.split(",");
+        Matcher matcher = Pattern.compile("(Thứ\\s*\\d)", Pattern.CASE_INSENSITIVE).matcher(scheduleDay);
+        if (matcher.find()) {
+            days.add(matcher.group(1).trim());
+            return days;
+        }
+
+        String normalized = scheduleDay.replaceAll("[/\\-]", ",");
+        String[] parts = normalized.split(",");
         for (String part : parts) {
             String day = part.trim();
             if (!day.isEmpty()) {
                 days.add(day);
+                break;
             }
+        }
+
+        if (days.isEmpty()) {
+            days.add(scheduleDay.trim());
         }
 
         return days;

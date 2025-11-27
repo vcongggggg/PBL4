@@ -188,8 +188,9 @@ public class AdminHandler {
       }
 
       String classCode = request.getData("classCode", String.class);
+      String facultyCode = request.getData("facultyCode", String.class);
       UserDAO userDAO = new UserDAO();
-      List<User> teachers = userDAO.findAvailableClassTeachers(classCode);
+      List<User> teachers = userDAO.findAvailableClassTeachers(classCode, facultyCode);
 
       Message response = Message.createSuccessResponse(request.getAction(),
           "Found " + teachers.size() + " available teachers");

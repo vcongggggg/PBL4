@@ -28,6 +28,7 @@ public class Course implements java.io.Serializable {
     private String room;
     private int maxStudents;
     private int currentStudents;
+    private int pendingRegistrations;
     private CourseStatus courseStatus;
     private RegistrationStatus registrationStatus;
     private Date startDate;
@@ -154,6 +155,14 @@ public class Course implements java.io.Serializable {
 
     public void setCurrentStudents(int currentStudents) {
         this.currentStudents = currentStudents;
+    }
+
+    public int getPendingRegistrations() {
+        return pendingRegistrations;
+    }
+
+    public void setPendingRegistrations(int pendingRegistrations) {
+        this.pendingRegistrations = pendingRegistrations;
     }
 
     public CourseStatus getCourseStatus() {

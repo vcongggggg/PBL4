@@ -452,6 +452,7 @@ public class CoursePanel extends JPanel {
         if (courses != null) {
             for (Course course : courses) {
                 courseMap.put(course.getCourseCode(), course);
+                String studentCountText = formatStudentCount(course);
                 Object[] rowData = {
                         course.getCourseCode(),
                         course.getSubjectName(),
@@ -463,11 +464,24 @@ public class CoursePanel extends JPanel {
                                 (course.getScheduleTime() != null ? course.getScheduleTime() : ""),
                         getCourseStatusText(course),
                         getRegistrationStatusText(course),
-                        course.getCurrentStudents() + "/" + course.getMaxStudents() // This will be rendered as button
+                        studentCountText // This will be rendered as button
                 };
                 tableModel.addRow(rowData);
             }
         }
+    }
+
+    private String formatStudentCount(Course course) {
+        if (course == null) {
+            return "-";
+        }
+        int max = course.getMaxStudents();
+        boolean isRegistrationOpen = course.getRegistrationStatus() == Course.RegistrationStatus.OPEN;
+        int displayCount = isRegistrationOpen ? course.getPendingRegistrations() : course.getCurrentStudents();
+        if (max > 0) {
+            return displayCount + "/" + max;
+        }
+        return displayCount + "/-";
     }
 
     private void updateButtonStates() {
@@ -674,7 +688,7 @@ public class CoursePanel extends JPanel {
                 ? new String[] { "MSSV", "Họ tên", "Số điện thoại", "Lớp sinh hoạt" }
                 : new String[] { "MSSV", "Họ tên", "Số điện thoại", "Lớp sinh hoạt", "Điểm BT", "Điểm GK",
                         "Điểm CK", "Điểm TK", "Xếp loại",
-                "Tình trạng" };
+                        "Tình trạng" };
         DefaultTableModel model = new DefaultTableModel(columnNames, 0) {
             @Override
             public boolean isCellEditable(int row, int column) {
@@ -802,9 +816,9 @@ public class CoursePanel extends JPanel {
                 table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
             }
         } else {
-        for (int i = 0; i < columnNames.length; i++) {
-            if (i != 1) { // Don't center student name
-                table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
+            for (int i = 0; i < columnNames.length; i++) {
+                if (i != 1) { // Don't center student name
+                    table.getColumnModel().getColumn(i).setCellRenderer(centerRenderer);
                 }
             }
         }

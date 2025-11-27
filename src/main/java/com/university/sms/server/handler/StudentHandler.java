@@ -16,6 +16,8 @@ import com.university.sms.service.CourseRegistrationService;
 import com.university.sms.service.StudentService;
 import com.university.sms.service.TranscriptService;
 
+import java.sql.Timestamp;
+import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
 import java.util.function.Supplier;
@@ -503,21 +505,28 @@ public class StudentHandler {
 
       CourseRegistrationDAO registrationDAO = new CourseRegistrationDAO();
       List<CourseRegistration> registrations = registrationDAO.findByStudent(studentCode);
+      List<CourseRegistration> cancelledRegistrations = new ArrayList<>();
       int registrationsCancelled = 0;
       for (CourseRegistration registration : registrations) {
         try {
           if (registration.getRegistrationStatus() == CourseRegistration.RegistrationStatus.PENDING) {
-            String registrationSource = dataOriginHelper.getDataOrigin("course_registration",
-                registration.getRegistrationId());
-            if (registrationSource != null) {
-              dataOriginHelper.updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
-            }
-
-            if (registrationDAO.cancel(registration.getRegistrationId())) {
+            boolean cancelled = registrationDAO.cancel(registration.getRegistrationId());
+            if (cancelled) {
+              String registrationSource = dataOriginHelper.getDataOrigin("course_registration",
+                  registration.getRegistrationId());
+              if (registrationSource != null) {
+                dataOriginHelper.updateDataOriginTimestamp("course_registration", registration.getRegistrationId());
+              }
+              registration.setRegistrationStatus(CourseRegistration.RegistrationStatus.CANCELLED);
+              registration.setCancelDate(new Timestamp(System.currentTimeMillis()));
+              cancelledRegistrations.add(registration);
               registrationsCancelled++;
               LOGGER.info("Đã hủy (reject) course registration ID: " + registration.getRegistrationId()
                   + " của sinh viên " + studentCode
                   + " (từ PENDING → CANCELLED do student bị SUSPENDED)");
+            } else {
+              LOGGER.warning("Không thể hủy course registration ID: " + registration.getRegistrationId()
+                  + " của sinh viên " + studentCode);
             }
           }
         } catch (Exception e) {
@@ -561,6 +570,9 @@ public class StudentHandler {
             "Đã vô hiệu hóa sinh viên thành công");
         if (updatedStudent != null) {
           response.addData(Constants.KEY_STUDENT, updatedStudent);
+        }
+        if (!cancelledRegistrations.isEmpty()) {
+          response.addData(Constants.KEY_REGISTRATIONS, cancelledRegistrations);
         }
         return response;
       } else {

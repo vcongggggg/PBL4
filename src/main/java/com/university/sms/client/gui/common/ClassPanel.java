@@ -549,7 +549,8 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Giáo viên:"), gbc);
       gbc.gridx = 1;
       teacherCombo = new JComboBox<>();
-      teacherCombo.addItem(new TeacherItem(null, "-- Không có --"));
+      teacherCombo.addItem(new TeacherItem(null, "-- Chọn giáo viên --"));
+      teacherCombo.setEnabled(false);
       formPanel.add(teacherCombo, gbc);
 
       // Academic Year
@@ -605,9 +606,13 @@ public class ClassPanel extends JPanel {
                   FacultyItem item = facultyCombo.getItemAt(i);
                   if (item.code != null && item.code.equals(classEntity.getFacultyCode())) {
                     facultyCombo.setSelectedIndex(i);
+                    loadTeachers(item.code);
                     break;
                   }
                 }
+              } else {
+                facultyCombo.setSelectedIndex(0);
+                loadTeachers(null);
               }
             }
           } catch (Exception e) {
@@ -620,51 +625,10 @@ public class ClassPanel extends JPanel {
       };
       facultyWorker.execute();
 
-      // Load teachers
-      SwingWorker<List<User>, Void> teacherWorker = new SwingWorker<List<User>, Void>() {
-        @Override
-        protected List<User> doInBackground() throws Exception {
-          Message request = Message.createRequest(Constants.ACTION_GET_AVAILABLE_CLASS_TEACHERS);
-          if (classEntity != null && classEntity.getClassCode() != null) {
-            request.addData("classCode", classEntity.getClassCode());
-          }
-          Message response = serverConnection.sendRequest(request);
-          if (response != null && response.isSuccess()) {
-            @SuppressWarnings("unchecked")
-            List<User> teachers = (List<User>) response.getData("teachers");
-            return teachers;
-          }
-          return null;
-        }
-
-        @Override
-        protected void done() {
-          try {
-            List<User> teachers = get();
-            if (teachers != null) {
-              for (User t : teachers) {
-                teacherCombo.addItem(new TeacherItem(t.getUsername(), t.getFullName()));
-              }
-              // Set selection if editing
-              if (classEntity != null && classEntity.getTeacherUsername() != null) {
-                for (int i = 0; i < teacherCombo.getItemCount(); i++) {
-                  TeacherItem item = teacherCombo.getItemAt(i);
-                  if (item.username != null && item.username.equals(classEntity.getTeacherUsername())) {
-                    teacherCombo.setSelectedIndex(i);
-                    break;
-                  }
-                }
-              }
-            }
-          } catch (Exception e) {
-            JOptionPane.showMessageDialog(ClassEditDialog.this,
-                "Lỗi khi tải danh sách giáo viên: " + e.getMessage(),
-                "Lỗi",
-                JOptionPane.ERROR_MESSAGE);
-          }
-        }
-      };
-      teacherWorker.execute();
+      facultyCombo.addActionListener(e -> {
+        FacultyItem item = (FacultyItem) facultyCombo.getSelectedItem();
+        loadTeachers(item != null ? item.code : null);
+      });
 
       // Load data if editing
       if (classEntity != null) {
@@ -782,6 +746,65 @@ public class ClassPanel extends JPanel {
     }
 
     // Helper classes for ComboBox items
+    private void loadTeachers(String facultyCode) {
+      teacherCombo.removeAllItems();
+      if (facultyCode == null || facultyCode.trim().isEmpty()) {
+        teacherCombo.addItem(new TeacherItem(null, "-- Chọn khoa trước --"));
+        teacherCombo.setEnabled(false);
+        return;
+      }
+
+      teacherCombo.addItem(new TeacherItem(null, "-- Không có --"));
+      teacherCombo.setEnabled(true);
+
+      SwingWorker<List<User>, Void> worker = new SwingWorker<List<User>, Void>() {
+        @Override
+        protected List<User> doInBackground() throws Exception {
+          Message request = Message.createRequest(Constants.ACTION_GET_AVAILABLE_CLASS_TEACHERS);
+          request.addData("facultyCode", facultyCode);
+          if (classEntity != null && classEntity.getClassCode() != null) {
+            request.addData("classCode", classEntity.getClassCode());
+          }
+          Message response = serverConnection.sendRequest(request);
+          if (response != null && response.isSuccess()) {
+            @SuppressWarnings("unchecked")
+            List<User> teachers = (List<User>) response.getData("teachers");
+            return teachers;
+          }
+          return null;
+        }
+
+        @Override
+        protected void done() {
+          try {
+            List<User> teachers = get();
+            if (teachers != null) {
+              for (User t : teachers) {
+                teacherCombo.addItem(new TeacherItem(t.getUsername(), t.getFullName()));
+              }
+              if (classEntity != null && classEntity.getTeacherUsername() != null) {
+                for (int i = 0; i < teacherCombo.getItemCount(); i++) {
+                  TeacherItem item = teacherCombo.getItemAt(i);
+                  if (item.username != null && item.username.equals(classEntity.getTeacherUsername())) {
+                    teacherCombo.setSelectedIndex(i);
+                    break;
+                  }
+                }
+              } else {
+                teacherCombo.setSelectedIndex(0);
+              }
+            }
+          } catch (Exception e) {
+            JOptionPane.showMessageDialog(ClassEditDialog.this,
+                "Lỗi khi tải danh sách giáo viên: " + e.getMessage(),
+                "Lỗi",
+                JOptionPane.ERROR_MESSAGE);
+          }
+        }
+      };
+      worker.execute();
+    }
+
     private static class FacultyItem {
       String code;
       String name;

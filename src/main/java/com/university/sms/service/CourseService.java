@@ -10,9 +10,13 @@ import com.university.sms.model.Course;
 import com.university.sms.model.CourseRegistration;
 import com.university.sms.model.Enrollment;
 
+import java.util.HashSet;
 import java.util.List;
+import java.util.Map;
+import java.util.Set;
 import java.util.logging.Level;
 import java.util.logging.Logger;
+import java.util.stream.Collectors;
 
 /**
  * Service xử lý các thao tác liên quan đến khóa học
@@ -38,7 +42,9 @@ public class CourseService {
      */
     public List<Course> getAllCourses() {
         try {
-            return courseDAO.findAll();
+            List<Course> courses = courseDAO.findAll();
+            populatePendingRegistrationCounts(courses);
+            return courses;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy danh sách tất cả khóa học: " + e.getMessage());
             return List.of();
@@ -54,7 +60,9 @@ public class CourseService {
         }
 
         try {
-            return courseDAO.findById(courseId);
+            Course course = courseDAO.findById(courseId);
+            populatePendingRegistrationCounts(course != null ? List.of(course) : List.of());
+            return course;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy khóa học theo ID: " + e.getMessage());
             return null;
@@ -70,7 +78,9 @@ public class CourseService {
         }
 
         try {
-            return courseDAO.findByCourseCode(courseCode);
+            Course course = courseDAO.findByCourseCode(courseCode);
+            populatePendingRegistrationCounts(course != null ? List.of(course) : List.of());
+            return course;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy khóa học theo mã: " + e.getMessage());
             return null;
@@ -86,7 +96,9 @@ public class CourseService {
         }
 
         try {
-            return courseDAO.findByTeacherUsername(teacherUsername);
+            List<Course> courses = courseDAO.findByTeacherUsername(teacherUsername);
+            populatePendingRegistrationCounts(courses);
+            return courses;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy danh sách khóa học theo giáo viên: " + e.getMessage());
             return List.of();
@@ -102,7 +114,9 @@ public class CourseService {
         }
 
         try {
-            return courseDAO.findByAcademicYearAndSemester(academicYear, semester);
+            List<Course> courses = courseDAO.findByAcademicYearAndSemester(academicYear, semester);
+            populatePendingRegistrationCounts(courses);
+            return courses;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy danh sách khóa học theo năm học: " + e.getMessage());
             return List.of();
@@ -118,10 +132,32 @@ public class CourseService {
         }
 
         try {
-            return courseDAO.findBySubjectCode(subjectCode);
+            List<Course> courses = courseDAO.findBySubjectCode(subjectCode);
+            populatePendingRegistrationCounts(courses);
+            return courses;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi lấy danh sách khóa học theo môn học: " + e.getMessage());
             return List.of();
+        }
+    }
+
+    private void populatePendingRegistrationCounts(List<Course> courses) {
+        if (courses == null || courses.isEmpty()) {
+            return;
+        }
+        Set<String> courseCodes = courses.stream()
+                .filter(course -> course != null && course.getCourseCode() != null && !course.getCourseCode().isBlank())
+                .map(Course::getCourseCode)
+                .collect(Collectors.toCollection(HashSet::new));
+        if (courseCodes.isEmpty()) {
+            return;
+        }
+        Map<String, Integer> pendingCounts = courseRegistrationDAO.getPendingCountsByCourseCodes(courseCodes);
+        for (Course course : courses) {
+            if (course == null || course.getCourseCode() == null) {
+                continue;
+            }
+            course.setPendingRegistrations(pendingCounts.getOrDefault(course.getCourseCode(), 0));
         }
     }
 
@@ -347,7 +383,9 @@ public class CourseService {
         }
 
         try {
-            return courseDAO.searchCourses(keyword.trim());
+            List<Course> courses = courseDAO.searchCourses(keyword.trim());
+            populatePendingRegistrationCounts(courses);
+            return courses;
         } catch (Exception e) {
             LOGGER.severe("Lỗi khi tìm kiếm khóa học: " + e.getMessage());
             return List.of();

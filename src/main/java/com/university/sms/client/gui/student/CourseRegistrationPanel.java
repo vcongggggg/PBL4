@@ -41,6 +41,7 @@ public class CourseRegistrationPanel extends JPanel {
     private DefaultTableModel selectedModel;
     private List<Course> selectedCourses = new ArrayList<>();
     private List<CourseRegistration> submittedRegistrations = new ArrayList<>();
+    private List<CourseRegistration> activeRegistrations = new ArrayList<>();
     private List<SelectedRowEntry> selectedRowEntries = new ArrayList<>();
     private JButton removeSelectedButton;
     private JButton cancelRegistrationButton;
@@ -48,6 +49,7 @@ public class CourseRegistrationPanel extends JPanel {
     private JTable availableTable;
     private DefaultTableModel availableModel;
     private List<Course> availableCourses = new ArrayList<>();
+    private final Map<String, Course> courseLookup = new HashMap<>();
 
     private List<String> registeredCourseCodes = new ArrayList<>();
     private final Set<String> registeredSubjectCodes = new HashSet<>();
@@ -159,7 +161,7 @@ public class CourseRegistrationPanel extends JPanel {
         });
         searchPanel.add(refreshBtn);
 
-        String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Còn lại/Tối đa",
+        String[] columns = { "Mã MH", "Tên môn học", "TC", "Giảng viên", "Thứ", "Tiết", "Phòng", "Đăng ký/Tối đa",
                 "Trạng thái" };
         availableModel = new DefaultTableModel(columns, 0) {
             @Override
@@ -466,6 +468,11 @@ public class CourseRegistrationPanel extends JPanel {
                             .map(CourseRegistration::getCourseCode)
                             .collect(Collectors.toList());
 
+                    activeRegistrations = registrations.stream()
+                            .filter(reg -> reg
+                                    .getRegistrationStatus() != CourseRegistration.RegistrationStatus.CANCELLED)
+                            .collect(Collectors.toList());
+
                     registeredSubjectCodes.clear();
                     for (CourseRegistration reg : registrations) {
                         if (reg.getRegistrationStatus() == CourseRegistration.RegistrationStatus.CANCELLED) {
@@ -522,6 +529,7 @@ public class CourseRegistrationPanel extends JPanel {
             protected void done() {
                 try {
                     availableCourses = get();
+                    updateCourseLookup(availableCourses);
                     updateAvailableTable();
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách môn học khả dụng", e);
@@ -573,10 +581,20 @@ public class CourseRegistrationPanel extends JPanel {
                 }
             }
 
-            int remaining = course.getMaxStudents() - course.getCurrentEnrollment();
-            String availabilityText = remaining + "/" + course.getMaxStudents();
+            boolean registrationOpen = course.getRegistrationStatus() == Course.RegistrationStatus.OPEN;
+            int maxStudents = course.getMaxStudents();
+            int displayCount = registrationOpen ? course.getPendingRegistrations() : course.getCurrentEnrollment();
+            String availabilityText = maxStudents > 0
+                    ? displayCount + "/" + maxStudents
+                    : displayCount + "/-";
 
-            String status = remaining <= 0 ? "Đã đầy" : "Mở đăng ký";
+            boolean isFull = maxStudents > 0 && displayCount >= maxStudents;
+            String status;
+            if (registrationOpen) {
+                status = isFull ? "Đã đầy" : "Đang mở";
+            } else {
+                status = isFull ? "Đã đầy" : "Đã đóng";
+            }
 
             availableModel.addRow(new Object[] {
                     course.getCourseCode(),
@@ -632,9 +650,9 @@ public class CourseRegistrationPanel extends JPanel {
             return;
         }
 
-        if (courseToAdd.getCurrentEnrollment() >= courseToAdd.getMaxStudents()) {
+        if (isCourseAtCapacity(courseToAdd)) {
             JOptionPane.showMessageDialog(this,
-                    "Lớp học này đã đầy!",
+                    "Lớp học này đã đủ số lượng đăng ký!",
                     "Không thể thêm",
                     JOptionPane.WARNING_MESSAGE);
             return;
@@ -663,14 +681,11 @@ public class CourseRegistrationPanel extends JPanel {
 
         // Check for schedule conflict
         if (hasScheduleConflict(courseToAdd)) {
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "Môn học này có xung đột lịch học với môn đã chọn!\nBạn có chắc muốn thêm?",
-                    "Cảnh báo xung đột",
-                    JOptionPane.YES_NO_OPTION,
+            JOptionPane.showMessageDialog(this,
+                    "Môn học này bị trùng lịch với lớp đã chọn hoặc đã đăng ký.",
+                    "Không thể thêm",
                     JOptionPane.WARNING_MESSAGE);
-            if (confirm != JOptionPane.YES_OPTION) {
-                return;
-            }
+            return;
         }
 
         // Add to selected list
@@ -836,14 +851,11 @@ public class CourseRegistrationPanel extends JPanel {
 
         // Check conflicts
         if (hasAnyConflict()) {
-            int confirm = JOptionPane.showConfirmDialog(this,
-                    "Có xung đột lịch học trong các môn đã chọn!\nBạn có chắc muốn đăng ký?",
-                    "Cảnh báo",
-                    JOptionPane.YES_NO_OPTION,
+            JOptionPane.showMessageDialog(this,
+                    "Danh sách môn đã chọn có xung đột lịch học. Vui lòng loại bỏ các lớp trùng lịch trước khi đăng ký.",
+                    "Xung đột lịch học",
                     JOptionPane.WARNING_MESSAGE);
-            if (confirm != JOptionPane.YES_OPTION) {
-                return;
-            }
+            return;
         }
 
         // Check if any course is full before submitting - refresh course list first
@@ -857,23 +869,24 @@ public class CourseRegistrationPanel extends JPanel {
                 for (Course c : allCourses) {
                     latestCourses.put(c.getCourseCode(), c);
                 }
+                updateCourseLookup(allCourses);
             }
         }
 
         List<Course> fullCourses = new ArrayList<>();
         for (Course course : selectedCourses) {
             Course updatedCourse = latestCourses.get(course.getCourseCode());
-            if (updatedCourse != null && updatedCourse.getCurrentStudents() >= updatedCourse.getMaxStudents()) {
+            if (updatedCourse != null && isCourseAtCapacity(updatedCourse)) {
                 fullCourses.add(updatedCourse);
             }
         }
 
         if (!fullCourses.isEmpty()) {
-            StringBuilder message = new StringBuilder("Các lớp học sau đã đầy và không thể đăng ký:\n\n");
+            StringBuilder message = new StringBuilder("Các lớp học sau đã đủ số lượng và không thể đăng ký:\n\n");
             for (Course course : fullCourses) {
-                message.append(String.format("- %s (%s): %d/%d sinh viên\n",
+                message.append(String.format("- %s (%s): %s\n",
                         course.getCourseCode(), course.getCourseName(),
-                        course.getCurrentStudents(), course.getMaxStudents()));
+                        formatCapacityText(course)));
             }
             message.append("\nVui lòng xóa các lớp đã đầy khỏi danh sách trước khi đăng ký.");
             JOptionPane.showMessageDialog(this, message.toString(), "Lớp đã đầy", JOptionPane.WARNING_MESSAGE);
@@ -906,13 +919,14 @@ public class CourseRegistrationPanel extends JPanel {
                         for (Course c : allCourses) {
                             latestCoursesMap.put(c.getCourseCode(), c);
                         }
+                        updateCourseLookup(allCourses);
                     }
                 }
 
                 for (Course course : selectedCourses) {
                     // Double check before sending request using latest course data
                     Course latestCourse = latestCoursesMap.get(course.getCourseCode());
-                    if (latestCourse != null && latestCourse.getCurrentStudents() >= latestCourse.getMaxStudents()) {
+                    if (latestCourse != null && isCourseAtCapacity(latestCourse)) {
                         results.put(course, "Lỗi: Lớp đã đầy");
                         continue;
                     }
@@ -990,6 +1004,16 @@ public class CourseRegistrationPanel extends JPanel {
                 return true;
             }
         }
+        for (CourseRegistration registration : activeRegistrations) {
+            if (registration.getCourseCode() != null
+                    && registration.getCourseCode().equals(newCourse.getCourseCode())) {
+                continue;
+            }
+            if (isTimeConflict(registration.getScheduleDay(), registration.getScheduleTime(),
+                    newCourse.getScheduleDay(), newCourse.getScheduleTime())) {
+                return true;
+            }
+        }
         return false;
     }
 
@@ -1001,24 +1025,37 @@ public class CourseRegistrationPanel extends JPanel {
                 }
             }
         }
+        for (Course selected : selectedCourses) {
+            for (CourseRegistration registration : activeRegistrations) {
+                if (registration.getCourseCode() != null
+                        && registration.getCourseCode().equals(selected.getCourseCode())) {
+                    continue;
+                }
+                if (isTimeConflict(registration.getScheduleDay(), registration.getScheduleTime(),
+                        selected.getScheduleDay(), selected.getScheduleTime())) {
+                    return true;
+                }
+            }
+        }
         return false;
     }
 
     private boolean isTimeConflict(Course c1, Course c2) {
-        if (c1.getScheduleDay() == null || c2.getScheduleDay() == null) {
+        return isTimeConflict(c1.getScheduleDay(), c1.getScheduleTime(),
+                c2.getScheduleDay(), c2.getScheduleTime());
+    }
+
+    private boolean isTimeConflict(String day1, String time1, String day2, String time2) {
+        if (day1 == null || day2 == null || time1 == null || time2 == null) {
             return false;
         }
 
-        if (!c1.getScheduleDay().equals(c2.getScheduleDay())) {
+        if (!day1.equals(day2)) {
             return false;
         }
 
-        if (c1.getScheduleTime() == null || c2.getScheduleTime() == null) {
-            return false;
-        }
-
-        String scheduleTime1 = c1.getScheduleTime().trim();
-        String scheduleTime2 = c2.getScheduleTime().trim();
+        String scheduleTime1 = time1.trim();
+        String scheduleTime2 = time2.trim();
 
         if (scheduleTime1.contains("(") && scheduleTime1.contains(")")) {
             int start = scheduleTime1.indexOf("(");
@@ -1032,16 +1069,16 @@ public class CourseRegistrationPanel extends JPanel {
             scheduleTime2 = scheduleTime2.substring(start + 1, end).trim();
         }
 
-        String[] time1 = scheduleTime1.split("-");
-        String[] time2 = scheduleTime2.split("-");
+        String[] range1 = scheduleTime1.split("-");
+        String[] range2 = scheduleTime2.split("-");
 
-        if (time1.length != 2 || time2.length != 2) {
+        if (range1.length != 2 || range2.length != 2) {
             return false;
         }
 
         try {
-            return !(time1[1].trim().compareTo(time2[0].trim()) <= 0 ||
-                    time2[1].trim().compareTo(time1[0].trim()) <= 0);
+            return !(range1[1].trim().compareTo(range2[0].trim()) <= 0 ||
+                    range2[1].trim().compareTo(range1[0].trim()) <= 0);
         } catch (Exception e) {
             return false;
         }
@@ -1051,13 +1088,14 @@ public class CourseRegistrationPanel extends JPanel {
         int totalCredits = getTotalCredits();
         totalCreditsLabel.setText("Tổng tín chỉ đã chọn: " + totalCredits);
 
-        if (hasAnyConflict()) {
+        boolean hasConflict = hasAnyConflict();
+        if (hasConflict) {
             conflictLabel.setText("⚠ CÓ XUNG ĐỘT LỊCH HỌC!");
         } else {
             conflictLabel.setText("");
         }
 
-        registerButton.setEnabled(!selectedCourses.isEmpty());
+        registerButton.setEnabled(!selectedCourses.isEmpty() && !hasConflict);
     }
 
     private void updateSelectedActionButtons() {
@@ -1179,7 +1217,7 @@ public class CourseRegistrationPanel extends JPanel {
                     safeText(registration.getScheduleDay()),
                     safeText(registration.getScheduleTime()),
                     safeText(registration.getRoom()),
-                    "-",
+                    formatSubmittedSeat(registration),
                     getRegistrationStatusText(registration.getRegistrationStatus())
             });
             selectedRowEntries.add(SelectedRowEntry.forSubmitted(registration));
@@ -1195,10 +1233,57 @@ public class CourseRegistrationPanel extends JPanel {
         if (course == null) {
             return "";
         }
-        if (course.getMaxStudents() <= 0) {
-            return String.valueOf(course.getCurrentEnrollment());
+        return formatCapacityText(course);
+    }
+
+    private String formatCapacityText(Course course) {
+        if (course == null) {
+            return "-";
         }
-        return course.getCurrentEnrollment() + "/" + course.getMaxStudents();
+        int max = course.getMaxStudents();
+        int count = course.getRegistrationStatus() == Course.RegistrationStatus.OPEN
+                ? course.getPendingRegistrations()
+                : course.getCurrentEnrollment();
+        if (max > 0) {
+            return count + "/" + max;
+        }
+        return count + "/-";
+    }
+
+    private String formatSubmittedSeat(CourseRegistration registration) {
+        if (registration == null || registration.getCourseCode() == null) {
+            return "-";
+        }
+        Course course = getCourseInfo(registration.getCourseCode());
+        return formatCapacityText(course);
+    }
+
+    private boolean isCourseAtCapacity(Course course) {
+        if (course == null || course.getMaxStudents() <= 0) {
+            return false;
+        }
+        if (course.getRegistrationStatus() == Course.RegistrationStatus.OPEN) {
+            return course.getPendingRegistrations() >= course.getMaxStudents();
+        }
+        return course.getCurrentEnrollment() >= course.getMaxStudents();
+    }
+
+    private void updateCourseLookup(List<Course> courses) {
+        if (courses == null) {
+            return;
+        }
+        for (Course course : courses) {
+            if (course != null && course.getCourseCode() != null) {
+                courseLookup.put(course.getCourseCode(), course);
+            }
+        }
+    }
+
+    private Course getCourseInfo(String courseCode) {
+        if (courseCode == null) {
+            return null;
+        }
+        return courseLookup.get(courseCode);
     }
 
     private void updateSubmittedRegistrations(List<CourseRegistration> registrations) {

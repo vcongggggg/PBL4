@@ -170,12 +170,17 @@ public class ClientHandler implements Runnable, DataOriginHelper {
             LOGGER.info("Client đã kết nối: " + clientSocket.getRemoteSocketAddress());
 
             while (isConnected && !clientSocket.isClosed()) {
+                Message request = null;
                 try {
-                    Message request = (Message) inputStream.readObject();
+                    request = (Message) inputStream.readObject();
                     LOGGER.info("Nhận yêu cầu: " + request.getAction() + " từ " +
                             (currentUser != null ? currentUser.getUsername() : "anonymous"));
 
                     Message response = processRequest(request);
+                    if (response == null) {
+                        response = Message.createErrorResponse(request.getAction(), "No response generated");
+                    }
+                    response.setRequestId(request.getRequestId());
                     sendResponse(response);
 
                 } catch (SocketException e) {
@@ -188,6 +193,9 @@ public class ClientHandler implements Runnable, DataOriginHelper {
                     LOGGER.log(Level.SEVERE, "Lỗi khi xử lý yêu cầu từ client", e);
 
                     Message errorResponse = Message.createErrorResponse("ERROR", "Server error occurred");
+                    if (request != null) {
+                        errorResponse.setRequestId(request.getRequestId());
+                    }
                     sendResponse(errorResponse);
                 }
             }
