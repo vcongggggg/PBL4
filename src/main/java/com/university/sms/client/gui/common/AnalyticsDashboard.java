@@ -46,7 +46,7 @@ public class AnalyticsDashboard extends JPanel {
 
     // Chart panels
     private ChartPanel gradeDistChart;
-    private ChartPanel gpaTrendChart;
+    private LineChartPanel gpaTrendChart;
     private ChartPanel facultyChart;
     private TopStudentsPanel topPerformersPanel;
 
@@ -187,9 +187,8 @@ public class AnalyticsDashboard extends JPanel {
         return chart;
     }
 
-    private ChartPanel createGPATrendChart() {
-        ChartPanel chart = new ChartPanel("📈 Xu Hướng GPA Theo Học Kỳ");
-        chart.setValueFormatter(value -> String.format("%.2f GPA", value));
+    private LineChartPanel createGPATrendChart() {
+        LineChartPanel chart = new LineChartPanel("📈 Xu Hướng GPA Theo Học Kỳ");
         return chart;
     }
 
@@ -239,7 +238,7 @@ public class AnalyticsDashboard extends JPanel {
             loadGpaTrendButton.setText("Làm mới xu hướng GPA");
         }
         if (gpaTrendChart != null) {
-            gpaTrendChart.clearBars();
+            gpaTrendChart.clearPoints();
         }
 
         // Only admin or teacher can view analytics
@@ -572,7 +571,7 @@ public class AnalyticsDashboard extends JPanel {
         if (gpaTrendChart == null || trendData == null || trendData.isEmpty())
             return;
 
-        gpaTrendChart.clearBars();
+        gpaTrendChart.clearPoints();
 
         // Sort semesters chronologically
         List<String> sortedSemesters = new java.util.ArrayList<>(trendData.keySet());
@@ -585,20 +584,12 @@ public class AnalyticsDashboard extends JPanel {
             return Integer.compare(Integer.parseInt(parts1[1]), Integer.parseInt(parts2[1]));
         });
 
-        Color[] colors = {
-                Color.decode("#3498db"), Color.decode("#2ecc71"),
-                Color.decode("#f39c12"), Color.decode("#e74c3c"),
-                Color.decode("#9b59b6"), Color.decode("#1abc9c")
-        };
-
-        int colorIndex = 0;
         for (String semesterKey : sortedSemesters) {
             Double gpa = trendData.get(semesterKey);
             if (gpa != null) {
                 String[] parts = semesterKey.split("-");
                 String label = "HK" + parts[1] + " " + parts[0];
-                gpaTrendChart.addBar(label, gpa, colors[colorIndex % colors.length]);
-                colorIndex++;
+                gpaTrendChart.addPoint(label, gpa);
             }
         }
     }
@@ -731,7 +722,7 @@ public class AnalyticsDashboard extends JPanel {
                         updateGPATrendChart(trendData);
                         gpaTrendLoaded = true;
                     } else if (gpaTrendChart != null) {
-                        gpaTrendChart.clearBars();
+                        gpaTrendChart.clearPoints();
                     }
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi tải xu hướng GPA", e);
@@ -988,6 +979,163 @@ public class AnalyticsDashboard extends JPanel {
                 this.label = label;
                 this.value = value;
                 this.color = color;
+            }
+        }
+    }
+
+    /**
+     * Line Chart Panel Component for GPA Trend
+     */
+    private static class LineChartPanel extends JPanel {
+        private String title;
+        private java.util.List<PointData> points;
+        private Color lineColor = Color.decode("#3498db");
+        private Color pointColor = Color.decode("#2980b9");
+        private Color fillColor = new Color(52, 152, 219, 50); // Semi-transparent blue
+
+        public LineChartPanel(String title) {
+            this.title = title;
+            this.points = new java.util.ArrayList<>();
+
+            setBackground(Color.WHITE);
+            setBorder(BorderFactory.createCompoundBorder(
+                    BorderFactory.createLineBorder(new Color(220, 220, 220)),
+                    BorderFactory.createEmptyBorder(15, 15, 15, 15)));
+            setPreferredSize(new Dimension(400, 300));
+        }
+
+        public void addPoint(String label, double value) {
+            points.add(new PointData(label, value));
+            repaint();
+        }
+
+        public void clearPoints() {
+            points.clear();
+            repaint();
+        }
+
+        @Override
+        protected void paintComponent(Graphics g) {
+            super.paintComponent(g);
+            Graphics2D g2d = (Graphics2D) g;
+            g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
+
+            // Draw title
+            g2d.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            g2d.setColor(Color.DARK_GRAY);
+            g2d.drawString(title, 10, 20);
+
+            if (points.isEmpty())
+                return;
+
+            // Calculate dimensions
+            int chartTop = 50;
+            int chartBottom = getHeight() - 60;
+            int chartHeight = chartBottom - chartTop;
+            int chartLeft = 50;
+            int chartRight = getWidth() - 30;
+            int chartWidth = chartRight - chartLeft;
+
+            // Find min and max values (GPA range: 0-4)
+            double minValue = 0.0;
+            double maxValue = 4.0;
+
+            // Draw Y-axis grid lines and labels
+            g2d.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+            g2d.setColor(Color.GRAY);
+            double yStep = 1.0; // GPA step
+            for (double val = minValue; val <= maxValue; val += yStep) {
+                int y = chartBottom - (int) ((val - minValue) / (maxValue - minValue) * chartHeight);
+                // Grid line
+                g2d.setColor(new Color(230, 230, 230));
+                g2d.drawLine(chartLeft, y, chartRight, y);
+                // Label
+                g2d.setColor(Color.GRAY);
+                String label = String.format("%.1f", val);
+                g2d.drawString(label, chartLeft - 35, y + 4);
+            }
+
+            // Draw X-axis
+            g2d.setColor(Color.GRAY);
+            g2d.drawLine(chartLeft, chartBottom, chartRight, chartBottom);
+
+            // Calculate point positions
+            int pointCount = points.size();
+            int[] xPositions = new int[pointCount];
+            int[] yPositions = new int[pointCount];
+            int spacing = pointCount > 1 ? chartWidth / (pointCount - 1) : chartWidth / 2;
+
+            for (int i = 0; i < pointCount; i++) {
+                PointData point = points.get(i);
+                xPositions[i] = pointCount > 1 ? chartLeft + i * spacing : chartLeft + chartWidth / 2;
+                yPositions[i] = chartBottom - (int) ((point.value - minValue) / (maxValue - minValue) * chartHeight);
+            }
+
+            // Draw filled area under the line
+            if (pointCount > 1) {
+                int[] xFill = new int[pointCount + 2];
+                int[] yFill = new int[pointCount + 2];
+                System.arraycopy(xPositions, 0, xFill, 0, pointCount);
+                System.arraycopy(yPositions, 0, yFill, 0, pointCount);
+                xFill[pointCount] = xPositions[pointCount - 1];
+                yFill[pointCount] = chartBottom;
+                xFill[pointCount + 1] = xPositions[0];
+                yFill[pointCount + 1] = chartBottom;
+                g2d.setColor(fillColor);
+                g2d.fillPolygon(xFill, yFill, pointCount + 2);
+            }
+
+            // Draw lines connecting points
+            g2d.setColor(lineColor);
+            g2d.setStroke(new BasicStroke(3f, BasicStroke.CAP_ROUND, BasicStroke.JOIN_ROUND));
+            for (int i = 0; i < pointCount - 1; i++) {
+                g2d.drawLine(xPositions[i], yPositions[i], xPositions[i + 1], yPositions[i + 1]);
+            }
+
+            // Draw points and labels
+            for (int i = 0; i < pointCount; i++) {
+                PointData point = points.get(i);
+                int x = xPositions[i];
+                int y = yPositions[i];
+
+                // Draw point (filled circle with border)
+                g2d.setColor(Color.WHITE);
+                g2d.fillOval(x - 6, y - 6, 12, 12);
+                g2d.setColor(pointColor);
+                g2d.setStroke(new BasicStroke(2f));
+                g2d.drawOval(x - 6, y - 6, 12, 12);
+                g2d.fillOval(x - 4, y - 4, 8, 8);
+
+                // Draw value above point
+                g2d.setColor(Color.DARK_GRAY);
+                g2d.setFont(new Font("Segoe UI", Font.BOLD, 11));
+                String valueText = String.format("%.2f", point.value);
+                int textWidth = g2d.getFontMetrics().stringWidth(valueText);
+                g2d.drawString(valueText, x - textWidth / 2, y - 12);
+
+                // Draw X-axis label
+                g2d.setFont(new Font("Segoe UI", Font.PLAIN, 10));
+                g2d.setColor(Color.GRAY);
+                textWidth = g2d.getFontMetrics().stringWidth(point.label);
+                // Rotate label if too many points
+                if (pointCount > 4) {
+                    Graphics2D g2dRotated = (Graphics2D) g2d.create();
+                    g2dRotated.rotate(-Math.PI / 4, x, chartBottom + 15);
+                    g2dRotated.drawString(point.label, x - textWidth / 2, chartBottom + 15);
+                    g2dRotated.dispose();
+                } else {
+                    g2d.drawString(point.label, x - textWidth / 2, chartBottom + 20);
+                }
+            }
+        }
+
+        private static class PointData {
+            String label;
+            double value;
+
+            PointData(String label, double value) {
+                this.label = label;
+                this.value = value;
             }
         }
     }
