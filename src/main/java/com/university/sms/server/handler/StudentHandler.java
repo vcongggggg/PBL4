@@ -18,6 +18,7 @@ import com.university.sms.service.TranscriptService;
 
 import java.util.List;
 import java.util.logging.Level;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
@@ -30,21 +31,25 @@ public class StudentHandler {
   private final CourseRegistrationService registrationService;
   private final TranscriptService transcriptService;
   private User currentUser;
-  private final String clientSource;
+  private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
 
   public StudentHandler(StudentService studentService,
       CourseRegistrationService registrationService,
       TranscriptService transcriptService,
       User currentUser,
-      String clientSource,
+      Supplier<String> clientSourceSupplier,
       DataOriginHelper dataOriginHelper) {
     this.studentService = studentService;
     this.registrationService = registrationService;
     this.transcriptService = transcriptService;
     this.currentUser = currentUser;
-    this.clientSource = clientSource;
+    this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
+  }
+
+  private String getClientSource() {
+    return clientSourceSupplier != null ? clientSourceSupplier.get() : "UNKNOWN";
   }
 
   public void updateCurrentUser(User currentUser) {
@@ -339,7 +344,7 @@ public class StudentHandler {
         u.setRole(User.UserRole.STUDENT);
         userOk = userDAO.addUser(u);
         if (userOk) {
-          dataOriginHelper.saveDataOrigin("user", u.getUserId(), clientSource);
+          dataOriginHelper.saveDataOrigin("user", u.getUserId(), getClientSource());
         }
       }
       if (!userOk) {
@@ -360,7 +365,7 @@ public class StudentHandler {
 
     boolean ok = studentService.addStudent(student);
     if (ok) {
-      dataOriginHelper.saveDataOrigin("student", student.getStudentId(), clientSource);
+      dataOriginHelper.saveDataOrigin("student", student.getStudentId(), getClientSource());
       LOGGER.info("Đã thêm sinh viên thành công: " + student.getStudentCode()
           + " bởi " + (currentUser != null ? currentUser.getUsername() : "system"));
       return Message.createSuccessResponse(Constants.ACTION_ADD_STUDENT, "Thêm sinh viên thành công");

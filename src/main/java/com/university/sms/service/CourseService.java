@@ -547,6 +547,15 @@ public class CourseService {
                             currentEnrolledCount + "/" + course.getMaxStudents() +
                             ") - studentCode=" + registration.getStudentCode() +
                             ", courseCode=" + registration.getCourseCode());
+
+                    // Chuyển các đăng ký bị từ chối sang trạng thái CANCELLED để phản ánh đúng kết
+                    // quảLIỆT
+                    registration.setRegistrationStatus(CourseRegistration.RegistrationStatus.CANCELLED);
+                    if (registration.getNotes() == null || registration.getNotes().isBlank()) {
+                        registration.setNotes(
+                                "Đăng ký bị hủy vì khóa học đã đủ " + course.getMaxStudents() + " sinh viên.");
+                    }
+                    courseRegistrationDAO.update(registration);
                     continue;
                 }
 

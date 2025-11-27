@@ -2,7 +2,6 @@ package com.university.sms.dao;
 
 import com.university.sms.model.User;
 import com.university.sms.util.DatabaseConnection;
-import org.mindrot.jbcrypt.BCrypt;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -301,6 +300,49 @@ public class UserDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Error finding users by role: " + role, e);
+        }
+
+        return users;
+    }
+
+    /**
+     * Lấy danh sách giáo viên chưa chủ nhiệm lớp nào (hoặc đang chủ nhiệm lớp hiện
+     * tại)
+     */
+    public List<User> findAvailableClassTeachers(String classCode) {
+        boolean includeCurrentClass = classCode != null && !classCode.trim().isEmpty();
+        String sql;
+        if (includeCurrentClass) {
+            sql = "SELECT u.* FROM users u " +
+                    "WHERE u.role = ? AND u.is_active = TRUE AND (" +
+                    "NOT EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username) " +
+                    "OR EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username AND c.class_code = ?)) " +
+                    "ORDER BY u.full_name";
+        } else {
+            sql = "SELECT u.* FROM users u " +
+                    "WHERE u.role = ? AND u.is_active = TRUE AND " +
+                    "NOT EXISTS (SELECT 1 FROM classes c WHERE c.teacher_username = u.username) " +
+                    "ORDER BY u.full_name";
+        }
+
+        List<User> users = new ArrayList<>();
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+            stmt.setString(1, User.UserRole.TEACHER.name().toLowerCase());
+            if (includeCurrentClass) {
+                stmt.setString(2, classCode.trim());
+            }
+
+            try (ResultSet rs = stmt.executeQuery()) {
+                while (rs.next()) {
+                    users.add(mapResultSetToUser(rs));
+                }
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Error finding available class teachers", e);
         }
 
         return users;

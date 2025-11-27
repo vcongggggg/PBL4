@@ -554,11 +554,12 @@ public class StudentPanel extends JPanel {
             if (selected != null && selected.code != null) {
                 classCombo.removeAllItems();
                 classCombo.addItem(new ClassItem(null, "-- Không có --"));
-                // Reload classes filtered by faculty
+                // Load available classes (còn trống) filtered by faculty
                 SwingWorker<List<com.university.sms.model.Class>, Void> filterWorker = new SwingWorker<List<com.university.sms.model.Class>, Void>() {
                     @Override
                     protected List<com.university.sms.model.Class> doInBackground() throws Exception {
-                        Message request = Message.createRequest(Constants.ACTION_GET_ALL_CLASSES);
+                        Message request = Message.createRequest(Constants.ACTION_GET_AVAILABLE_CLASSES);
+                        request.addData("facultyCode", selected.code);
                         Message response = serverConnection.sendRequest(request);
                         if (response != null && response.isSuccess()) {
                             @SuppressWarnings("unchecked")
@@ -575,10 +576,8 @@ public class StudentPanel extends JPanel {
                             List<com.university.sms.model.Class> classes = get();
                             if (classes != null) {
                                 for (com.university.sms.model.Class c : classes) {
-                                    if (selected.code.equals(c.getFacultyCode())) {
-                                        classCombo.addItem(new ClassItem(c.getClassCode(),
-                                                c.getClassCode() + " - " + c.getClassName()));
-                                    }
+                                    classCombo.addItem(new ClassItem(c.getClassCode(),
+                                            c.getClassCode() + " - " + c.getClassName()));
                                 }
                             }
                         } catch (Exception ex) {
@@ -587,6 +586,10 @@ public class StudentPanel extends JPanel {
                     }
                 };
                 filterWorker.execute();
+            } else {
+                // Nếu không chọn khoa, xóa danh sách lớp
+                classCombo.removeAllItems();
+                classCombo.addItem(new ClassItem(null, "-- Không có --"));
             }
         });
 

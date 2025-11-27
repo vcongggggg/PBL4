@@ -182,6 +182,10 @@ public class ServerMain {
                 case "csvversion":
                     showCSVVersion();
                     break;
+                case "postgresversion":
+                case "pgversion":
+                    showPostgresVersion();
+                    break;
                 default:
                     if (!command.isEmpty()) {
                         System.out.println("Unknown command: " + command + ". Type 'help' for available commands.");
@@ -277,6 +281,7 @@ public class ServerMain {
         System.out.println("db        - Test database connection");
         System.out.println("dbversion - Show database version");
         System.out.println("csvversion - Show CSV source version");
+        System.out.println("postgresversion - Show PostgreSQL source version");
         System.out.println("clear     - Clear the console screen");
         System.out.println("stop      - Stop the server and exit");
         System.out.println("help      - Show this help message");
@@ -357,6 +362,81 @@ public class ServerMain {
             }
         } catch (Exception e) {
             LOGGER.warning("Error getting CSV source count: " + e.getMessage());
+        }
+        return 0;
+    }
+
+    /**
+     * Show PostgreSQL source version
+     */
+    private static void showPostgresVersion() {
+        System.out.println("\n--- PostgreSQL Source Version ---");
+        try {
+            int postgresVersion = getPostgresSourceVersion();
+            int postgresCount = getPostgresSourceCount();
+            // Format version tối đa 10 chữ số
+            String versionStr = String.valueOf(postgresVersion);
+            if (versionStr.length() > 10) {
+                versionStr = versionStr.substring(0, 10);
+            }
+            System.out.println("PostgreSQL Source Version: " + versionStr);
+            System.out.println("PostgreSQL Source Records: " + postgresCount);
+        } catch (Exception e) {
+            System.out.println("Error getting PostgreSQL version: " + e.getMessage());
+        }
+        System.out.println();
+    }
+
+    /**
+     * Get PostgreSQL source version from database
+     */
+    private static int getPostgresSourceVersion() {
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            // Thử lấy từ system_config trước
+            String sql = "SELECT CAST(config_value AS UNSIGNED) as version FROM system_config WHERE config_key = 'postgres_version'";
+            ResultSet rs = conn.createStatement().executeQuery(sql);
+
+            if (rs.next()) {
+                int version = rs.getInt("version");
+                if (!rs.wasNull() && version > 0) {
+                    return version;
+                }
+            }
+
+            // Fallback: lấy timestamp từ data_origin
+            sql = "SELECT MAX(UNIX_TIMESTAMP(updated_at)) as last_update FROM data_origin WHERE source = 'POSTGRES'";
+            rs = conn.createStatement().executeQuery(sql);
+
+            if (rs.next()) {
+                long timestamp = rs.getLong("last_update");
+                if (!rs.wasNull() && timestamp > 0) {
+                    return (int) timestamp;
+                }
+            }
+
+            // Fallback: đếm số records nếu không có timestamp
+            return getPostgresSourceCount();
+        } catch (Exception e) {
+            LOGGER.warning("Error getting PostgreSQL source version: " + e.getMessage());
+            return 0;
+        }
+    }
+
+    /**
+     * Get PostgreSQL source record count
+     */
+    private static int getPostgresSourceCount() {
+        try {
+            Connection conn = DatabaseConnection.getConnection();
+            String sql = "SELECT COUNT(*) as count FROM data_origin WHERE source = 'POSTGRES'";
+            ResultSet rs = conn.createStatement().executeQuery(sql);
+
+            if (rs.next()) {
+                return rs.getInt("count");
+            }
+        } catch (Exception e) {
+            LOGGER.warning("Error getting PostgreSQL source count: " + e.getMessage());
         }
         return 0;
     }

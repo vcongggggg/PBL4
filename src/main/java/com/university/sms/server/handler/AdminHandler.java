@@ -18,6 +18,7 @@ import com.university.sms.service.StudentService;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.logging.Level;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
@@ -27,24 +28,28 @@ public class AdminHandler {
   private static final Logger LOGGER = Logger.getLogger(AdminHandler.class.getName());
 
   private User currentUser;
-  private final String clientSource;
+  private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
   private final StudentService studentService;
   private final ClassOpeningRequestService classRequestService;
   private final CourseRegistrationService registrationService;
 
   public AdminHandler(User currentUser,
-      String clientSource,
+      Supplier<String> clientSourceSupplier,
       DataOriginHelper dataOriginHelper,
       StudentService studentService,
       ClassOpeningRequestService classRequestService,
       CourseRegistrationService registrationService) {
     this.currentUser = currentUser;
-    this.clientSource = clientSource;
+    this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
     this.studentService = studentService;
     this.classRequestService = classRequestService;
     this.registrationService = registrationService;
+  }
+
+  private String getClientSource() {
+    return clientSourceSupplier != null ? clientSourceSupplier.get() : "UNKNOWN";
   }
 
   public void updateCurrentUser(User currentUser) {
@@ -144,7 +149,7 @@ public class AdminHandler {
       if (success) {
         // Chỉ lưu source khi admin thêm mới (đã kiểm tra role ở đầu method)
         if (newTeacher.getUserId() > 0) {
-          dataOriginHelper.saveDataOrigin("user", newTeacher.getUserId(), clientSource);
+          dataOriginHelper.saveDataOrigin("user", newTeacher.getUserId(), getClientSource());
         }
         LOGGER.info("Teacher added: " + username + " by " + currentUser.getUsername());
         return Message.createSuccessResponse(request.getAction(), "Thêm giảng viên thành công");
@@ -173,6 +178,27 @@ public class AdminHandler {
       LOGGER.log(Level.SEVERE, "Error getting teachers", e);
       return Message.createErrorResponse(request.getAction(),
           "Error retrieving teachers: " + e.getMessage());
+    }
+  }
+
+  public Message handleGetAvailableClassTeachers(Message request) {
+    try {
+      if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+        return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+      }
+
+      String classCode = request.getData("classCode", String.class);
+      UserDAO userDAO = new UserDAO();
+      List<User> teachers = userDAO.findAvailableClassTeachers(classCode);
+
+      Message response = Message.createSuccessResponse(request.getAction(),
+          "Found " + teachers.size() + " available teachers");
+      response.addData("teachers", teachers);
+      return response;
+    } catch (Exception e) {
+      LOGGER.log(Level.SEVERE, "Error getting available class teachers", e);
+      return Message.createErrorResponse(request.getAction(),
+          "Error retrieving available teachers: " + e.getMessage());
     }
   }
 

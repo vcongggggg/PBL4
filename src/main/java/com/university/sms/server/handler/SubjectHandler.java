@@ -10,6 +10,7 @@ import com.university.sms.service.SubjectService;
 
 import java.util.List;
 import java.util.logging.Level;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
@@ -19,18 +20,22 @@ public class SubjectHandler {
   private static final Logger LOGGER = Logger.getLogger(SubjectHandler.class.getName());
 
   private User currentUser;
-  private final String clientSource;
+  private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
   private final SubjectService subjectService;
 
   public SubjectHandler(User currentUser,
-      String clientSource,
+      Supplier<String> clientSourceSupplier,
       DataOriginHelper dataOriginHelper,
       SubjectService subjectService) {
     this.currentUser = currentUser;
-    this.clientSource = clientSource;
+    this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
     this.subjectService = subjectService;
+  }
+
+  private String getClientSource() {
+    return clientSourceSupplier != null ? clientSourceSupplier.get() : "UNKNOWN";
   }
 
   public void updateCurrentUser(User currentUser) {
@@ -144,7 +149,7 @@ public class SubjectHandler {
       if (success) {
         // Chỉ lưu source khi admin thêm mới
         if (subject.getSubjectId() > 0 && currentUser.getRole() == User.UserRole.ADMIN) {
-          dataOriginHelper.saveDataOrigin("subject", subject.getSubjectId(), clientSource);
+          dataOriginHelper.saveDataOrigin("subject", subject.getSubjectId(), getClientSource());
         }
         LOGGER.info("Subject added: " + subject.getSubjectCode() + " by " + currentUser.getUsername());
         return Message.createSuccessResponse(request.getAction(), "Thêm môn học thành công");

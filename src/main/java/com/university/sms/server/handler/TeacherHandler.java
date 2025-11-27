@@ -17,6 +17,7 @@ import com.university.sms.service.CourseRegistrationService;
 import com.university.sms.service.GradeService;
 
 import java.util.List;
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -30,20 +31,21 @@ public class TeacherHandler {
   private final CourseRegistrationService registrationService;
   private final GradeService gradeService;
   private User currentUser;
-  private final String clientSource;
+  @SuppressWarnings("unused")
+  private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
 
   public TeacherHandler(ClassOpeningRequestService classRequestService,
       CourseRegistrationService registrationService,
       GradeService gradeService,
       User currentUser,
-      String clientSource,
+      Supplier<String> clientSourceSupplier,
       DataOriginHelper dataOriginHelper) {
     this.classRequestService = classRequestService;
     this.registrationService = registrationService;
     this.gradeService = gradeService;
     this.currentUser = currentUser;
-    this.clientSource = clientSource;
+    this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
   }
 

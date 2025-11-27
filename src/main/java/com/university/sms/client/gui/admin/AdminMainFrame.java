@@ -1,6 +1,7 @@
 package com.university.sms.client.gui.admin;
 
 import com.university.sms.client.IServerConnection;
+import com.university.sms.common.Constants;
 import com.university.sms.common.Message;
 import com.university.sms.model.User;
 import com.university.sms.client.gui.common.*;
@@ -22,6 +23,7 @@ public class AdminMainFrame extends JFrame {
     private JLabel userInfoLabel;
     private JLabel connectionStatusLabel;
     private JLabel serverStatsLabel;
+    private JLabel serverVersionLabel;
     private JLabel clientDbVersionLabel;
     private JLabel syncStatusLabel;
     private StudentPanel studentPanel;
@@ -35,11 +37,14 @@ public class AdminMainFrame extends JFrame {
     private javax.swing.Timer clientDbVersionTimer;
     private WatchService watchService;
     private Thread watchThread;
+    private SyncStatusListener syncStatusListener;
+    private volatile boolean autoSyncInProgress;
 
     public AdminMainFrame(User user, IServerConnection serverConnection) {
         this.currentUser = user;
         this.serverConnection = serverConnection;
-        CsvSyncProgressMonitor.attach(this, this.serverConnection);
+        // Attach sync progress listener để cập nhật trạng thái khi đang upload/download
+        attachSyncProgressListener();
 
         initializeComponents();
         setupLayout();
@@ -74,6 +79,7 @@ public class AdminMainFrame extends JFrame {
         userInfoLabel = new JLabel();
         connectionStatusLabel = new JLabel();
         serverStatsLabel = new JLabel();
+        serverVersionLabel = new JLabel();
         clientDbVersionLabel = new JLabel();
         syncStatusLabel = new JLabel();
 
@@ -146,15 +152,18 @@ public class AdminMainFrame extends JFrame {
         userInfoLabel.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
         statusPanel.add(userInfoLabel, BorderLayout.WEST);
 
-        // Center: Server stats, client DB version, and sync status
+        // Center: Server stats, server version, client DB version, and sync status
         JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
         centerPanel.setOpaque(false);
         serverStatsLabel.setFont(new Font("Arial", Font.PLAIN, 11));
         serverStatsLabel.setForeground(new Color(100, 100, 100));
+        serverVersionLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+        serverVersionLabel.setForeground(new Color(100, 100, 100));
         clientDbVersionLabel.setFont(new Font("Arial", Font.PLAIN, 11));
         clientDbVersionLabel.setForeground(new Color(100, 100, 100));
         syncStatusLabel.setFont(new Font("Arial", Font.BOLD, 11));
         centerPanel.add(serverStatsLabel);
+        centerPanel.add(serverVersionLabel);
         centerPanel.add(clientDbVersionLabel);
         centerPanel.add(syncStatusLabel);
         statusPanel.add(centerPanel, BorderLayout.CENTER);
@@ -314,14 +323,17 @@ public class AdminMainFrame extends JFrame {
     private void returnToLogin() {
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
-            // Check if this is a CSV client and create appropriate LoginFrame
+            // Check if this is a CSV or PostgreSQL client and create appropriate LoginFrame
             com.university.sms.client.gui.common.LoginFrame.ConnectionFactory factory;
             if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
                 factory = new com.university.sms.client.gui.common.LoginFrame.CsvConnectionFactory();
+            } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+                factory = new com.university.sms.client.gui.common.LoginFrame.PostgresConnectionFactory();
             } else {
                 factory = new com.university.sms.client.gui.common.LoginFrame.RegularConnectionFactory();
             }
-            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame(factory);
+            com.university.sms.client.gui.common.LoginFrame loginFrame = new com.university.sms.client.gui.common.LoginFrame(
+                    factory);
             loginFrame.setVisible(true);
             dispose();
         });
@@ -395,7 +407,7 @@ public class AdminMainFrame extends JFrame {
     }
 
     /**
-     * Load client database version (if CSV client)
+     * Load client database version (if CSV or PostgreSQL client)
      */
     private void loadClientDbVersion() {
         if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
@@ -411,6 +423,19 @@ public class AdminMainFrame extends JFrame {
             } catch (Exception e) {
                 clientDbVersionLabel.setText("Client DB: N/A");
             }
+        } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+            try {
+                com.university.sms.postgresclient.PostgresDataService postgresDataService = new com.university.sms.postgresclient.PostgresDataService();
+                int version = postgresDataService.getVersion();
+                // Format version tối đa 10 chữ số
+                String versionStr = String.valueOf(version);
+                if (versionStr.length() > 10) {
+                    versionStr = versionStr.substring(0, 10);
+                }
+                clientDbVersionLabel.setText("PostgreSQL DB v" + versionStr);
+            } catch (Exception e) {
+                clientDbVersionLabel.setText("PostgreSQL DB: N/A");
+            }
         } else {
             clientDbVersionLabel.setText("Client: Regular");
         }
@@ -418,25 +443,35 @@ public class AdminMainFrame extends JFrame {
 
     /**
      * Load sync status (version comparison and action)
-     * Tự động download khi phát hiện server version mới hơn
+     * Tự động thực hiện upload/download tương ứng
      */
     private void loadSyncStatus() {
-        if (!(serverConnection instanceof com.university.sms.csvclient.CSVServerConnection)) {
+        // Chỉ xử lý cho CSV hoặc PostgreSQL client
+        if (!(serverConnection instanceof com.university.sms.csvclient.CSVServerConnection)
+                && !(serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection)) {
             syncStatusLabel.setText("");
             syncStatusLabel.setForeground(Color.BLACK);
-            return; // Only show for CSV clients
+            return;
         }
 
         SwingWorker<Message, Void> worker = new SwingWorker<Message, Void>() {
             @Override
             protected Message doInBackground() throws Exception {
-                // Get client version
-                com.university.sms.csvclient.CSVDataService csvDataService = new com.university.sms.csvclient.CSVDataService();
-                int clientVersion = csvDataService.getVersion();
+                int clientVersion = 0;
+                Message metadataResponse = null;
 
-                // Get server version via sync check
-                com.university.sms.csvclient.CSVServerConnection csvConn = (com.university.sms.csvclient.CSVServerConnection) serverConnection;
-                Message metadataResponse = csvConn.sendMetadata();
+                // Get client version và server version via sync check
+                if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
+                    com.university.sms.csvclient.CSVDataService csvDataService = new com.university.sms.csvclient.CSVDataService();
+                    clientVersion = csvDataService.getVersion();
+                    com.university.sms.csvclient.CSVServerConnection csvConn = (com.university.sms.csvclient.CSVServerConnection) serverConnection;
+                    metadataResponse = csvConn.sendMetadata();
+                } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+                    com.university.sms.postgresclient.PostgresDataService postgresDataService = new com.university.sms.postgresclient.PostgresDataService();
+                    clientVersion = postgresDataService.getVersion();
+                    com.university.sms.postgresclient.PostgresServerConnection pgConn = (com.university.sms.postgresclient.PostgresServerConnection) serverConnection;
+                    metadataResponse = pgConn.sendMetadata();
+                }
 
                 if (metadataResponse != null && metadataResponse.isSuccess()) {
                     Integer serverVersion = (Integer) metadataResponse.getData("client_source_version");
@@ -452,51 +487,29 @@ public class AdminMainFrame extends JFrame {
                         serverVersionStr = serverVersionStr.substring(0, 10);
                     }
 
-                    // Create status message
+                    // Store server version for UI update
+                    metadataResponse.addData("serverVersionStr", serverVersionStr);
+                    metadataResponse.addData("clientVersionStr", clientVersionStr);
+
+                    // Create status message based on syncAction
                     String statusText;
                     Color statusColor;
 
                     if ("UPLOAD_TO_SERVER".equals(syncAction)) {
-                        statusText = String.format("↑ Upload: Client v%s > Server v%s", clientVersionStr,
-                                serverVersionStr);
+                        statusText = "↑ Cần upload";
                         statusColor = new Color(0, 150, 0); // Green
                     } else if ("DOWNLOAD_FROM_SERVER".equals(syncAction)) {
-                        // TỰ ĐỘNG DOWNLOAD khi phát hiện server version mới hơn
-                        statusText = String.format("↓ Download: Server v%s > Client v%s", serverVersionStr,
-                                clientVersionStr);
+                        statusText = "↓ Cần download";
                         statusColor = new Color(0, 100, 200); // Blue
-
-                        // Tự động download
-                        Message downloadResponse = csvConn.syncData("DOWNLOAD_FROM_SERVER");
-                        if (downloadResponse.isSuccess()) {
-                            // Cập nhật lại client version sau khi download
-                            try {
-                                csvDataService = new com.university.sms.csvclient.CSVDataService();
-                                int newClientVersion = csvDataService.getVersion();
-                                String newClientVersionStr = String.valueOf(newClientVersion);
-                                if (newClientVersionStr.length() > 10) {
-                                    newClientVersionStr = newClientVersionStr.substring(0, 10);
-                                }
-                                statusText = String.format("✓ Đã đồng bộ: Client v%s = Server v%s", newClientVersionStr,
-                                        serverVersionStr);
-                                statusColor = new Color(100, 100, 100); // Gray - đã sync
-                            } catch (Exception e) {
-                                statusText = statusText + " (Đã tải về)";
-                                // Ignore nếu không cập nhật được version
-                            }
-                        } else {
-                            statusText = statusText + " (Lỗi: " + downloadResponse.getMessage() + ")";
-                            statusColor = Color.RED;
-                        }
                     } else {
-                        statusText = String.format("✓ Synced: Client v%s = Server v%s", clientVersionStr,
-                                serverVersionStr);
+                        statusText = "✓ Đã đồng bộ";
                         statusColor = new Color(100, 100, 100); // Gray
                     }
 
                     // Store in response for UI update
                     metadataResponse.addData("statusText", statusText);
                     metadataResponse.addData("statusColor", statusColor);
+                    metadataResponse.addData("syncAction", syncAction);
                 }
 
                 return metadataResponse;
@@ -509,7 +522,35 @@ public class AdminMainFrame extends JFrame {
                     if (response != null && response.isSuccess()) {
                         String statusText = (String) response.getData("statusText");
                         Color statusColor = (Color) response.getData("statusColor");
+                        String serverVersionStr = (String) response.getData("serverVersionStr");
+                        String clientVersionStr = (String) response.getData("clientVersionStr");
+                        String syncAction = (String) response.getData("syncAction");
 
+                        // Cập nhật server version label
+                        if (serverVersionStr != null) {
+                            String clientType = "";
+                            if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
+                                clientType = "CSV";
+                            } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+                                clientType = "PostgreSQL";
+                            }
+                            if (!clientType.isEmpty()) {
+                                serverVersionLabel.setText("Server " + clientType + " v" + serverVersionStr);
+                            } else {
+                                serverVersionLabel.setText("Server v" + serverVersionStr);
+                            }
+                        } else {
+                            serverVersionLabel.setText("");
+                        }
+
+                        // Cập nhật client DB version nếu có thay đổi
+                        if (clientVersionStr != null) {
+                            SwingUtilities.invokeLater(() -> {
+                                loadClientDbVersion();
+                            });
+                        }
+
+                        // Cập nhật sync status
                         if (statusText != null) {
                             syncStatusLabel.setText(statusText);
                             if (statusColor != null) {
@@ -517,17 +558,21 @@ public class AdminMainFrame extends JFrame {
                             }
                         }
 
-                        // Cập nhật lại client DB version sau khi download (nếu có thay đổi)
-                        if (statusText != null && statusText.contains("Đã đồng bộ")) {
-                            loadClientDbVersion();
+                        // Thực hiện auto sync nếu cần
+                        if (syncAction != null
+                                && ("UPLOAD_TO_SERVER".equals(syncAction)
+                                        || "DOWNLOAD_FROM_SERVER".equals(syncAction))) {
+                            runAutoSync(syncAction);
                         }
                     } else {
                         syncStatusLabel.setText("Sync: N/A");
                         syncStatusLabel.setForeground(Color.GRAY);
+                        serverVersionLabel.setText("");
                     }
                 } catch (Exception e) {
                     syncStatusLabel.setText("Sync: Error");
                     syncStatusLabel.setForeground(Color.RED);
+                    serverVersionLabel.setText("");
                 }
             }
         };
@@ -654,5 +699,148 @@ public class AdminMainFrame extends JFrame {
         }
 
         super.dispose();
+    }
+
+    /**
+     * Attach sync progress listener để cập nhật trạng thái khi đang upload/download
+     * Sử dụng LoadingOverlay cho loading dialog và SyncStatusListener cho status
+     * label
+     */
+    private void attachSyncProgressListener() {
+        syncStatusListener = new SyncStatusListener();
+
+        if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
+            com.university.sms.csvclient.CSVServerConnection csvConn = (com.university.sms.csvclient.CSVServerConnection) serverConnection;
+            csvConn.setSyncProgressListener(syncStatusListener);
+        } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+            com.university.sms.postgresclient.PostgresServerConnection pgConn = (com.university.sms.postgresclient.PostgresServerConnection) serverConnection;
+            pgConn.setSyncProgressListener(syncStatusListener);
+        }
+    }
+
+    /**
+     * Listener để cập nhật trạng thái sync trong status bar và loading overlay
+     */
+    private class SyncStatusListener implements com.university.sms.csvclient.CSVServerConnection.SyncProgressListener,
+            com.university.sms.postgresclient.PostgresServerConnection.SyncProgressListener {
+        private final com.university.sms.client.gui.common.LoadingOverlay overlay = com.university.sms.client.gui.common.LoadingOverlay
+                .forWindow(AdminMainFrame.this);
+
+        @Override
+        public void onSyncStart(String action) {
+            if (action == null || "NO_SYNC_NEEDED".equals(action)) {
+                return;
+            }
+
+            // Hiển thị loading overlay
+            String title = "Đang đồng bộ dữ liệu";
+            if ("UPLOAD_TO_SERVER".equals(action)) {
+                title = "Đang upload dữ liệu";
+            } else if ("DOWNLOAD_FROM_SERVER".equals(action)) {
+                title = "Đang download dữ liệu từ server";
+            }
+            overlay.show(title, "Đang chuẩn bị...");
+
+            // Cập nhật status label
+            SwingUtilities.invokeLater(() -> {
+                if ("UPLOAD_TO_SERVER".equals(action)) {
+                    syncStatusLabel.setText("↑ Đang upload...");
+                    syncStatusLabel.setForeground(new Color(0, 150, 0)); // Green
+                } else if ("DOWNLOAD_FROM_SERVER".equals(action)) {
+                    syncStatusLabel.setText("↓ Đang download...");
+                    syncStatusLabel.setForeground(new Color(0, 100, 200)); // Blue
+                }
+            });
+        }
+
+        @Override
+        public void onSyncStep(String action, String message) {
+            if (action == null || "NO_SYNC_NEEDED".equals(action)) {
+                return;
+            }
+            overlay.updateMessage(message);
+        }
+
+        @Override
+        public void onSyncCompleted(String action, com.university.sms.common.Message result) {
+            if (action == null || "NO_SYNC_NEEDED".equals(action)) {
+                overlay.hide();
+                return;
+            }
+
+            // Cập nhật loading overlay
+            boolean success = result != null && result.isSuccess();
+            String message;
+            if (result == null) {
+                message = "Kết thúc đồng bộ";
+            } else if (result.getMessage() != null && !result.getMessage().isEmpty()) {
+                message = result.getMessage();
+            } else {
+                message = success ? "Đồng bộ thành công" : "Đồng bộ thất bại";
+            }
+            overlay.complete(message, success);
+
+            // Cập nhật status label
+            SwingUtilities.invokeLater(() -> {
+                if (result != null && result.isSuccess()) {
+                    // Sau khi sync thành công, reload sync status để cập nhật version
+                    loadSyncStatus();
+                } else {
+                    syncStatusLabel.setText("✗ Lỗi: " + (result != null ? result.getMessage() : "Unknown error"));
+                    syncStatusLabel.setForeground(Color.RED);
+                }
+            });
+        }
+    }
+
+    /**
+     * Tự động thực hiện upload hoặc download khi cần
+     */
+    private void runAutoSync(String syncAction) {
+        if (syncAction == null || "NO_SYNC_NEEDED".equals(syncAction) || autoSyncInProgress) {
+            return;
+        }
+
+        autoSyncInProgress = true;
+
+        SwingWorker<Message, Void> syncWorker = new SwingWorker<Message, Void>() {
+            @Override
+            protected Message doInBackground() throws Exception {
+                if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection) {
+                    com.university.sms.csvclient.CSVServerConnection csvConn = (com.university.sms.csvclient.CSVServerConnection) serverConnection;
+                    return csvConn.syncData(syncAction);
+                } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+                    com.university.sms.postgresclient.PostgresServerConnection pgConn = (com.university.sms.postgresclient.PostgresServerConnection) serverConnection;
+                    return pgConn.syncData(syncAction);
+                }
+                return Message.createErrorResponse(Constants.ACTION_SYNC_DATA, "Unsupported client for auto sync");
+            }
+
+            @Override
+            protected void done() {
+                autoSyncInProgress = false;
+                boolean reloadNeeded = true;
+                try {
+                    Message result = get();
+                    if (result == null || !result.isSuccess()) {
+                        syncStatusLabel.setText("✗ Sync lỗi: "
+                                + (result != null && result.getMessage() != null ? result.getMessage()
+                                        : "Unknown error"));
+                        syncStatusLabel.setForeground(Color.RED);
+                        reloadNeeded = true;
+                    }
+                } catch (Exception e) {
+                    syncStatusLabel.setText("✗ Sync lỗi: " + e.getMessage());
+                    syncStatusLabel.setForeground(Color.RED);
+                    reloadNeeded = true;
+                } finally {
+                    if (reloadNeeded) {
+                        loadSyncStatus();
+                    }
+                }
+            }
+        };
+
+        syncWorker.execute();
     }
 }

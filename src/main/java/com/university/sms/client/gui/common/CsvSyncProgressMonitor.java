@@ -7,14 +7,19 @@ import com.university.sms.csvclient.CSVServerConnection;
 import java.awt.*;
 
 /**
- * Bridge between CSVServerConnection sync events and a Swing loading dialog.
+ * Bridge between CSVServerConnection/PostgresServerConnection sync events and a
+ * Swing loading dialog.
  */
-public class CsvSyncProgressMonitor implements CSVServerConnection.SyncProgressListener {
+public class CsvSyncProgressMonitor implements CSVServerConnection.SyncProgressListener,
+    com.university.sms.postgresclient.PostgresServerConnection.SyncProgressListener {
   private final LoadingOverlay overlay;
 
   public static void attach(Window owner, IServerConnection connection) {
+    CsvSyncProgressMonitor monitor = new CsvSyncProgressMonitor(owner);
     if (connection instanceof CSVServerConnection csvConnection) {
-      csvConnection.setSyncProgressListener(new CsvSyncProgressMonitor(owner));
+      csvConnection.setSyncProgressListener(monitor);
+    } else if (connection instanceof com.university.sms.postgresclient.PostgresServerConnection postgresConnection) {
+      postgresConnection.setSyncProgressListener(monitor);
     }
   }
 
@@ -29,7 +34,7 @@ public class CsvSyncProgressMonitor implements CSVServerConnection.SyncProgressL
     }
     String title = "Đang đồng bộ dữ liệu";
     if ("UPLOAD_TO_SERVER".equals(action)) {
-      title = "Đang upload dữ liệu CSV";
+      title = "Đang upload dữ liệu";
     } else if ("DOWNLOAD_FROM_SERVER".equals(action)) {
       title = "Đang download dữ liệu từ server";
     }

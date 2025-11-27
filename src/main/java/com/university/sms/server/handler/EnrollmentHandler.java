@@ -7,6 +7,7 @@ import com.university.sms.model.User;
 import com.university.sms.service.CourseService;
 import com.university.sms.service.StudentService;
 
+import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
@@ -17,18 +18,18 @@ public class EnrollmentHandler {
   private static final Logger LOGGER = Logger.getLogger(EnrollmentHandler.class.getName());
 
   private User currentUser;
-  private final String clientSource;
+  private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
   private final StudentService studentService;
   private final CourseService courseService;
 
   public EnrollmentHandler(User currentUser,
-      String clientSource,
+      Supplier<String> clientSourceSupplier,
       DataOriginHelper dataOriginHelper,
       StudentService studentService,
       CourseService courseService) {
     this.currentUser = currentUser;
-    this.clientSource = clientSource;
+    this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
     this.studentService = studentService;
     this.courseService = courseService;

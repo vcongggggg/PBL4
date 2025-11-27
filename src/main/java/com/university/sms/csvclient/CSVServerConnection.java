@@ -681,6 +681,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (users.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_USERS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + users.size() + " người dùng từ CSV lên server");
       Message request = Message.createRequest(Constants.ACTION_UPLOAD_USERS);
       request.addData("users", users);
@@ -707,6 +708,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (students.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_STUDENTS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + students.size() + " sinh viên từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_STUDENTS");
       request.addData("students", students);
@@ -733,6 +735,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (courses.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_COURSES", "File CSV trống, không có gì để tải lên");
       }
+
       LOGGER.info("Bắt đầu tải lên " + courses.size() + " khóa học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_COURSES");
       request.addData("courses", courses);
@@ -759,6 +762,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (enrollments.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_ENROLLMENTS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + enrollments.size() + " đăng ký học phần từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_ENROLLMENTS");
       request.addData("enrollments", enrollments);
@@ -785,6 +789,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (faculties.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_FACULTIES", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + faculties.size() + " khoa từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_FACULTIES");
       request.addData("faculties", faculties);
@@ -811,6 +816,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (classes.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_CLASSES", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + classes.size() + " lớp từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_CLASSES");
       request.addData("classes", classes);
@@ -837,6 +843,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (subjects.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_SUBJECTS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + subjects.size() + " môn học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_SUBJECTS");
       request.addData("subjects", subjects);
@@ -863,6 +870,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (grades.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_GRADES", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + grades.size() + " điểm từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_GRADES");
       request.addData("grades", grades);
@@ -889,6 +897,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (notifications.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_NOTIFICATIONS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + notifications.size() + " thông báo từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_NOTIFICATIONS");
       request.addData("notifications", notifications);
@@ -915,6 +924,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (requests.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_CLASS_OPENING_REQUESTS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + requests.size() + " yêu cầu mở lớp từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_CLASS_OPENING_REQUESTS");
       request.addData("requests", requests);
@@ -941,6 +951,7 @@ public class CSVServerConnection extends BaseServerConnection {
       if (registrations.isEmpty()) {
         return Message.createSuccessResponse("UPLOAD_COURSE_REGISTRATIONS", "CSV file is empty, nothing to upload");
       }
+
       LOGGER.info("Bắt đầu tải lên " + registrations.size() + " đăng ký khóa học từ CSV lên server");
       Message request = Message.createRequest("UPLOAD_COURSE_REGISTRATIONS");
       request.addData("registrations", registrations);

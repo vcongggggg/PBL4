@@ -47,6 +47,14 @@ public class LoginFrame extends JFrame {
         }
     }
 
+    public static class PostgresConnectionFactory implements ConnectionFactory {
+        @Override
+        public IServerConnection create(String host, int port) {
+            // PostgreSQL client kết nối đến server qua socket để sync
+            return new com.university.sms.postgresclient.PostgresServerConnection(host, port);
+        }
+    }
+
     private static final long serialVersionUID = 1L;
 
     // Components - giữ như cũ
@@ -160,7 +168,14 @@ public class LoginFrame extends JFrame {
         progressBar.setBackground(INPUT_BG);
 
         // Client type
-        String clientType = (connectionFactory instanceof CsvConnectionFactory ? "CSV" : "Regular");
+        String clientType;
+        if (connectionFactory instanceof CsvConnectionFactory) {
+            clientType = "CSV";
+        } else if (connectionFactory instanceof PostgresConnectionFactory) {
+            clientType = "PostgreSQL";
+        } else {
+            clientType = "Regular";
+        }
         clientTypeLabel = new JLabel();
         loadIconLabel(clientTypeLabel, "/icons/client.png", "Loại client: " + clientType, 14);
         clientTypeLabel.setFont(new Font("Segoe UI", Font.PLAIN, 12));
@@ -467,10 +482,13 @@ public class LoginFrame extends JFrame {
         gbc.gridy = 0;
         gbc.gridwidth = 4;
         JLabel t = new JLabel();
-        loadIconLabel(t, "/icons/server.png", "Kết nối Server", 18);
+        boolean isPostgres = connectionFactory instanceof PostgresConnectionFactory;
+        loadIconLabel(t, "/icons/server.png", isPostgres ? "Kết nối Database" : "Kết nối Server", 18);
         t.setFont(new Font("Segoe UI", Font.BOLD, 15));
         t.setForeground(TEXT_PRIMARY);
         p.add(t, gbc);
+
+        // PostgreSQL client cũng cần server/port để kết nối đến server qua socket
 
         // Server field
         gbc.gridwidth = 1;
@@ -676,6 +694,7 @@ public class LoginFrame extends JFrame {
     }
 
     private void connectToServer() {
+        // Tất cả client đều cần host/port để kết nối đến server qua socket
         String host = serverField.getText().trim();
         String portText = portField.getText().trim();
 
@@ -816,10 +835,18 @@ public class LoginFrame extends JFrame {
         if (user != null) {
             // Chuyển sang Light theme cho các màn hình chính
             applyLightThemeForMainApp();
-            
-            if (serverConnection instanceof CSVServerConnection
-                    && user.getRole() == User.UserRole.ADMIN) {
-                performCsvAdminSync(user, (CSVServerConnection) serverConnection);
+
+            // Kiểm tra nếu là CSV hoặc PostgreSQL client và user là ADMIN thì thực hiện
+            // sync
+            if (user.getRole() == User.UserRole.ADMIN) {
+                if (serverConnection instanceof CSVServerConnection) {
+                    performCsvAdminSync(user, (CSVServerConnection) serverConnection);
+                } else if (serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+                    performPostgresAdminSync(user,
+                            (com.university.sms.postgresclient.PostgresServerConnection) serverConnection);
+                } else {
+                    openMainFrameForUser(user);
+                }
             } else {
                 openMainFrameForUser(user);
             }
@@ -859,7 +886,7 @@ public class LoginFrame extends JFrame {
     private void openMainFrameForUser(User user) {
         // Đảm bảo Light theme đã được áp dụng trước khi mở main frame
         applyLightThemeForMainApp();
-        
+
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
             switch (user.getRole()) {
@@ -934,6 +961,75 @@ public class LoginFrame extends JFrame {
                 if (result != null && !result.isSuccess()) {
                     JOptionPane.showMessageDialog(LoginFrame.this,
                             "Lỗi đồng bộ CSV: " + result.getMessage(),
+                            "Lỗi đồng bộ",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+
+                openMainFrameForUser(admin);
+            }
+        };
+
+        worker.execute();
+    }
+
+    private void performPostgresAdminSync(User admin,
+            com.university.sms.postgresclient.PostgresServerConnection postgresConnection) {
+        if (loadingOverlay != null) {
+            loadingOverlay.show("Đang kiểm tra đồng bộ",
+                    "Đang xác minh quyền admin và phiên bản dữ liệu PostgreSQL...");
+        }
+
+        SwingWorker<Message, String> worker = new SwingWorker<Message, String>() {
+            @Override
+            protected Message doInBackground() throws Exception {
+                publish("Đang gửi metadata đến server...");
+                Message metadata = postgresConnection.sendMetadata();
+                if (metadata == null || !metadata.isSuccess()) {
+                    return metadata;
+                }
+
+                String syncAction = (String) metadata.getData("sync_action");
+                if (syncAction == null || "NO_SYNC_NEEDED".equals(syncAction)) {
+                    return Message.createSuccessResponse(Constants.ACTION_SYNC_DATA, "Dữ liệu đã đồng bộ");
+                }
+
+                if ("UPLOAD_TO_SERVER".equals(syncAction)) {
+                    publish("Đang upload dữ liệu PostgreSQL lên server...");
+                } else if ("DOWNLOAD_FROM_SERVER".equals(syncAction)) {
+                    publish("Đang download dữ liệu từ server...");
+                }
+
+                return postgresConnection.syncData(syncAction);
+            }
+
+            @Override
+            protected void process(List<String> chunks) {
+                if (loadingOverlay != null && chunks != null && !chunks.isEmpty()) {
+                    loadingOverlay.updateMessage(chunks.get(chunks.size() - 1));
+                }
+            }
+
+            @Override
+            protected void done() {
+                Message result = null;
+                try {
+                    result = get();
+                } catch (Exception e) {
+                    result = Message.createErrorResponse(Constants.ACTION_SYNC_DATA,
+                            "Lỗi đồng bộ: " + e.getMessage());
+                }
+
+                if (loadingOverlay != null) {
+                    boolean success = result == null || result.isSuccess();
+                    String msg = (result != null && result.getMessage() != null && !result.getMessage().isEmpty())
+                            ? result.getMessage()
+                            : (success ? "Đã kiểm tra đồng bộ" : "Đồng bộ thất bại");
+                    loadingOverlay.complete(msg, success);
+                }
+
+                if (result != null && !result.isSuccess()) {
+                    JOptionPane.showMessageDialog(LoginFrame.this,
+                            "Lỗi đồng bộ PostgreSQL: " + result.getMessage(),
                             "Lỗi đồng bộ",
                             JOptionPane.ERROR_MESSAGE);
                 }

@@ -6,6 +6,7 @@ import com.university.sms.model.User;
 import com.university.sms.service.CourseService;
 
 import java.util.logging.Level;
+import java.util.function.Supplier;
 import java.util.logging.Logger;
 
 /**
@@ -15,18 +16,32 @@ public class CourseHandler {
   private static final Logger LOGGER = Logger.getLogger(CourseHandler.class.getName());
 
   private User currentUser;
-  private final String clientSource;
+  private final Supplier<String> clientSourceSupplier;
   private final DataOriginHelper dataOriginHelper;
   private final CourseService courseService;
 
   public CourseHandler(User currentUser,
-      String clientSource,
+      Supplier<String> clientSourceSupplier,
       DataOriginHelper dataOriginHelper,
       CourseService courseService) {
     this.currentUser = currentUser;
-    this.clientSource = clientSource;
+    this.clientSourceSupplier = clientSourceSupplier;
     this.dataOriginHelper = dataOriginHelper;
     this.courseService = courseService;
+  }
+
+  private void touchCourseDataOrigin(int courseId) {
+    if (courseId <= 0) {
+      return;
+    }
+    String existingSource = dataOriginHelper.getDataOrigin("course", courseId);
+    if (existingSource != null) {
+      dataOriginHelper.updateDataOriginTimestamp("course", courseId);
+    }
+  }
+
+  private String getClientSource() {
+    return clientSourceSupplier != null ? clientSourceSupplier.get() : "UNKNOWN";
   }
 
   public void updateCurrentUser(User currentUser) {
@@ -81,7 +96,7 @@ public class CourseHandler {
     if (ok) {
       // Chỉ lưu source khi admin thêm mới
       if (currentUser.getRole() == User.UserRole.ADMIN) {
-        dataOriginHelper.saveDataOrigin("course", course.getCourseId(), clientSource);
+        dataOriginHelper.saveDataOrigin("course", course.getCourseId(), getClientSource());
       }
       return Message.createSuccessResponse(Constants.ACTION_ADD_COURSE, Constants.MSG_SUCCESS);
     }
@@ -167,6 +182,7 @@ public class CourseHandler {
     try {
       boolean opened = courseService.openRegistration(courseId);
       if (opened) {
+        touchCourseDataOrigin(courseId);
         return Message.createSuccessResponse(request.getAction(), "Đã mở đăng ký cho lớp học phần.");
       }
       return Message.createErrorResponse(request.getAction(),
@@ -189,6 +205,7 @@ public class CourseHandler {
 
     try {
       CourseService.RegistrationClosureResult result = courseService.closeRegistration(courseId);
+      touchCourseDataOrigin(courseId);
       Message response = Message.createSuccessResponse(request.getAction(),
           result.getMessage() != null ? result.getMessage() : Constants.MSG_SUCCESS);
       response.addData("registrations", result.getRegistrations());

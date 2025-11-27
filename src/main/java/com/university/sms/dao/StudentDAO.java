@@ -285,12 +285,12 @@ public class StudentDAO {
      */
     public int countByClassCode(String classCode) {
         String sql = "SELECT COUNT(*) AS total FROM students WHERE class_code = ?";
-        
+
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
-            
+
             stmt.setString(1, classCode);
-            
+
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     return rs.getInt("total");
@@ -299,7 +299,7 @@ public class StudentDAO {
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Lỗi khi đếm sinh viên theo lớp: " + classCode, e);
         }
-        
+
         return 0;
     }
 
@@ -519,7 +519,12 @@ public class StudentDAO {
             try (PreparedStatement userStmt = conn.prepareStatement(userSql)) {
                 userStmt.setString(1, student.getFullName());
                 userStmt.setString(2, student.getEmail());
-                userStmt.setString(3, student.getPhone());
+                // Set phone to null if empty or null
+                if (student.getPhone() != null && !student.getPhone().trim().isEmpty()) {
+                    userStmt.setString(3, student.getPhone().trim());
+                } else {
+                    userStmt.setNull(3, Types.VARCHAR);
+                }
                 userStmt.setBoolean(4, shouldBeActive);
                 userStmt.setString(5, student.getUsername());
                 userStmt.executeUpdate();

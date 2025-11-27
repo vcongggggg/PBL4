@@ -388,7 +388,8 @@ public class CourseRegistrationDAO {
     }
 
     /**
-     * ✅ REFACTORED: Check if student already registered for a course
+     * ✅ REFACTORED: Check if student already registered for a course (excluding
+     * CANCELLED)
      */
     public boolean isAlreadyRegistered(String studentCode, String courseCode) {
         String sql = "SELECT COUNT(*) FROM course_registrations " +
@@ -408,6 +409,32 @@ public class CourseRegistrationDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Lỗi khi kiểm tra đăng ký trùng", e);
+        }
+
+        return false;
+    }
+
+    /**
+     * Kiểm tra xem đã có registration với bất kỳ status nào (kể cả CANCELLED)
+     * Dùng để tránh duplicate khi import từ client
+     */
+    public boolean exists(String studentCode, String courseCode) {
+        String sql = "SELECT COUNT(*) FROM course_registrations " +
+                "WHERE student_code = ? AND course_code = ?";
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql)) {
+
+            pstmt.setString(1, studentCode);
+            pstmt.setString(2, courseCode);
+            ResultSet rs = pstmt.executeQuery();
+
+            if (rs.next()) {
+                return rs.getInt(1) > 0;
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi kiểm tra duplicate registration", e);
         }
 
         return false;
@@ -496,6 +523,44 @@ public class CourseRegistrationDAO {
 
         } catch (SQLException e) {
             LOGGER.log(Level.SEVERE, "Lỗi khi lấy tổng tín chỉ đã đăng ký", e);
+        }
+
+        return 0;
+    }
+
+    /**
+     * Đếm số course_registration với các status được chỉ định cho một course
+     */
+    public int countByCourseAndStatus(String courseCode, CourseRegistration.RegistrationStatus... statuses) {
+        if (statuses == null || statuses.length == 0) {
+            return 0;
+        }
+
+        StringBuilder sql = new StringBuilder(
+                "SELECT COUNT(*) FROM course_registrations WHERE course_code = ? AND registration_status IN (");
+        for (int i = 0; i < statuses.length; i++) {
+            if (i > 0) {
+                sql.append(", ");
+            }
+            sql.append("?");
+        }
+        sql.append(")");
+
+        try (Connection conn = DatabaseConnection.getConnection();
+                PreparedStatement pstmt = conn.prepareStatement(sql.toString())) {
+
+            pstmt.setString(1, courseCode);
+            for (int i = 0; i < statuses.length; i++) {
+                pstmt.setString(i + 2, statuses[i].name());
+            }
+
+            ResultSet rs = pstmt.executeQuery();
+            if (rs.next()) {
+                return rs.getInt(1);
+            }
+
+        } catch (SQLException e) {
+            LOGGER.log(Level.SEVERE, "Lỗi khi đếm course registrations theo course và status", e);
         }
 
         return 0;

@@ -540,6 +540,7 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Khoa:"), gbc);
       gbc.gridx = 1;
       facultyCombo = new JComboBox<>();
+      facultyCombo.addItem(new FacultyItem(null, "-- Chọn khoa --"));
       formPanel.add(facultyCombo, gbc);
 
       // Teacher
@@ -623,7 +624,10 @@ public class ClassPanel extends JPanel {
       SwingWorker<List<User>, Void> teacherWorker = new SwingWorker<List<User>, Void>() {
         @Override
         protected List<User> doInBackground() throws Exception {
-          Message request = Message.createRequest(Constants.ACTION_GET_ALL_TEACHERS);
+          Message request = Message.createRequest(Constants.ACTION_GET_AVAILABLE_CLASS_TEACHERS);
+          if (classEntity != null && classEntity.getClassCode() != null) {
+            request.addData("classCode", classEntity.getClassCode());
+          }
           Message response = serverConnection.sendRequest(request);
           if (response != null && response.isSuccess()) {
             @SuppressWarnings("unchecked")

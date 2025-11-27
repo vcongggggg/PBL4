@@ -34,40 +34,38 @@ import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
 import java.util.function.Consumer;
-import java.util.function.Supplier;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
 /**
- * Handler xử lý các action liên quan đến đồng bộ dữ liệu (sync / upload /
+ * Handler xử lý các action liên quan đến đồng bộ dữ liệu PostgreSQL (upload /
  * download).
+ * Tương tự SyncHandler nhưng hardcode source = "POSTGRES"
  */
-public class SyncHandler {
-  private static final Logger LOGGER = Logger.getLogger(SyncHandler.class.getName());
+public class PostgresHandler {
+  private static final Logger LOGGER = Logger.getLogger(PostgresHandler.class.getName());
+  private static final String SOURCE = "POSTGRES";
 
   private final StudentService studentService;
   private final CourseService courseService;
   private final ClassOpeningRequestService classRequestService;
   private final NotificationService notificationService;
   private final DataOriginHelper dataOriginHelper;
-  private final Supplier<String> clientSourceSupplier;
   private final Consumer<String> clientSourceUpdater;
 
   private User currentUser;
 
-  public SyncHandler(StudentService studentService,
+  public PostgresHandler(StudentService studentService,
       CourseService courseService,
       ClassOpeningRequestService classRequestService,
       NotificationService notificationService,
       DataOriginHelper dataOriginHelper,
-      Supplier<String> clientSourceSupplier,
       Consumer<String> clientSourceUpdater) {
     this.studentService = studentService;
     this.courseService = courseService;
     this.classRequestService = classRequestService;
     this.notificationService = notificationService;
     this.dataOriginHelper = dataOriginHelper;
-    this.clientSourceSupplier = clientSourceSupplier;
     this.clientSourceUpdater = clientSourceUpdater;
   }
 
@@ -75,13 +73,10 @@ public class SyncHandler {
     this.currentUser = user;
   }
 
-  private String getClientSource() {
-    String source = clientSourceSupplier.get();
-    return source != null ? source : "UNKNOWN";
-  }
-
-  private void setClientSource(String source) {
-    clientSourceUpdater.accept(source);
+  private void setClientSource() {
+    if (clientSourceUpdater != null) {
+      clientSourceUpdater.accept(SOURCE);
+    }
   }
 
   public Message handleSyncCheck(Message request) {
@@ -95,8 +90,9 @@ public class SyncHandler {
 
       String clientDbType = (String) clientMetadata.get("database_type");
       if (clientDbType != null && !clientDbType.trim().isEmpty()) {
-        setClientSource(clientDbType.trim().toUpperCase());
+        LOGGER.info("POSTGRES client metadata reported database_type=" + clientDbType);
       }
+      setClientSource();
 
       Object clientVersionObj = clientMetadata.get("db_version");
       int clientVersion = 0;
@@ -121,7 +117,7 @@ public class SyncHandler {
       Map<String, Object> serverMetadata = getServerMetadata();
       int serverVersion = ((Number) serverMetadata.get("db_version")).intValue();
 
-      String currentSource = getClientSource();
+      String currentSource = SOURCE;
       String clientSourceKey = currentSource.toLowerCase() + "_version";
       int clientSourceVersion = 0;
       if (serverMetadata.containsKey(clientSourceKey)) {
@@ -163,34 +159,42 @@ public class SyncHandler {
       response.addData("client_source_version", clientSourceVersion);
       response.addData("server_metadata", serverMetadata);
       response.addData("client_total_records", clientTotalRecords);
+      response.addData("client_source", SOURCE);
       return response;
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi xử lý kiểm tra đồng bộ: " + e.getMessage());
+      LOGGER.severe("Lỗi khi xử lý kiểm tra đồng bộ POSTGRES: " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
       return Message.createErrorResponse(Constants.ACTION_SYNC_CHECK, "Lỗi: " + e.getMessage());
     }
   }
 
+  /**
+   * Download dữ liệu từ server về PostgreSQL client
+   */
   public Message handleDownloadData(Message request) {
     try {
-      String source = getClientSource();
-      if (source == null || "UNKNOWN".equals(source) || "REGULAR".equals(source)) {
-        source = "CSV";
-      }
+      setClientSource();
+      LOGGER.info("Downloading POSTGRES data to client");
 
-      LOGGER.info("Downloading " + source + " data to client");
+      List<Student> students = getStudentsBySource();
+      List<Course> courses = getCoursesBySource();
+      List<Enrollment> enrollments = getEnrollmentsBySource();
+      List<com.university.sms.model.Faculty> faculties = getFacultiesBySource();
+      List<com.university.sms.model.Class> classes = getClassesBySource();
+      List<Subject> subjects = getSubjectsBySource();
+      List<User> users = getUsersBySource();
+      List<Grade> grades = getGradesBySource();
+      List<Notification> notifications = getNotificationsBySource();
+      List<ClassOpeningRequest> classOpeningRequests = getClassOpeningRequestsBySource();
+      List<CourseRegistration> courseRegistrations = getCourseRegistrationsBySource();
 
-      List<Student> students = getStudentsBySource(source);
-      List<Course> courses = getCoursesBySource(source);
-      List<Enrollment> enrollments = getEnrollmentsBySource(source);
-      List<com.university.sms.model.Faculty> faculties = getFacultiesBySource(source);
-      List<com.university.sms.model.Class> classes = getClassesBySource(source);
-      List<Subject> subjects = getSubjectsBySource(source);
-      List<User> users = getUsersBySource(source);
-      List<Grade> grades = getGradesBySource(source);
-      List<Notification> notifications = getNotificationsBySource(source);
-      List<ClassOpeningRequest> classOpeningRequests = getClassOpeningRequestsBySource(source);
-      List<CourseRegistration> courseRegistrations = getCourseRegistrationsBySource(source);
+      LOGGER.info("Server trả về: " +
+          students.size() + " students, " + courses.size() + " courses, " +
+          users.size() + " users, " + faculties.size() + " faculties, " +
+          subjects.size() + " subjects, " + classes.size() + " classes, " +
+          enrollments.size() + " enrollments, " + grades.size() + " grades, " +
+          notifications.size() + " notifications, " +
+          classOpeningRequests.size() + " requests, " + courseRegistrations.size() + " registrations");
 
       Message response = Message.createSuccessResponse(Constants.ACTION_DOWNLOAD_DATA,
           "Downloaded " + students.size() + " students, " + courses.size() + " courses, " +
@@ -211,9 +215,8 @@ public class SyncHandler {
       response.addData("courseRegistrations", courseRegistrations);
 
       Map<String, Object> serverMetadata = getServerMetadata();
-      String versionKey = source.toLowerCase() + "_version";
-      response.addData("client_source_version", serverMetadata.get(versionKey));
-      response.addData("client_source", source);
+      response.addData("client_source_version", serverMetadata.get("postgres_version"));
+      response.addData("client_source", SOURCE);
 
       return response;
     } catch (Exception e) {
@@ -223,6 +226,9 @@ public class SyncHandler {
     }
   }
 
+  /**
+   * Upload users từ PostgreSQL client lên server
+   */
   public Message handleUploadUsers(Message request) {
     try {
       if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
@@ -237,13 +243,12 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_USERS, "No users to upload");
       }
 
-      LOGGER.info("Uploading " + users.size() + " users from client");
+      LOGGER.info("Uploading " + users.size() + " users from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
       UserDAO userDAO = new UserDAO();
       FacultyDAO facultyDAO = new FacultyDAO();
-      String source = getClientSource();
 
       for (User u : users) {
         try {
@@ -301,7 +306,7 @@ public class SyncHandler {
               u.setPhone(normalizedPhone);
             }
             if (facultyOk && userDAO.addUser(u)) {
-              dataOriginHelper.saveDataOrigin("user", u.getUserId(), source);
+              dataOriginHelper.saveDataOrigin("user", u.getUserId(), SOURCE);
               successCount++;
               LOGGER.info("Đã upload user: username=" + u.getUsername() + ", role=" + u.getRole());
             } else {
@@ -328,6 +333,9 @@ public class SyncHandler {
     }
   }
 
+  /**
+   * Upload faculties từ PostgreSQL client lên server
+   */
   public Message handleUploadFaculties(Message request) {
     try {
       if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
@@ -343,12 +351,11 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_FACULTIES, "No faculties to upload");
       }
 
-      LOGGER.info("Uploading " + faculties.size() + " faculties from client");
+      LOGGER.info("Uploading " + faculties.size() + " faculties from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
       FacultyDAO facultyDAO = new FacultyDAO();
-      String source = getClientSource();
 
       for (com.university.sms.model.Faculty f : faculties) {
         try {
@@ -356,13 +363,16 @@ public class SyncHandler {
           if (existing == null) {
             f.setFacultyId(0);
             if (facultyDAO.addFaculty(f)) {
-              dataOriginHelper.saveDataOrigin("faculty", f.getFacultyId(), source);
+              dataOriginHelper.saveDataOrigin("faculty", f.getFacultyId(), SOURCE);
               successCount++;
+              LOGGER.info("Đã upload faculty: " + f.getFacultyCode() + " - " + f.getFacultyName());
             } else {
               failCount++;
               LOGGER.warning(
                   "Failed to save faculty: " + f.getFacultyCode() + " - " + f.getFacultyName());
             }
+          } else {
+            LOGGER.info("Faculty đã tồn tại, bỏ qua: " + f.getFacultyCode() + " - " + f.getFacultyName());
           }
         } catch (Exception ex) {
           failCount++;
@@ -394,14 +404,13 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASSES, "No classes to upload");
       }
 
-      LOGGER.info("Uploading " + classes.size() + " classes from client");
+      LOGGER.info("Uploading " + classes.size() + " classes from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
       ClassDAO classDAO = new ClassDAO();
       UserDAO userDAO = new UserDAO();
       FacultyDAO facultyDAO = new FacultyDAO();
-      String source = getClientSource();
 
       for (com.university.sms.model.Class c : classes) {
         try {
@@ -423,7 +432,6 @@ public class SyncHandler {
               LOGGER.warning("Không thể upload class: teacher không tồn tại - " +
                   "classCode=" + c.getClassCode() + ", teacherUsername=" + c.getTeacherUsername());
             } else {
-              // Kiểm tra role của user phải là TEACHER
               if (existingUser.getRole() != User.UserRole.TEACHER) {
                 userOk = false;
                 LOGGER.warning("Không thể upload class: user không phải là giáo viên - " +
@@ -437,7 +445,7 @@ public class SyncHandler {
           if (existing == null) {
             c.setClassId(0);
             if (facultyOk && userOk && classDAO.save(c)) {
-              dataOriginHelper.saveDataOrigin("class", c.getClassId(), source);
+              dataOriginHelper.saveDataOrigin("class", c.getClassId(), SOURCE);
               successCount++;
             } else {
               failCount++;
@@ -474,7 +482,7 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_STUDENTS, "No students to upload");
       }
 
-      LOGGER.info("Uploading " + students.size() + " students from client");
+      LOGGER.info("Uploading " + students.size() + " students from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
@@ -483,7 +491,6 @@ public class SyncHandler {
       UserDAO userDAO = new UserDAO();
       ClassDAO classDAO = new ClassDAO();
       FacultyDAO facultyDAO = new FacultyDAO();
-      String source = getClientSource();
 
       for (Student student : students) {
         try {
@@ -542,7 +549,6 @@ public class SyncHandler {
             LOGGER.warning("Không thể upload student: user không tồn tại - " +
                 "studentCode=" + student.getStudentCode() + ", username=" + username);
           } else {
-            // Kiểm tra role của user phải là STUDENT
             if (byUsername.getRole() != User.UserRole.STUDENT) {
               userOk = false;
               LOGGER.warning("Không thể upload student: user không phải là sinh viên - " +
@@ -559,17 +565,14 @@ public class SyncHandler {
               classOk = false;
               LOGGER.warning("Không tìm thấy mã lớp: " + student.getClassCode() +
                   " - Sẽ upload sinh viên " + student.getStudentCode() + " không có lớp");
-              // Set classCode = null để upload sinh viên không có lớp
               student.setClassCode(null);
             } else {
-              // Kiểm tra lớp đã đầy chưa
               if (classObj.getMaxStudents() != null) {
                 int currentStudentCount = studentDAO.countByClassCode(student.getClassCode());
                 if (currentStudentCount >= classObj.getMaxStudents()) {
                   LOGGER.warning("Lớp đã đầy (" + currentStudentCount + "/" + classObj.getMaxStudents() +
                       "): " + student.getClassCode() + " - Sẽ upload sinh viên " + student.getStudentCode()
                       + " không có lớp");
-                  // Set classCode = null để upload sinh viên không có lớp thay vì từ chối
                   student.setClassCode(null);
                 }
               }
@@ -588,7 +591,7 @@ public class SyncHandler {
           Student existingStudent = studentDAO.findByStudentCode(student.getStudentCode());
           if (existingStudent == null) {
             if (userOk && classOk && facultyOk && studentDAO.addStudent(student)) {
-              dataOriginHelper.saveDataOrigin("student", student.getStudentId(), source);
+              dataOriginHelper.saveDataOrigin("student", student.getStudentId(), SOURCE);
               successCount++;
             } else {
               failCount++;
@@ -625,13 +628,12 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_SUBJECTS, "No subjects to upload");
       }
 
-      LOGGER.info("Uploading " + subjects.size() + " subjects from client");
+      LOGGER.info("Uploading " + subjects.size() + " subjects from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
       SubjectDAO subjectDAO = new SubjectDAO();
       FacultyDAO facultyDAO = new FacultyDAO();
-      String source = getClientSource();
 
       for (Subject s : subjects) {
         try {
@@ -653,8 +655,6 @@ public class SyncHandler {
                   "Không tìm thấy môn học tiên quyết: " + s.getPrerequisiteSubjectCode() +
                       " cho môn học " + s.getSubjectCode());
             } else {
-              // Kiểm tra circular dependency: nếu prerequisite có prerequisite là subject
-              // hiện tại
               if (prerequisite.getPrerequisiteSubjectCode() != null &&
                   prerequisite.getPrerequisiteSubjectCode().equals(s.getSubjectCode())) {
                 prerequisiteOk = false;
@@ -669,7 +669,7 @@ public class SyncHandler {
           if (existing == null) {
             s.setSubjectId(0);
             if (facultyOk && prerequisiteOk && subjectDAO.save(s)) {
-              dataOriginHelper.saveDataOrigin("subject", s.getSubjectId(), source);
+              dataOriginHelper.saveDataOrigin("subject", s.getSubjectId(), SOURCE);
               successCount++;
               LOGGER.info("Đã upload subject: " + s.getSubjectCode() + " - " + s.getSubjectName());
             } else {
@@ -678,12 +678,11 @@ public class SyncHandler {
               if (!facultyOk)
                 reason += " (không tìm thấy khoa: " + s.getFacultyCode() + ")";
               if (!prerequisiteOk)
-                reason += " (không tìm thấy/circular dependency môn tiên quyết: " +
-                    s.getPrerequisiteSubjectCode() + ")";
-              LOGGER.warning("Không thể lưu subject: " + s.getSubjectCode() + " - " + s.getSubjectName() + reason);
+                reason += " (không tìm thấy môn học tiên quyết: " + s.getPrerequisiteSubjectCode() + ")";
+              LOGGER.warning("Không thể lưu môn học: " + s.getSubjectCode() + reason);
             }
           } else {
-            LOGGER.info("Subject đã tồn tại, bỏ qua: " + s.getSubjectCode());
+            LOGGER.info("Subject đã tồn tại, bỏ qua: " + s.getSubjectCode() + " - " + s.getSubjectName());
           }
         } catch (Exception ex) {
           failCount++;
@@ -715,7 +714,7 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSES, "No courses to upload");
       }
 
-      LOGGER.info("Đang tải lên " + courses.size() + " khóa học từ client");
+      LOGGER.info("Đang tải lên " + courses.size() + " khóa học từ PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
@@ -723,7 +722,6 @@ public class SyncHandler {
       SubjectDAO subjectDAO = new SubjectDAO();
       ClassDAO classDAO = new ClassDAO();
       UserDAO userDAO = new UserDAO();
-      String source = getClientSource();
 
       for (Course course : courses) {
         try {
@@ -755,7 +753,6 @@ public class SyncHandler {
               LOGGER.warning("Không thể upload course: teacher không tồn tại - " +
                   "courseCode=" + course.getCourseCode() + ", teacherUsername=" + course.getTeacherUsername());
             } else {
-              // Kiểm tra role của user phải là TEACHER
               if (existingUser.getRole() != User.UserRole.TEACHER) {
                 userOk = false;
                 LOGGER.warning("Không thể upload course: user không phải là giáo viên - " +
@@ -765,8 +762,6 @@ public class SyncHandler {
             }
           }
 
-          // Kiểm tra trùng lịch học (schedule_day, schedule_time, room) với các course
-          // khác
           boolean scheduleConflict = false;
           if (course.getScheduleDay() != null && !course.getScheduleDay().isEmpty() &&
               course.getScheduleTime() != null && !course.getScheduleTime().isEmpty() &&
@@ -781,7 +776,6 @@ public class SyncHandler {
             }
           }
 
-          // Kiểm tra maxStudents > currentStudents
           boolean capacityOk = true;
           if (course.getMaxStudents() <= 0) {
             capacityOk = false;
@@ -799,7 +793,7 @@ public class SyncHandler {
           if (existing == null) {
             if (subjectOk && classOk && userOk && !scheduleConflict && capacityOk && courseDAO.addCourse(course)) {
               if (course.getCourseId() > 0) {
-                dataOriginHelper.saveDataOrigin("course", course.getCourseId(), source);
+                dataOriginHelper.saveDataOrigin("course", course.getCourseId(), SOURCE);
                 successCount++;
                 LOGGER.info("Đã tải lên thành công khóa học: " + course.getCourseCode());
               } else {
@@ -857,7 +851,7 @@ public class SyncHandler {
             "No enrollments to upload");
       }
 
-      LOGGER.info("Uploading " + enrollments.size() + " enrollments from client");
+      LOGGER.info("Uploading " + enrollments.size() + " enrollments from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
@@ -865,8 +859,6 @@ public class SyncHandler {
       StudentDAO studentDAO = new StudentDAO();
       CourseDAO courseDAO = new CourseDAO();
       CourseRegistrationDAO courseRegistrationDAO = new CourseRegistrationDAO();
-      String source = getClientSource();
-      // Set để lưu các course cần cập nhật currentStudents sau khi upload xong
       java.util.Set<String> coursesToUpdate = new java.util.HashSet<>();
 
       for (Enrollment e : enrollments) {
@@ -897,7 +889,6 @@ public class SyncHandler {
             continue;
           }
 
-          // Kiểm tra xem enrollment status có tính vào currentStudents không
           boolean countsAsEnrolled = (e.getEnrollmentStatus() == Enrollment.EnrollmentStatus.ENROLLED ||
               e.getEnrollmentStatus() == Enrollment.EnrollmentStatus.COMPLETED ||
               e.getEnrollmentStatus() == Enrollment.EnrollmentStatus.FAILED);
@@ -910,16 +901,12 @@ public class SyncHandler {
           }
 
           if (existingEnrollment != null) {
-            // Update enrollment hiện tại
             Enrollment.EnrollmentStatus oldStatus = existingEnrollment.getEnrollmentStatus();
             boolean oldCountsAsEnrolled = (oldStatus == Enrollment.EnrollmentStatus.ENROLLED ||
                 oldStatus == Enrollment.EnrollmentStatus.COMPLETED ||
                 oldStatus == Enrollment.EnrollmentStatus.FAILED);
 
-            // Nếu status cũ không tính nhưng status mới tính, cần kiểm tra course đã đầy
-            // chưa
             if (!oldCountsAsEnrolled && countsAsEnrolled) {
-              // Đếm số enrollments hiện tại với status ENROLLED/COMPLETED/FAILED
               int currentEnrolledCount = enrollmentDAO.countByCourse(e.getCourseCode().trim());
               if (currentEnrolledCount >= course.getMaxStudents()) {
                 failCount++;
@@ -946,10 +933,7 @@ public class SyncHandler {
             continue;
           }
 
-          // Enrollment mới
-          // Nếu status tính vào currentStudents, kiểm tra course đã đầy chưa
           if (countsAsEnrolled) {
-            // Đếm số enrollments hiện tại với status ENROLLED/COMPLETED/FAILED
             int currentEnrolledCount = enrollmentDAO.countByCourse(e.getCourseCode().trim());
             if (currentEnrolledCount >= course.getMaxStudents()) {
               failCount++;
@@ -959,8 +943,6 @@ public class SyncHandler {
               continue;
             }
 
-            // Kiểm tra schedule conflict với các enrollment/registration khác của cùng
-            // student
             if (courseRegistrationDAO.hasScheduleConflict(e.getStudentCode().trim(), e.getCourseCode().trim())) {
               failCount++;
               LOGGER.warning("Không thể thêm enrollment: xung đột lịch học - studentCode=" +
@@ -968,7 +950,6 @@ public class SyncHandler {
               continue;
             }
 
-            // Kiểm tra credits limit (MAX_CREDITS_PER_SEMESTER = 24)
             int currentCredits = courseRegistrationDAO.getTotalCredits(
                 e.getStudentCode().trim(),
                 course.getAcademicYear(),
@@ -986,7 +967,7 @@ public class SyncHandler {
           e.setEnrollmentId(0);
           boolean ok = enrollmentDAO.save(e);
           if (ok && e.getEnrollmentId() > 0) {
-            dataOriginHelper.saveDataOrigin("enrollment", e.getEnrollmentId(), source);
+            dataOriginHelper.saveDataOrigin("enrollment", e.getEnrollmentId(), SOURCE);
             successCount++;
             if (countsAsEnrolled) {
               coursesToUpdate.add(e.getCourseCode().trim());
@@ -1004,7 +985,6 @@ public class SyncHandler {
         }
       }
 
-      // Cập nhật currentStudents cho tất cả các course đã được upload enrollments
       for (String courseCode : coursesToUpdate) {
         try {
           int actualCount = enrollmentDAO.countByCourse(courseCode);
@@ -1043,17 +1023,15 @@ public class SyncHandler {
         return Message.createErrorResponse(Constants.ACTION_UPLOAD_GRADES, "No grades to upload");
       }
 
-      LOGGER.info("Uploading " + grades.size() + " grades from client");
+      LOGGER.info("Uploading " + grades.size() + " grades from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
       GradeDAO gradeDAO = new GradeDAO();
       EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-      String source = getClientSource();
 
       for (Grade g : grades) {
         try {
-          // Kiểm tra enrollment tồn tại
           Enrollment enrollment = enrollmentDAO.findByStudentAndCourse(
               g.getStudentCode(), g.getCourseCode());
           if (enrollment == null) {
@@ -1063,7 +1041,6 @@ public class SyncHandler {
             continue;
           }
 
-          // Kiểm tra grade value hợp lệ
           if (g.getScore() == null || g.getMaxScore() == null) {
             failCount++;
             LOGGER.warning("Không thể upload grade: điểm không được để trống - studentCode=" +
@@ -1107,7 +1084,6 @@ public class SyncHandler {
             continue;
           }
 
-          // Kiểm tra weight hợp lệ (nếu có)
           if (g.getWeight() != null) {
             if (g.getWeight().compareTo(java.math.BigDecimal.ZERO) <= 0 ||
                 g.getWeight().compareTo(java.math.BigDecimal.ONE) > 0) {
@@ -1148,7 +1124,7 @@ public class SyncHandler {
           if (!exists) {
             g.setGradeId(0);
             if (gradeDAO.save(g)) {
-              dataOriginHelper.saveDataOrigin("grade", g.getGradeId(), source);
+              dataOriginHelper.saveDataOrigin("grade", g.getGradeId(), SOURCE);
               successCount++;
             } else {
               failCount++;
@@ -1168,249 +1144,6 @@ public class SyncHandler {
     }
   }
 
-  public Message handleUploadClassOpeningRequests(Message request) {
-    try {
-      if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
-        return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
-            "Không có quyền truy cập");
-      }
-
-      @SuppressWarnings("unchecked")
-      List<ClassOpeningRequest> requests = (List<ClassOpeningRequest>) request
-          .getData("requests");
-
-      if (requests == null || requests.isEmpty()) {
-        return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
-            "No class opening requests to upload");
-      }
-
-      LOGGER.info("Uploading " + requests.size() + " class opening requests from client");
-
-      int successCount = 0;
-      int failCount = 0;
-      ClassOpeningRequestService service = classRequestService;
-      com.university.sms.dao.ClassOpeningRequestDAO requestDAO = new com.university.sms.dao.ClassOpeningRequestDAO();
-      String source = getClientSource();
-
-      for (ClassOpeningRequest r : requests) {
-        try {
-          // Kiểm tra teacher tồn tại
-          UserDAO userDAO = new UserDAO();
-          User teacher = userDAO.findByUsername(r.getTeacherUsername());
-          if (teacher == null) {
-            failCount++;
-            LOGGER.warning("Không thể upload class opening request: teacher không tồn tại - " +
-                "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode());
-            continue;
-          }
-
-          // Kiểm tra subject tồn tại
-          SubjectDAO subjectDAO = new SubjectDAO();
-          Subject subject = subjectDAO.findByCode(r.getSubjectCode());
-          if (subject == null) {
-            failCount++;
-            LOGGER.warning("Không thể upload class opening request: subject không tồn tại - " +
-                "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode());
-            continue;
-          }
-
-          // Kiểm tra schedule conflict với các course/request khác (nếu có schedule)
-          if (r.getScheduleDay() != null && !r.getScheduleDay().isEmpty() &&
-              r.getScheduleTime() != null && !r.getScheduleTime().isEmpty() &&
-              r.getRoom() != null && !r.getRoom().isEmpty()) {
-            CourseDAO courseDAO = new CourseDAO();
-            List<Course> conflictingCourses = courseDAO.findByScheduleAndRoom(
-                r.getScheduleDay(), r.getScheduleTime(), r.getRoom());
-            if (!conflictingCourses.isEmpty()) {
-              failCount++;
-              LOGGER.warning("Không thể upload class opening request: trùng lịch học - " +
-                  "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode() +
-                  ", schedule=" + r.getScheduleDay() + " " + r.getScheduleTime() + ", room=" + r.getRoom());
-              continue;
-            }
-          }
-
-          List<ClassOpeningRequest> existingRequests = requestDAO.findByTeacher(r.getTeacherUsername());
-          boolean exists = false;
-          for (ClassOpeningRequest existing : existingRequests) {
-            if (r.getSubjectCode() != null && r.getSubjectCode().equals(existing.getSubjectCode()) &&
-                r.getAcademicYear() != null && r.getAcademicYear().equals(existing.getAcademicYear()) &&
-                r.getSemester() == existing.getSemester() &&
-                ((r.getScheduleDay() == null && existing.getScheduleDay() == null) ||
-                    (r.getScheduleDay() != null
-                        && r.getScheduleDay().equals(existing.getScheduleDay())))
-                &&
-                ((r.getScheduleTime() == null && existing.getScheduleTime() == null) ||
-                    (r.getScheduleTime() != null
-                        && r.getScheduleTime().equals(existing.getScheduleTime())))) {
-              exists = true;
-              LOGGER.info(
-                  "ClassOpeningRequest already exists, skipping: teacher=" + r.getTeacherUsername() +
-                      ", subject=" + r.getSubjectCode() + ", year=" + r.getAcademicYear() +
-                      ", semester=" + r.getSemester());
-              break;
-            }
-          }
-
-          if (!exists) {
-            r.setRequestId(0);
-            if (service.submitRequest(r)) {
-              dataOriginHelper.saveDataOrigin("class_opening_request", r.getRequestId(), source);
-              successCount++;
-            } else {
-              failCount++;
-            }
-          }
-        } catch (Exception ex) {
-          failCount++;
-          LOGGER.log(Level.SEVERE, "Lỗi khi tải lên class opening request", ex);
-        }
-      }
-
-      String message = createUploadMessage("class opening requests", successCount, failCount);
-      return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS, message);
-    } catch (Exception e) {
-      LOGGER.severe("Lỗi khi xử lý tải lên class opening requests: " + e.getMessage());
-      return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
-          "Error: " + e.getMessage());
-    }
-  }
-
-  public Message handleUploadCourseRegistrations(Message request) {
-    try {
-      if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
-        return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
-            "Không có quyền truy cập");
-      }
-
-      @SuppressWarnings("unchecked")
-      List<CourseRegistration> registrations = (List<CourseRegistration>) request
-          .getData("registrations");
-
-      if (registrations == null || registrations.isEmpty()) {
-        return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
-            "No course registrations to upload");
-      }
-
-      LOGGER.info("Uploading " + registrations.size() + " course registrations from client");
-
-      int successCount = 0;
-      int failCount = 0;
-      CourseRegistrationDAO dao = new CourseRegistrationDAO();
-      CourseDAO courseDAO = new CourseDAO();
-      EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
-      String source = getClientSource();
-      // Set để lưu các course cần cập nhật currentStudents sau khi upload xong
-      java.util.Set<String> coursesToUpdate = new java.util.HashSet<>();
-      final int MAX_CREDITS_PER_SEMESTER = 24;
-
-      for (CourseRegistration r : registrations) {
-        try {
-          // Kiểm tra nếu status là APPROVED, cần kiểm tra course đã đầy chưa
-          Course course = null;
-          if (r.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
-            course = courseDAO.findByCourseCode(r.getCourseCode());
-            if (course != null) {
-              // Đếm số enrollments hiện tại với status ENROLLED/COMPLETED/FAILED
-              int currentEnrolledCount = enrollmentDAO.countByCourse(r.getCourseCode());
-              if (currentEnrolledCount >= course.getMaxStudents()) {
-                failCount++;
-                LOGGER.warning("Không thể upload course registration với status APPROVED: khóa học đã đầy (" +
-                    currentEnrolledCount + "/" + course.getMaxStudents() +
-                    ") - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
-                continue;
-              }
-
-              // Kiểm tra schedule conflict
-              if (dao.hasScheduleConflict(r.getStudentCode(), r.getCourseCode())) {
-                failCount++;
-                LOGGER.warning("Không thể upload course registration: xung đột lịch học - studentCode=" +
-                    r.getStudentCode() + ", courseCode=" + r.getCourseCode());
-                continue;
-              }
-
-              // Kiểm tra credits limit
-              int currentCredits = dao.getTotalCredits(
-                  r.getStudentCode(),
-                  course.getAcademicYear(),
-                  course.getSemester());
-              int courseCredits = course.getCredits();
-              if (currentCredits + courseCredits > MAX_CREDITS_PER_SEMESTER) {
-                failCount++;
-                LOGGER.warning("Không thể upload course registration: vượt quá số tín chỉ tối đa (" +
-                    MAX_CREDITS_PER_SEMESTER + ") - Hiện tại: " + currentCredits + ", Khóa học: " + courseCredits +
-                    " - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
-                continue;
-              }
-            }
-          }
-
-          boolean exists = false;
-          try (Connection conn = DatabaseConnection.getConnection();
-              PreparedStatement checkStmt = conn.prepareStatement(
-                  "SELECT COUNT(*) FROM course_registrations WHERE student_code = ? AND course_code = ?")) {
-            checkStmt.setString(1, r.getStudentCode());
-            checkStmt.setString(2, r.getCourseCode());
-            try (ResultSet rs = checkStmt.executeQuery()) {
-              if (rs.next() && rs.getInt(1) > 0) {
-                exists = true;
-                LOGGER.info("CourseRegistration đã tồn tại, bỏ qua: student="
-                    + r.getStudentCode() +
-                    ", course=" + r.getCourseCode());
-              }
-            }
-          } catch (Exception checkEx) {
-            LOGGER.warning("Lỗi khi kiểm tra trùng lặp course registration: " + checkEx.getMessage());
-          }
-
-          if (!exists) {
-            r.setRegistrationId(0);
-            if (dao.save(r)) {
-              dataOriginHelper.saveDataOrigin("course_registration", r.getRegistrationId(), source);
-              successCount++;
-              // Nếu status là APPROVED, database trigger có thể tự động tạo enrollment
-              // Cần cập nhật currentStudents sau khi upload xong
-              if (r.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
-                coursesToUpdate.add(r.getCourseCode());
-              }
-              LOGGER.info("Đã upload course registration: studentCode=" + r.getStudentCode() +
-                  ", courseCode=" + r.getCourseCode() + ", status=" + r.getRegistrationStatus());
-            } else {
-              failCount++;
-              LOGGER.warning("Không thể lưu course registration: studentCode=" + r.getStudentCode() +
-                  ", courseCode=" + r.getCourseCode());
-            }
-          }
-        } catch (Exception ex) {
-          failCount++;
-          LOGGER.log(Level.SEVERE, "Lỗi khi tải lên course registration", ex);
-        }
-      }
-
-      // Cập nhật currentStudents cho tất cả các course có registration status
-      // APPROVED
-      for (String courseCode : coursesToUpdate) {
-        try {
-          int actualCount = enrollmentDAO.countByCourse(courseCode);
-          Course course = courseDAO.findByCourseCode(courseCode);
-          if (course != null) {
-            courseDAO.updateCurrentStudents(course.getCourseId(), actualCount);
-            LOGGER.info("Đã cập nhật currentStudents cho khóa học " + courseCode + ": " + actualCount);
-          }
-        } catch (Exception ex) {
-          LOGGER.warning("Lỗi khi cập nhật currentStudents cho khóa học " + courseCode + ": " + ex.getMessage());
-        }
-      }
-
-      String message = createUploadMessage("course registrations", successCount, failCount);
-      return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS, message);
-    } catch (Exception e) {
-      LOGGER.severe("Lỗi khi xử lý tải lên course registrations: " + e.getMessage());
-      return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
-          "Error: " + e.getMessage());
-    }
-  }
-
   public Message handleUploadNotifications(Message request) {
     try {
       if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
@@ -1427,13 +1160,11 @@ public class SyncHandler {
             "No notifications to upload");
       }
 
-      LOGGER.info("Uploading " + notifications.size() + " notifications from client");
+      LOGGER.info("Uploading " + notifications.size() + " notifications from PostgreSQL client");
 
       int successCount = 0;
       int failCount = 0;
-      NotificationService service = notificationService;
       UserDAO userDAO = new UserDAO();
-      String source = getClientSource();
 
       for (Notification notification : notifications) {
         try {
@@ -1448,7 +1179,6 @@ public class SyncHandler {
             }
           }
 
-          // Kiểm tra targetType và targetCode hợp lệ
           boolean targetOk = true;
           if (notification.getTargetType() != null && notification.getTargetType() != Notification.TargetType.ALL) {
             String targetCode = notification.getTargetCode();
@@ -1519,8 +1249,8 @@ public class SyncHandler {
 
           if (!exists && userOk) {
             notification.setNotificationId(0);
-            if (service.createNotification(notification)) {
-              dataOriginHelper.saveDataOrigin("notification", notification.getNotificationId(), source);
+            if (notificationService.createNotification(notification)) {
+              dataOriginHelper.saveDataOrigin("notification", notification.getNotificationId(), SOURCE);
               successCount++;
             } else {
               failCount++;
@@ -1543,101 +1273,337 @@ public class SyncHandler {
     }
   }
 
-  private Map<String, Object> getServerMetadata() {
-    Map<String, Object> metadata = new HashMap<>();
-
+  public Message handleUploadClassOpeningRequests(Message request) {
     try {
-      int studentCount = studentService.getTotalCount();
-      int courseCount = courseService.getTotalCount();
-
-      int dbVersion = getServerVersion();
-
-      List<String> sources = getAvailableSources();
-
-      for (String source : sources) {
-        int sourceVersion = getDataVersionBySource(source);
-        int sourceStudentCount = getDataCountBySource("student", source);
-        int sourceCourseCount = getDataCountBySource("course", source);
-        int sourceEnrollmentCount = getDataCountBySource("enrollment", source);
-        int sourceFacultyCount = getDataCountBySource("faculty", source);
-        int sourceClassCount = getDataCountBySource("class", source);
-        int sourceSubjectCount = getDataCountBySource("subject", source);
-        int sourceTotalRecords = sourceStudentCount + sourceCourseCount + sourceEnrollmentCount +
-            sourceFacultyCount + sourceClassCount + sourceSubjectCount;
-
-        String sourceKey = source.toLowerCase();
-        metadata.put(sourceKey + "_version", sourceVersion);
-        metadata.put(sourceKey + "_student_count", sourceStudentCount);
-        metadata.put(sourceKey + "_course_count", sourceCourseCount);
-        metadata.put(sourceKey + "_enrollment_count", sourceEnrollmentCount);
-        metadata.put(sourceKey + "_faculty_count", sourceFacultyCount);
-        metadata.put(sourceKey + "_class_count", sourceClassCount);
-        metadata.put(sourceKey + "_subject_count", sourceSubjectCount);
-        metadata.put(sourceKey + "_total_records", sourceTotalRecords);
+      if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+        return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
+            "Không có quyền truy cập");
       }
 
-      metadata.put("db_version", dbVersion);
-      metadata.put("student_count", studentCount);
-      metadata.put("course_count", courseCount);
-      metadata.put("total_records", studentCount + courseCount);
+      @SuppressWarnings("unchecked")
+      List<ClassOpeningRequest> requests = (List<ClassOpeningRequest>) request
+          .getData("requests");
 
+      if (requests == null || requests.isEmpty()) {
+        return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
+            "No class opening requests to upload");
+      }
+
+      LOGGER.info("Uploading " + requests.size() + " class opening requests from PostgreSQL client");
+
+      int successCount = 0;
+      int failCount = 0;
+      com.university.sms.dao.ClassOpeningRequestDAO requestDAO = new com.university.sms.dao.ClassOpeningRequestDAO();
+
+      for (ClassOpeningRequest r : requests) {
+        try {
+          UserDAO userDAO = new UserDAO();
+          User teacher = userDAO.findByUsername(r.getTeacherUsername());
+          if (teacher == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload class opening request: teacher không tồn tại - " +
+                "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode());
+            continue;
+          }
+
+          SubjectDAO subjectDAO = new SubjectDAO();
+          Subject subject = subjectDAO.findByCode(r.getSubjectCode());
+          if (subject == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload class opening request: subject không tồn tại - " +
+                "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode());
+            continue;
+          }
+
+          if (r.getScheduleDay() != null && !r.getScheduleDay().isEmpty() &&
+              r.getScheduleTime() != null && !r.getScheduleTime().isEmpty() &&
+              r.getRoom() != null && !r.getRoom().isEmpty()) {
+            CourseDAO courseDAO = new CourseDAO();
+            List<Course> conflictingCourses = courseDAO.findByScheduleAndRoom(
+                r.getScheduleDay(), r.getScheduleTime(), r.getRoom());
+            if (!conflictingCourses.isEmpty()) {
+              failCount++;
+              LOGGER.warning("Không thể upload class opening request: trùng lịch học - " +
+                  "teacherUsername=" + r.getTeacherUsername() + ", subjectCode=" + r.getSubjectCode() +
+                  ", schedule=" + r.getScheduleDay() + " " + r.getScheduleTime() + ", room=" + r.getRoom());
+              continue;
+            }
+          }
+
+          List<ClassOpeningRequest> existingRequests = requestDAO.findByTeacher(r.getTeacherUsername());
+          boolean exists = false;
+          for (ClassOpeningRequest existing : existingRequests) {
+            if (r.getSubjectCode() != null && r.getSubjectCode().equals(existing.getSubjectCode()) &&
+                r.getAcademicYear() != null && r.getAcademicYear().equals(existing.getAcademicYear()) &&
+                r.getSemester() == existing.getSemester() &&
+                ((r.getScheduleDay() == null && existing.getScheduleDay() == null) ||
+                    (r.getScheduleDay() != null
+                        && r.getScheduleDay().equals(existing.getScheduleDay())))
+                &&
+                ((r.getScheduleTime() == null && existing.getScheduleTime() == null) ||
+                    (r.getScheduleTime() != null
+                        && r.getScheduleTime().equals(existing.getScheduleTime())))) {
+              exists = true;
+              LOGGER.info(
+                  "ClassOpeningRequest already exists, skipping: teacher=" + r.getTeacherUsername() +
+                      ", subject=" + r.getSubjectCode() + ", year=" + r.getAcademicYear() +
+                      ", semester=" + r.getSemester());
+              break;
+            }
+          }
+
+          if (!exists) {
+            r.setRequestId(0);
+            if (classRequestService.submitRequest(r)) {
+              dataOriginHelper.saveDataOrigin("class_opening_request", r.getRequestId(), SOURCE);
+              successCount++;
+            } else {
+              failCount++;
+            }
+          }
+        } catch (Exception ex) {
+          failCount++;
+          LOGGER.log(Level.SEVERE, "Lỗi khi tải lên class opening request", ex);
+        }
+      }
+
+      String message = createUploadMessage("class opening requests", successCount, failCount);
+      return Message.createSuccessResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS, message);
     } catch (Exception e) {
-      LOGGER.warning("Lỗi khi lấy metadata server: " + e.getMessage());
-      LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
-      metadata.put("db_version", 1);
-      metadata.put("student_count", 0);
-      metadata.put("course_count", 0);
-      metadata.put("total_records", 0);
+      LOGGER.severe("Lỗi khi xử lý tải lên class opening requests: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_UPLOAD_CLASS_OPENING_REQUESTS,
+          "Error: " + e.getMessage());
     }
+  }
 
+  public Message handleUploadCourseRegistrations(Message request) {
+    try {
+      if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+        return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
+            "Không có quyền truy cập");
+      }
+
+      @SuppressWarnings("unchecked")
+      List<CourseRegistration> registrations = (List<CourseRegistration>) request
+          .getData("registrations");
+
+      if (registrations == null || registrations.isEmpty()) {
+        return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
+            "No course registrations to upload");
+      }
+
+      LOGGER.info("Uploading " + registrations.size() + " course registrations from PostgreSQL client");
+
+      int successCount = 0;
+      int failCount = 0;
+      CourseRegistrationDAO dao = new CourseRegistrationDAO();
+      CourseDAO courseDAO = new CourseDAO();
+      EnrollmentDAO enrollmentDAO = new EnrollmentDAO();
+      java.util.Set<String> coursesToUpdate = new java.util.HashSet<>();
+      final int MAX_CREDITS_PER_SEMESTER = 24;
+
+      for (CourseRegistration r : registrations) {
+        try {
+          // Kiểm tra duplicate: nếu đã có registration với BẤT KỲ status nào thì skip
+          // (kể cả CANCELLED) để tránh conflict
+          if (dao.exists(r.getStudentCode(), r.getCourseCode())) {
+            LOGGER.info("CourseRegistration đã tồn tại (duplicate), bỏ qua: student="
+                + r.getStudentCode() +
+                ", course=" + r.getCourseCode());
+            continue;
+          }
+
+          Course course = courseDAO.findByCourseCode(r.getCourseCode());
+          if (course == null) {
+            failCount++;
+            LOGGER.warning("Không thể upload course registration: khóa học không tồn tại - " +
+                "courseCode=" + r.getCourseCode());
+            continue;
+          }
+
+          // Kiểm tra khóa học có đang mở đăng ký không
+          if (course.getRegistrationStatus() != Course.RegistrationStatus.OPEN) {
+            failCount++;
+            LOGGER.warning("Không thể upload course registration: khóa học không mở đăng ký (status=" +
+                course.getRegistrationStatus() + ") - studentCode=" + r.getStudentCode() +
+                ", courseCode=" + r.getCourseCode());
+            continue;
+          }
+
+          // Kiểm tra số lượng registration (PENDING + APPROVED) không vượt quá
+          // max_students
+          int currentRegistrationsCount = dao.countByCourseAndStatus(r.getCourseCode(),
+              CourseRegistration.RegistrationStatus.PENDING,
+              CourseRegistration.RegistrationStatus.APPROVED);
+          if (currentRegistrationsCount >= course.getMaxStudents()) {
+            failCount++;
+            LOGGER.warning("Không thể upload course registration: số lượng đăng ký đã đầy (" +
+                currentRegistrationsCount + "/" + course.getMaxStudents() +
+                ") - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+            continue;
+          }
+
+          // Validation chỉ áp dụng cho APPROVED status
+          if (r.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
+            int currentEnrolledCount = enrollmentDAO.countByCourse(r.getCourseCode());
+            if (currentEnrolledCount >= course.getMaxStudents()) {
+              failCount++;
+              LOGGER.warning("Không thể upload course registration với status APPROVED: khóa học đã đầy (" +
+                  currentEnrolledCount + "/" + course.getMaxStudents() +
+                  ") - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+              continue;
+            }
+
+            if (dao.hasScheduleConflict(r.getStudentCode(), r.getCourseCode())) {
+              failCount++;
+              LOGGER.warning("Không thể upload course registration: xung đột lịch học - studentCode=" +
+                  r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+              continue;
+            }
+
+            int currentCredits = dao.getTotalCredits(
+                r.getStudentCode(),
+                course.getAcademicYear(),
+                course.getSemester());
+            int courseCredits = course.getCredits();
+            if (currentCredits + courseCredits > MAX_CREDITS_PER_SEMESTER) {
+              failCount++;
+              LOGGER.warning("Không thể upload course registration: vượt quá số tín chỉ tối đa (" +
+                  MAX_CREDITS_PER_SEMESTER + ") - Hiện tại: " + currentCredits + ", Khóa học: " + courseCredits +
+                  " - studentCode=" + r.getStudentCode() + ", courseCode=" + r.getCourseCode());
+              continue;
+            }
+          }
+
+          r.setRegistrationId(0);
+          if (dao.save(r)) {
+            // Kiểm tra xem có thực sự insert được không (INSERT IGNORE có thể không insert
+            // nếu duplicate)
+            CourseRegistration inserted = dao.findByStudentAndCourse(r.getStudentCode(), r.getCourseCode());
+            if (inserted != null) {
+              r.setRegistrationId(inserted.getRegistrationId());
+              dataOriginHelper.saveDataOrigin("course_registration", r.getRegistrationId(), SOURCE);
+              successCount++;
+              if (r.getRegistrationStatus() == CourseRegistration.RegistrationStatus.APPROVED) {
+                coursesToUpdate.add(r.getCourseCode());
+              }
+              LOGGER.info("Đã upload course registration: studentCode=" + r.getStudentCode() +
+                  ", courseCode=" + r.getCourseCode() + ", status=" + r.getRegistrationStatus());
+            } else {
+              // INSERT IGNORE đã skip do duplicate (có thể do race condition)
+              LOGGER.info("CourseRegistration đã tồn tại (duplicate key), bỏ qua: student="
+                  + r.getStudentCode() + ", course=" + r.getCourseCode());
+            }
+          } else {
+            failCount++;
+            LOGGER.warning("Không thể lưu course registration: studentCode=" + r.getStudentCode() +
+                ", courseCode=" + r.getCourseCode());
+          }
+        } catch (Exception ex) {
+          failCount++;
+          LOGGER.log(Level.SEVERE, "Lỗi khi tải lên course registration", ex);
+        }
+      }
+
+      for (String courseCode : coursesToUpdate) {
+        try {
+          int actualCount = enrollmentDAO.countByCourse(courseCode);
+          Course course = courseDAO.findByCourseCode(courseCode);
+          if (course != null) {
+            courseDAO.updateCurrentStudents(course.getCourseId(), actualCount);
+            LOGGER.info("Đã cập nhật currentStudents cho khóa học " + courseCode + ": " + actualCount);
+          }
+        } catch (Exception ex) {
+          LOGGER.warning("Lỗi khi cập nhật currentStudents cho khóa học " + courseCode + ": " + ex.getMessage());
+        }
+      }
+
+      String message = createUploadMessage("course registrations", successCount, failCount);
+      return Message.createSuccessResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS, message);
+    } catch (Exception e) {
+      LOGGER.severe("Lỗi khi xử lý tải lên course registrations: " + e.getMessage());
+      return Message.createErrorResponse(Constants.ACTION_UPLOAD_COURSE_REGISTRATIONS,
+          "Error: " + e.getMessage());
+    }
+  }
+
+  // ==================== HELPER METHODS ====================
+
+  private String createUploadMessage(String entityName, int successCount, int failCount) {
+    if (failCount == 0) {
+      return "Đã upload thành công " + successCount + " " + entityName;
+    } else {
+      return "Đã upload " + successCount + " " + entityName + ", thất bại " + failCount;
+    }
+  }
+
+  private boolean isValidEmailFormat(String email) {
+    return email.matches("^[A-Za-z0-9+_.-]+@[A-Za-z0-9.-]+\\.[A-Za-z]{2,}$");
+  }
+
+  private boolean isValidPhoneFormat(String phone) {
+    return phone.matches("^[0-9]{10,11}$");
+  }
+
+  private String normalizePhoneNumber(String phone) {
+    return phone.replaceAll("[^0-9]", "");
+  }
+
+  private Map<String, Object> getServerMetadata() {
+    Map<String, Object> metadata = new HashMap<>();
+    try {
+      int postgresVersion = getDataVersionBySource();
+      metadata.put("postgres_version", postgresVersion);
+      metadata.put("db_version", postgresVersion);
+      metadata.put("postgres_student_count", getDataCountBySource("student"));
+      metadata.put("postgres_course_count", getDataCountBySource("course"));
+      metadata.put("postgres_enrollment_count", getDataCountBySource("enrollment"));
+      metadata.put("postgres_faculty_count", getDataCountBySource("faculty"));
+      metadata.put("postgres_class_count", getDataCountBySource("class"));
+      metadata.put("postgres_subject_count", getDataCountBySource("subject"));
+    } catch (Exception e) {
+      LOGGER.log(Level.WARNING, "Lỗi khi lấy server metadata", e);
+    }
     return metadata;
   }
 
-  private List<String> getAvailableSources() {
-    List<String> sources = new ArrayList<>();
-    String sql = "SELECT DISTINCT source FROM data_origin WHERE source IS NOT NULL ORDER BY source";
-    try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(sql);
-        ResultSet rs = stmt.executeQuery()) {
-      while (rs.next()) {
-        sources.add(rs.getString("source"));
-      }
-    } catch (Exception e) {
-      LOGGER.warning("Lỗi khi lấy danh sách nguồn dữ liệu: " + e.getMessage());
-      LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
-    }
-    return sources;
-  }
-
-  private int getDataCountBySource(String entityType, String source) {
-    String tableName = getTableName(entityType);
-    String entityIdColumn = getEntityIdColumn(entityType);
-
-    String sql = "SELECT COUNT(*) as count FROM " + tableName + " e " +
-        "JOIN data_origin dor ON dor.entity_type = ? AND dor.entity_id = e." + entityIdColumn + " " +
-        "WHERE dor.source = ?";
-
+  private int getDataCountBySource(String entityType) {
+    String sql = "SELECT COUNT(*) as cnt FROM data_origin WHERE entity_type = ? AND source = ?";
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
       stmt.setString(1, entityType);
-      stmt.setString(2, source);
+      stmt.setString(2, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         if (rs.next()) {
-          return rs.getInt("count");
+          return rs.getInt("cnt");
         }
       }
     } catch (Exception e) {
-      LOGGER.warning("Lỗi khi đếm số lượng " + entityType + " với nguồn " + source + ": " + e.getMessage());
-      LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
+      LOGGER.log(Level.WARNING, "Lỗi khi đếm " + entityType + " theo nguồn " + SOURCE, e);
     }
     return 0;
   }
 
-  private int getDataVersionBySource(String source) {
+  private int getDataVersionBySource() {
+    String sql = "SELECT CAST(config_value AS UNSIGNED) as version FROM system_config WHERE config_key = 'postgres_version'";
+    try (Connection conn = DatabaseConnection.getConnection();
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        ResultSet rs = stmt.executeQuery()) {
+      if (rs.next()) {
+        return rs.getInt("version");
+      }
+    } catch (Exception e) {
+      LOGGER.log(Level.WARNING, "Lỗi khi lấy version theo nguồn " + SOURCE, e);
+    }
+    // Fallback: tính version từ data_origin timestamp
+    return getDataVersionBySourceFromDataOrigin();
+  }
+
+  private int getDataVersionBySourceFromDataOrigin() {
     String sql = "SELECT MAX(UNIX_TIMESTAMP(updated_at)) as last_update FROM data_origin WHERE source = ?";
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         if (rs.next()) {
           long timestamp = rs.getLong("last_update");
@@ -1647,174 +1613,43 @@ public class SyncHandler {
         }
       }
     } catch (Exception e) {
-      LOGGER.warning("Lỗi khi lấy timestamp cập nhật cuối cho nguồn " + source + ": " + e.getMessage());
-      LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
+      LOGGER.log(Level.WARNING, "Lỗi khi lấy timestamp từ data_origin cho nguồn " + SOURCE, e);
     }
-
-    int total = getDataCountBySource("student", source) + getDataCountBySource("course", source) +
-        getDataCountBySource("enrollment", source) + getDataCountBySource("faculty", source) +
-        getDataCountBySource("class", source) + getDataCountBySource("subject", source);
-    return total;
+    return 0;
   }
 
-  private String getTableName(String entityType) {
-    switch (entityType) {
-      case "student":
-        return "students";
-      case "course":
-        return "courses";
-      case "enrollment":
-        return "enrollments";
-      case "faculty":
-        return "faculties";
-      case "class":
-        return "classes";
-      case "subject":
-        return "subjects";
-      case "grade":
-        return "grades";
-      case "notification":
-        return "notifications";
-      case "class_opening_request":
-        return "class_opening_requests";
-      case "course_registration":
-        return "course_registrations";
-      case "user":
-        return "users";
-      default:
-        return entityType + "s";
-    }
-  }
-
-  private String getEntityIdColumn(String entityType) {
-    switch (entityType) {
-      case "student":
-        return "student_id";
-      case "course":
-        return "course_id";
-      case "enrollment":
-        return "enrollment_id";
-      case "faculty":
-        return "faculty_id";
-      case "class":
-        return "class_id";
-      case "subject":
-        return "subject_id";
-      case "grade":
-        return "grade_id";
-      case "notification":
-        return "notification_id";
-      case "class_opening_request":
-        return "request_id";
-      case "course_registration":
-        return "registration_id";
-      case "user":
-        return "user_id";
-      default:
-        return entityType + "_id";
-    }
-  }
-
-  private int getServerVersion() {
-    try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(
-            "SELECT CAST(config_value AS UNSIGNED) as version FROM system_config WHERE config_key = 'db_version'");
-        ResultSet rs = stmt.executeQuery()) {
-      if (rs.next()) {
-        return rs.getInt("version");
-      }
-
-      try (PreparedStatement insertStmt = conn.prepareStatement(
-          "INSERT INTO system_config (config_key, config_value, description) "
-              + "VALUES ('db_version', '1', 'Database version')")) {
-        insertStmt.executeUpdate();
-      }
-      return 1;
-    } catch (Exception e) {
-      LOGGER.warning("Error getting server version: " + e.getMessage());
-      return 1;
-    }
-  }
-
-  private String createUploadMessage(String entityName, int successCount, int failCount) {
-    if (failCount == 0) {
-      return String.format("Uploaded %d %s successfully", successCount, entityName);
-    } else if (successCount == 0) {
-      return String.format("Uploaded 0 %s successfully, %d failed", entityName, failCount);
-    } else {
-      return String.format("Uploaded %d %s successfully, %d failed", successCount, entityName, failCount);
-    }
-  }
-
-  private boolean isValidEmailFormat(String email) {
-    if (email == null || email.trim().isEmpty()) {
-      return false;
-    }
-    String emailRegex = "^[a-zA-Z0-9_+&*-]+(?:\\.[a-zA-Z0-9_+&*-]+)*@(?:[a-zA-Z0-9-]+\\.)+[a-zA-Z]{2,7}$";
-    return email.trim().matches(emailRegex);
-  }
-
-  private boolean isValidPhoneFormat(String phone) {
-    if (phone == null || phone.trim().isEmpty()) {
-      return false;
-    }
-    String phoneStr = phone.trim();
-    String normalized = phoneStr.replaceAll("[^0-9+]", "");
-    if (normalized.isEmpty()) {
-      return false;
-    }
-    if (normalized.matches("^0[0-9]{9}$")) {
-      return true;
-    }
-    if (normalized.matches("^\\+84[0-9]{9}$")) {
-      return true;
-    }
-    if (normalized.matches("^[1-9][0-9]{9}$")) {
-      return true;
-    }
-    return false;
-  }
-
-  private String normalizePhoneNumber(String phone) {
-    if (phone == null || phone.trim().isEmpty()) {
-      return phone;
-    }
-    return phone.trim().replaceAll("[^0-9+]", "");
-  }
-
-  private List<Student> getStudentsBySource(String source) {
-    String sql = "SELECT s.*, u.full_name, u.email, u.phone, u.address, u.is_active, " +
-        "f.faculty_name, c.class_name " +
-        "FROM students s " +
-        "LEFT JOIN users u ON s.username = u.username " +
-        "LEFT JOIN faculties f ON s.faculty_code = f.faculty_code " +
-        "LEFT JOIN classes c ON s.class_code = c.class_code " +
+  // Get data by source methods - tương tự SyncHandler
+  private List<Student> getStudentsBySource() {
+    String sql = "SELECT s.* FROM students s " +
         "JOIN data_origin dor ON dor.entity_type = 'student' AND dor.entity_id = s.student_id " +
-        "WHERE dor.source = ? " +
-        "ORDER BY s.student_id";
+        "WHERE dor.source = ?";
+    return getStudentsBySourceQuery(sql);
+  }
 
+  private List<Student> getStudentsBySourceQuery(String sql) {
     List<Student> students = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           Student student = new Student();
-          int studentId = rs.getInt("student_id");
-          student.setStudentId(studentId);
+          student.setStudentId(rs.getInt("student_id"));
           student.setUsername(rs.getString("username"));
           student.setStudentCode(rs.getString("student_code"));
-          String classCode = rs.getString("class_code");
-          if (!rs.wasNull()) {
-            student.setClassCode(classCode);
-          }
+          student.setClassCode(rs.getString("class_code"));
           student.setFacultyCode(rs.getString("faculty_code"));
-          student.setAdmissionYear(rs.getInt("admission_year"));
+          String admissionYear = rs.getString("admission_year");
+          if (admissionYear != null && !admissionYear.trim().isEmpty()) {
+            try {
+              student.setAdmissionYear(Integer.parseInt(admissionYear.trim()));
+            } catch (NumberFormatException e) {
+              // Ignore invalid admission year
+            }
+          }
           String status = rs.getString("student_status");
           if (status != null) {
-            student.setStudentStatus(
-                Student.StudentStatus.valueOf(status.toUpperCase()));
+            student.setStudentStatus(Student.StudentStatus.valueOf(status.toUpperCase()));
           }
           student.setGpa(rs.getBigDecimal("gpa"));
           student.setTotalCredits(rs.getInt("total_credits"));
@@ -1827,96 +1662,78 @@ public class SyncHandler {
           student.setEmergencyContact(rs.getString("emergency_contact"));
           student.setEmergencyPhone(rs.getString("emergency_phone"));
           student.setCreatedAt(rs.getTimestamp("created_at"));
-          student.setFullName(rs.getString("full_name"));
-          student.setEmail(rs.getString("email"));
-          student.setPhone(rs.getString("phone"));
-          student.setAddress(rs.getString("address"));
-          try {
-            if (rs.getObject("is_active") != null) {
-              student.setActive(rs.getBoolean("is_active"));
-            } else {
-              student.setActive(true);
-            }
-          } catch (java.sql.SQLException e) {
-            student.setActive(true);
-          }
-          student.setFacultyName(rs.getString("faculty_name"));
-          student.setClassName(rs.getString("class_name"));
           students.add(student);
         }
       }
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách sinh viên theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách sinh viên theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
     return students;
   }
 
-  private List<Course> getCoursesBySource(String source) {
+  private List<Course> getCoursesBySource() {
     String sql = "SELECT c.*, sub.subject_name, sub.subject_code, sub.credits, " +
         "u.full_name AS teacher_name, cl.class_name " +
         "FROM courses c " +
         "JOIN subjects sub ON c.subject_code = sub.subject_code " +
         "JOIN users u ON c.teacher_username = u.username " +
-        "LEFT JOIN classes cl ON c.class_code = cl.class_code " +
-        "JOIN data_origin dor ON dor.entity_type = 'course' AND dor.entity_id = c.course_id " +
-        "WHERE dor.source = ?";
-
+        "LEFT JOIN classes cl ON c.class_code = cl.class_code";
     List<Course> courses = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
-      try (ResultSet rs = stmt.executeQuery()) {
-        while (rs.next()) {
-          Course course = new Course();
-          course.setCourseId(rs.getInt("course_id"));
-          course.setCourseCode(rs.getString("course_code"));
-          course.setSubjectCode(rs.getString("subject_code"));
-          course.setTeacherUsername(rs.getString("teacher_username"));
-          String classCode = rs.getString("class_code");
-          if (!rs.wasNull()) {
-            course.setClassCode(classCode);
-          }
-          course.setAcademicYear(rs.getString("academic_year"));
-          course.setSemester(rs.getInt("semester"));
-          course.setScheduleDay(rs.getString("schedule_day"));
-          course.setScheduleTime(rs.getString("schedule_time"));
-          course.setRoom(rs.getString("room"));
-          course.setMaxStudents(rs.getInt("max_students"));
-          course.setCurrentStudents(rs.getInt("current_students"));
-          String status = rs.getString("course_status");
-          if (status != null) {
-            course.setCourseStatus(
-                Course.CourseStatus.valueOf(status.toUpperCase()));
-          }
-          course.setStartDate(rs.getDate("start_date"));
-          course.setEndDate(rs.getDate("end_date"));
-          course.setSubjectName(rs.getString("subject_name"));
-          course.setCredits(rs.getInt("credits"));
-          course.setTeacherName(rs.getString("teacher_name"));
-          course.setClassName(rs.getString("class_name"));
-          courses.add(course);
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        ResultSet rs = stmt.executeQuery()) {
+      while (rs.next()) {
+        Course course = new Course();
+        course.setCourseId(rs.getInt("course_id"));
+        course.setCourseCode(rs.getString("course_code"));
+        course.setSubjectCode(rs.getString("subject_code"));
+        course.setTeacherUsername(rs.getString("teacher_username"));
+        String classCode = rs.getString("class_code");
+        if (!rs.wasNull()) {
+          course.setClassCode(classCode);
         }
+        course.setAcademicYear(rs.getString("academic_year"));
+        course.setSemester(rs.getInt("semester"));
+        course.setScheduleDay(rs.getString("schedule_day"));
+        course.setScheduleTime(rs.getString("schedule_time"));
+        course.setRoom(rs.getString("room"));
+        course.setMaxStudents(rs.getInt("max_students"));
+        course.setCurrentStudents(rs.getInt("current_students"));
+        String regStatus = rs.getString("registration_status");
+        if (regStatus != null) {
+          course.setRegistrationStatus(Course.RegistrationStatus.valueOf(regStatus.toUpperCase()));
+        }
+        String courseStatus = rs.getString("course_status");
+        if (courseStatus != null) {
+          course.setCourseStatus(Course.CourseStatus.valueOf(courseStatus.toUpperCase()));
+        }
+        course.setStartDate(rs.getDate("start_date"));
+        course.setEndDate(rs.getDate("end_date"));
+        course.setCreatedAt(rs.getTimestamp("created_at"));
+        // Related information from joins
+        course.setSubjectName(rs.getString("subject_name"));
+        course.setCredits(rs.getInt("credits"));
+        course.setTeacherName(rs.getString("teacher_name"));
+        course.setClassName(rs.getString("class_name"));
+        courses.add(course);
       }
+      LOGGER.info("Found " + courses.size() + " courses for download");
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách khóa học theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách khóa học theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return courses;
   }
 
-  private List<Enrollment> getEnrollmentsBySource(String source) {
+  private List<Enrollment> getEnrollmentsBySource() {
     String sql = "SELECT e.* FROM enrollments e " +
         "JOIN data_origin dor ON dor.entity_type = 'enrollment' AND dor.entity_id = e.enrollment_id " +
         "WHERE dor.source = ?";
-
     List<Enrollment> enrollments = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           Enrollment enrollment = new Enrollment();
@@ -1924,22 +1741,10 @@ public class SyncHandler {
           enrollment.setStudentCode(rs.getString("student_code"));
           enrollment.setCourseCode(rs.getString("course_code"));
           enrollment.setEnrollmentDate(rs.getTimestamp("enrollment_date"));
-
           String status = rs.getString("enrollment_status");
-          if (status != null && !status.trim().isEmpty()) {
-            try {
-              enrollment.setEnrollmentStatus(
-                  Enrollment.EnrollmentStatus.valueOf(status.toUpperCase()));
-            } catch (IllegalArgumentException e) {
-              LOGGER.warning("Enrollment status không hợp lệ: " + status + " cho enrollment ID: "
-                  + enrollment.getEnrollmentId() + ", dùng ENROLLED làm mặc định");
-              enrollment
-                  .setEnrollmentStatus(Enrollment.EnrollmentStatus.ENROLLED);
-            }
-          } else {
-            enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.ENROLLED);
+          if (status != null) {
+            enrollment.setEnrollmentStatus(Enrollment.EnrollmentStatus.valueOf(status.toUpperCase()));
           }
-
           enrollment.setFinalGrade(rs.getBigDecimal("final_grade"));
           enrollment.setLetterGrade(rs.getString("letter_grade"));
           enrollment.setGradePoints(rs.getBigDecimal("grade_points"));
@@ -1947,153 +1752,134 @@ public class SyncHandler {
         }
       }
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách đăng ký học phần theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách đăng ký học phần theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return enrollments;
   }
 
-  private List<com.university.sms.model.Faculty> getFacultiesBySource(String source) {
-    String sql = "SELECT f.* FROM faculties f " +
-        "JOIN data_origin dor ON dor.entity_type = 'faculty' AND dor.entity_id = f.faculty_id " +
-        "WHERE dor.source = ?";
-
+  private List<com.university.sms.model.Faculty> getFacultiesBySource() {
+    String sql = "SELECT f.* FROM faculties f";
     List<com.university.sms.model.Faculty> faculties = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
-      try (ResultSet rs = stmt.executeQuery()) {
-        while (rs.next()) {
-          com.university.sms.model.Faculty faculty = new com.university.sms.model.Faculty();
-          faculty.setFacultyId(rs.getInt("faculty_id"));
-          faculty.setFacultyCode(rs.getString("faculty_code"));
-          faculty.setFacultyName(rs.getString("faculty_name"));
-          faculty.setDescription(rs.getString("description"));
-          faculties.add(faculty);
-        }
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        ResultSet rs = stmt.executeQuery()) {
+      while (rs.next()) {
+        com.university.sms.model.Faculty faculty = new com.university.sms.model.Faculty();
+        faculty.setFacultyId(rs.getInt("faculty_id"));
+        faculty.setFacultyCode(rs.getString("faculty_code"));
+        faculty.setFacultyName(rs.getString("faculty_name"));
+        faculty.setDescription(rs.getString("description"));
+        faculty.setCreatedAt(rs.getTimestamp("created_at"));
+        faculties.add(faculty);
       }
+      LOGGER.info("Found " + faculties.size() + " faculties for download");
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách khoa theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách khoa theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return faculties;
   }
 
-  private List<com.university.sms.model.Class> getClassesBySource(String source) {
-    String sql = "SELECT c.* FROM classes c " +
-        "JOIN data_origin dor ON dor.entity_type = 'class' AND dor.entity_id = c.class_id " +
-        "WHERE dor.source = ?";
-
+  private List<com.university.sms.model.Class> getClassesBySource() {
+    String sql = "SELECT c.* FROM classes c";
     List<com.university.sms.model.Class> classes = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
-      try (ResultSet rs = stmt.executeQuery()) {
-        while (rs.next()) {
-          com.university.sms.model.Class classEntity = new com.university.sms.model.Class();
-          classEntity.setClassId(rs.getInt("class_id"));
-          classEntity.setClassCode(rs.getString("class_code"));
-          classEntity.setClassName(rs.getString("class_name"));
-          classEntity.setFacultyCode(rs.getString("faculty_code"));
-          classEntity.setTeacherUsername(rs.getString("teacher_username"));
-          classEntity.setAcademicYear(rs.getString("academic_year"));
-          classEntity.setSemester(rs.getInt("semester"));
-          classEntity.setMaxStudents(rs.getInt("max_students"));
-          classes.add(classEntity);
-        }
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        ResultSet rs = stmt.executeQuery()) {
+      while (rs.next()) {
+        com.university.sms.model.Class clazz = new com.university.sms.model.Class();
+        clazz.setClassId(rs.getInt("class_id"));
+        clazz.setClassCode(rs.getString("class_code"));
+        clazz.setClassName(rs.getString("class_name"));
+        clazz.setFacultyCode(rs.getString("faculty_code"));
+        clazz.setTeacherUsername(rs.getString("teacher_username"));
+        clazz.setAcademicYear(rs.getString("academic_year"));
+        clazz.setSemester(rs.getInt("semester"));
+        clazz.setMaxStudents(rs.getInt("max_students"));
+        clazz.setCreatedAt(rs.getTimestamp("created_at"));
+        classes.add(clazz);
       }
+      LOGGER.info("Found " + classes.size() + " classes for download");
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách lớp theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách lớp theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return classes;
   }
 
-  private List<Subject> getSubjectsBySource(String source) {
-    String sql = "SELECT s.*, f.faculty_name FROM subjects s " +
-        "LEFT JOIN faculties f ON s.faculty_code = f.faculty_code " +
-        "JOIN data_origin dor ON dor.entity_type = 'subject' AND dor.entity_id = s.subject_id " +
-        "WHERE dor.source = ?";
-
+  private List<Subject> getSubjectsBySource() {
+    String sql = "SELECT s.* FROM subjects s";
     List<Subject> subjects = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
-      try (ResultSet rs = stmt.executeQuery()) {
-        while (rs.next()) {
-          Subject subject = new Subject();
-          subject.setSubjectId(rs.getInt("subject_id"));
-          subject.setSubjectCode(rs.getString("subject_code"));
-          subject.setSubjectName(rs.getString("subject_name"));
-          subject.setCredits(rs.getInt("credits"));
-          subject.setFacultyCode(rs.getString("faculty_code"));
-          subject.setPrerequisiteSubjectCode(rs.getString("prerequisite_subject_code"));
-          subject.setDescription(rs.getString("description"));
-          subject.setRequired(rs.getBoolean("is_required"));
-          subject.setFacultyName(rs.getString("faculty_name"));
-          subjects.add(subject);
-        }
+        PreparedStatement stmt = conn.prepareStatement(sql);
+        ResultSet rs = stmt.executeQuery()) {
+      while (rs.next()) {
+        Subject subject = new Subject();
+        subject.setSubjectId(rs.getInt("subject_id"));
+        subject.setSubjectCode(rs.getString("subject_code"));
+        subject.setSubjectName(rs.getString("subject_name"));
+        subject.setCredits(rs.getInt("credits"));
+        subject.setFacultyCode(rs.getString("faculty_code"));
+        subject.setPrerequisiteSubjectCode(rs.getString("prerequisite_subject_code"));
+        subject.setDescription(rs.getString("description"));
+        subject.setRequired(rs.getBoolean("is_required"));
+        subject.setCreatedAt(rs.getTimestamp("created_at"));
+        subjects.add(subject);
       }
+      LOGGER.info("Found " + subjects.size() + " subjects for download");
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách môn học theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách môn học theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return subjects;
   }
 
-  private List<User> getUsersBySource(String source) {
+  private List<User> getUsersBySource() {
     String sql = "SELECT u.* FROM users u " +
         "JOIN data_origin dor ON dor.entity_type = 'user' AND dor.entity_id = u.user_id " +
         "WHERE dor.source = ?";
-
     List<User> users = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
+      LOGGER.info("Querying users with source = '" + SOURCE + "'");
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           User user = new User();
           user.setUserId(rs.getInt("user_id"));
           user.setUsername(rs.getString("username"));
           user.setPassword(rs.getString("password"));
-          user.setFullName(rs.getString("full_name"));
           user.setEmail(rs.getString("email"));
-          user.setPhone(rs.getString("phone"));
-          user.setAddress(rs.getString("address"));
+          user.setFullName(rs.getString("full_name"));
           String role = rs.getString("role");
           if (role != null) {
             user.setRole(User.UserRole.valueOf(role.toUpperCase()));
           }
+          user.setPhone(rs.getString("phone"));
+          user.setAddress(rs.getString("address"));
+          user.setFacultyCode(rs.getString("faculty_code"));
           user.setActive(rs.getBoolean("is_active"));
+          user.setCreatedAt(rs.getTimestamp("created_at"));
           users.add(user);
         }
       }
+      LOGGER.info("Found " + users.size() + " users with source = '" + SOURCE + "'");
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách người dùng theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách người dùng theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return users;
   }
 
-  private List<Grade> getGradesBySource(String source) {
+  private List<Grade> getGradesBySource() {
     String sql = "SELECT g.* FROM grades g " +
         "JOIN data_origin dor ON dor.entity_type = 'grade' AND dor.entity_id = g.grade_id " +
         "WHERE dor.source = ?";
-
     List<Grade> grades = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           Grade grade = new Grade();
@@ -2114,23 +1900,20 @@ public class SyncHandler {
         }
       }
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách điểm theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách điểm theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return grades;
   }
 
-  private List<Notification> getNotificationsBySource(String source) {
+  private List<Notification> getNotificationsBySource() {
     String sql = "SELECT n.* FROM notifications n " +
         "JOIN data_origin dor ON dor.entity_type = 'notification' AND dor.entity_id = n.notification_id " +
         "WHERE dor.source = ?";
-
     List<Notification> notifications = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           Notification notification = new Notification();
@@ -2156,24 +1939,20 @@ public class SyncHandler {
         }
       }
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách thông báo theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách thông báo theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return notifications;
   }
 
-  private List<ClassOpeningRequest> getClassOpeningRequestsBySource(String source) {
+  private List<ClassOpeningRequest> getClassOpeningRequestsBySource() {
     String sql = "SELECT cor.* FROM class_opening_requests cor " +
-        "JOIN data_origin dor ON dor.entity_type = 'class_opening_request' AND dor.entity_id = cor.request_id "
-        +
+        "JOIN data_origin dor ON dor.entity_type = 'class_opening_request' AND dor.entity_id = cor.request_id " +
         "WHERE dor.source = ?";
-
     List<ClassOpeningRequest> requests = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           ClassOpeningRequest request = new ClassOpeningRequest();
@@ -2201,24 +1980,20 @@ public class SyncHandler {
         }
       }
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách yêu cầu mở lớp theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách yêu cầu mở lớp theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return requests;
   }
 
-  private List<CourseRegistration> getCourseRegistrationsBySource(String source) {
+  private List<CourseRegistration> getCourseRegistrationsBySource() {
     String sql = "SELECT cr.* FROM course_registrations cr " +
-        "JOIN data_origin dor ON dor.entity_type = 'course_registration' AND dor.entity_id = cr.registration_id "
-        +
+        "JOIN data_origin dor ON dor.entity_type = 'course_registration' AND dor.entity_id = cr.registration_id " +
         "WHERE dor.source = ?";
-
     List<CourseRegistration> registrations = new ArrayList<>();
-
     try (Connection conn = DatabaseConnection.getConnection();
         PreparedStatement stmt = conn.prepareStatement(sql)) {
-      stmt.setString(1, source);
+      stmt.setString(1, SOURCE);
       try (ResultSet rs = stmt.executeQuery()) {
         while (rs.next()) {
           CourseRegistration registration = new CourseRegistration();
@@ -2239,10 +2014,9 @@ public class SyncHandler {
         }
       }
     } catch (Exception e) {
-      LOGGER.severe("Lỗi khi lấy danh sách đăng ký khóa học theo nguồn '" + source + "': " + e.getMessage());
+      LOGGER.severe("Lỗi khi lấy danh sách đăng ký khóa học theo nguồn '" + SOURCE + "': " + e.getMessage());
       LOGGER.log(Level.SEVERE, "Chi tiết lỗi", e);
     }
-
     return registrations;
   }
 }

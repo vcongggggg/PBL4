@@ -209,6 +209,48 @@ public class ClassDAO {
   }
 
   /**
+   * Lấy danh sách lớp còn trống (chưa đầy)
+   * 
+   * @param facultyCode Nếu không null, chỉ lấy lớp của khoa này
+   * @return Danh sách lớp còn trống
+   */
+  public List<com.university.sms.model.Class> findAvailableClasses(String facultyCode) {
+    String sql = "SELECT c.*, f.faculty_name, u.full_name AS teacher_name, " +
+        "COALESCE(COUNT(s.student_id), 0) AS current_student_count " +
+        "FROM classes c " +
+        "LEFT JOIN faculties f ON c.faculty_code = f.faculty_code " +
+        "LEFT JOIN users u ON c.teacher_username = u.username " +
+        "LEFT JOIN students s ON c.class_code = s.class_code " +
+        (facultyCode != null && !facultyCode.trim().isEmpty() ? "WHERE c.faculty_code = ? " : "") +
+        "GROUP BY c.class_id, c.class_code, c.class_name, c.faculty_code, c.teacher_username, " +
+        "c.academic_year, c.semester, c.max_students, c.created_at, f.faculty_name, u.full_name " +
+        "HAVING (c.max_students IS NULL OR COALESCE(COUNT(s.student_id), 0) < c.max_students) " +
+        "ORDER BY c.academic_year DESC, c.semester DESC, c.class_name";
+
+    List<com.university.sms.model.Class> classes = new ArrayList<>();
+
+    try (Connection conn = DatabaseConnection.getConnection();
+        PreparedStatement stmt = conn.prepareStatement(sql)) {
+
+      if (facultyCode != null && !facultyCode.trim().isEmpty()) {
+        stmt.setString(1, facultyCode);
+      }
+
+      try (ResultSet rs = stmt.executeQuery()) {
+        while (rs.next()) {
+          com.university.sms.model.Class classEntity = mapResultSetToClass(rs);
+          classes.add(classEntity);
+        }
+      }
+
+    } catch (SQLException e) {
+      LOGGER.log(Level.SEVERE, "Error finding available classes", e);
+    }
+
+    return classes;
+  }
+
+  /**
    * Tìm class theo ID
    */
   public com.university.sms.model.Class findById(int classId) {

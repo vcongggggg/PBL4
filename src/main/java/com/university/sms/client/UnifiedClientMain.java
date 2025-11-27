@@ -19,8 +19,8 @@ public class UnifiedClientMain {
     // Chọn factory theo mode
     LoginFrame.ConnectionFactory factory = switch (mode.toLowerCase()) {
       case "csv" -> new LoginFrame.CsvConnectionFactory();
-      case "access" -> new LoginFrame.CsvConnectionFactory();
-      case "pg" -> new LoginFrame.RegularConnectionFactory();
+      case "postgres" -> new LoginFrame.PostgresConnectionFactory();
+      case "pg" -> new LoginFrame.PostgresConnectionFactory();
       default -> new LoginFrame.RegularConnectionFactory();
     };
 
@@ -33,10 +33,10 @@ public class UnifiedClientMain {
     SwingUtilities.invokeLater(() -> {
       try {
         // Apply theme manager
-        com.university.sms.client.gui.common.ThemeManager themeManager = 
-            com.university.sms.client.gui.common.ThemeManager.getInstance();
+        com.university.sms.client.gui.common.ThemeManager themeManager = com.university.sms.client.gui.common.ThemeManager
+            .getInstance();
         themeManager.applyTheme(com.university.sms.client.gui.common.ThemeManager.ThemeType.LIGHT);
-        
+
         UIManager.setLookAndFeel(new FlatLightLaf());
         UIManager.put("Button.arc", 5);
         UIManager.put("Component.arc", 5);

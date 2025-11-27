@@ -33,6 +33,7 @@ public class Constants {
 
     // Teacher Actions
     public static final String ACTION_GET_ALL_TEACHERS = "GET_ALL_TEACHERS";
+    public static final String ACTION_GET_AVAILABLE_CLASS_TEACHERS = "GET_AVAILABLE_CLASS_TEACHERS";
     public static final String ACTION_SEARCH_TEACHERS = "SEARCH_TEACHERS";
     public static final String ACTION_GET_COURSES_BY_TEACHER = "GET_COURSES_BY_TEACHER";
 
@@ -73,6 +74,7 @@ public class Constants {
 
     // Class Actions
     public static final String ACTION_GET_ALL_CLASSES = "GET_ALL_CLASSES";
+    public static final String ACTION_GET_AVAILABLE_CLASSES = "GET_AVAILABLE_CLASSES";
     public static final String ACTION_ADD_CLASS = "ADD_CLASS";
     public static final String ACTION_UPDATE_CLASS = "UPDATE_CLASS";
     public static final String ACTION_DELETE_CLASS = "DELETE_CLASS";
