@@ -2,6 +2,7 @@ package com.university.sms.service;
 
 import com.university.sms.dao.UserDAO;
 import com.university.sms.model.User;
+import com.university.sms.util.PasswordUtil;
 
 import java.util.logging.Level;
 import java.util.logging.Logger;
@@ -155,6 +156,7 @@ public class AuthenticationService {
         }
 
         try {
+            // Password sẽ được hash trong UserDAO.addUser()
             boolean success = userDAO.addUser(user);
             if (success) {
                 LOGGER.info("User created successfully: " + user.getUsername());
@@ -218,6 +220,7 @@ public class AuthenticationService {
         }
 
         try {
+            // Password sẽ được hash trong UserDAO.changePassword()
             boolean success = userDAO.changePassword(username, newPassword);
             if (success) {
                 LOGGER.info("Password changed successfully for username: " + username);
@@ -233,7 +236,8 @@ public class AuthenticationService {
         if (storedPassword == null || inputPassword == null) {
             return false;
         }
-        return storedPassword.equals(inputPassword);
+        // Sử dụng BCrypt để verify password
+        return PasswordUtil.verifyPassword(inputPassword, storedPassword);
     }
 
     public boolean deactivateUser(String username) {

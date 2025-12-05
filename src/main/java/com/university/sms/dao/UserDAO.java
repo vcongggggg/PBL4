@@ -2,6 +2,7 @@ package com.university.sms.dao;
 
 import com.university.sms.model.User;
 import com.university.sms.util.DatabaseConnection;
+import com.university.sms.util.PasswordUtil;
 
 import java.sql.*;
 import java.util.ArrayList;
@@ -50,7 +51,11 @@ public class UserDAO {
                 PreparedStatement stmt = conn.prepareStatement(sql, Statement.RETURN_GENERATED_KEYS)) {
 
             stmt.setString(1, user.getUsername().trim());
-            stmt.setString(2, user.getPassword()); // Lưu plain text cho dễ test
+            // Hash password trước khi lưu vào database
+            String hashedPassword = PasswordUtil.isHashed(user.getPassword()) 
+                ? user.getPassword() 
+                : PasswordUtil.hashPassword(user.getPassword());
+            stmt.setString(2, hashedPassword);
             stmt.setString(3, user.getEmail());
             stmt.setString(4, user.getFullName());
             stmt.setString(5, user.getRole().name().toLowerCase());
@@ -114,7 +119,11 @@ public class UserDAO {
                         PreparedStatement stmt = conn.prepareStatement(insertWithId)) {
                     stmt.setInt(1, user.getUserId());
                     stmt.setString(2, user.getUsername());
-                    stmt.setString(3, user.getPassword());
+                    // Hash password trước khi lưu vào database
+                    String hashedPassword = PasswordUtil.isHashed(user.getPassword()) 
+                        ? user.getPassword() 
+                        : PasswordUtil.hashPassword(user.getPassword());
+                    stmt.setString(3, hashedPassword);
                     stmt.setString(4, user.getEmail());
                     stmt.setString(5, user.getFullName());
                     stmt.setString(6, user.getRole().name().toLowerCase());
@@ -155,7 +164,8 @@ public class UserDAO {
             try (ResultSet rs = stmt.executeQuery()) {
                 if (rs.next()) {
                     String storedPassword = rs.getString("password");
-                    if (password.equals(storedPassword)) { // So sánh plain text
+                    // Verify password bằng BCrypt
+                    if (PasswordUtil.verifyPassword(password, storedPassword)) {
                         User user = mapResultSetToUser(rs);
                         LOGGER.info("User authenticated successfully: " + username);
                         return user;
@@ -460,7 +470,11 @@ public class UserDAO {
         try (Connection conn = DatabaseConnection.getConnection();
                 PreparedStatement stmt = conn.prepareStatement(sql)) {
 
-            stmt.setString(1, newPassword); // Lưu plain text
+            // Hash password trước khi lưu vào database
+            String hashedPassword = PasswordUtil.isHashed(newPassword) 
+                ? newPassword 
+                : PasswordUtil.hashPassword(newPassword);
+            stmt.setString(1, hashedPassword);
             stmt.setString(2, username);
 
             int result = stmt.executeUpdate();
