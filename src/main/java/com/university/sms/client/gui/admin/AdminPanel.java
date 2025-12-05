@@ -27,6 +27,11 @@ public class AdminPanel extends JPanel {
     private JButton approveButton;
     private JButton rejectButton;
     private JButton refreshRequestButton;
+    // Học kỳ hiện tại
+    private JTextField academicYearField;
+    private JComboBox<Integer> semesterCombo;
+    private JButton loadSemesterButton;
+    private JButton saveSemesterButton;
     private boolean isInitialized = false;
     private boolean isRefreshing = false;
 
@@ -52,6 +57,13 @@ public class AdminPanel extends JPanel {
                 }
             }
         });
+
+        if (loadSemesterButton != null) {
+            loadSemesterButton.addActionListener(e -> loadCurrentSemester());
+        }
+        if (saveSemesterButton != null) {
+            saveSemesterButton.addActionListener(e -> saveCurrentSemester());
+        }
     }
 
     private void initializeComponents() {
@@ -104,10 +116,24 @@ public class AdminPanel extends JPanel {
         buttonPanel.add(rejectButton);
         buttonPanel.add(refreshRequestButton);
 
-        JPanel infoPanel = new JPanel(new BorderLayout());
+        JPanel infoPanel = new JPanel(new BorderLayout(5, 5));
         JLabel infoLabel = new JLabel("Danh sách yêu cầu mở lớp từ giảng viên");
         infoLabel.setBorder(BorderFactory.createEmptyBorder(5, 5, 5, 5));
         infoPanel.add(infoLabel, BorderLayout.NORTH);
+
+        // Panel cấu hình học kỳ hiện tại
+        JPanel semesterPanel = new JPanel(new FlowLayout(FlowLayout.LEFT, 10, 0));
+        semesterPanel.add(new JLabel("Năm học hiện tại:"));
+        academicYearField = new JTextField(10);
+        semesterPanel.add(academicYearField);
+        semesterPanel.add(new JLabel("Học kỳ:"));
+        semesterCombo = new JComboBox<>(new Integer[] { 1, 2, 3 });
+        semesterPanel.add(semesterCombo);
+        loadSemesterButton = new JButton("Tải");
+        saveSemesterButton = new JButton("Lưu học kỳ chính");
+        semesterPanel.add(loadSemesterButton);
+        semesterPanel.add(saveSemesterButton);
+        infoPanel.add(semesterPanel, BorderLayout.SOUTH);
 
         add(infoPanel, BorderLayout.NORTH);
         add(scrollPane, BorderLayout.CENTER);
@@ -116,6 +142,97 @@ public class AdminPanel extends JPanel {
 
     public void refreshData() {
         refreshRequests();
+        loadCurrentSemester();
+    }
+
+    private void loadCurrentSemester() {
+        SwingWorker<Message, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Message doInBackground() throws Exception {
+                Message msg = Message.createRequest(Constants.ACTION_GET_CURRENT_SEMESTER);
+                return serverConnection.sendRequest(msg);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Message response = get();
+                    if (response != null && response.isSuccess()) {
+                        String academicYear = response.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
+                        Integer semester = response.getData(Constants.KEY_SEMESTER, Integer.class);
+                        if (academicYear != null) {
+                            academicYearField.setText(academicYear);
+                        }
+                        if (semester != null) {
+                            semesterCombo.setSelectedItem(semester);
+                        }
+                    }
+                } catch (Exception e) {
+                    LOGGER.log(Level.WARNING, "Lỗi khi tải học kỳ hiện tại", e);
+                }
+            }
+        };
+        worker.execute();
+    }
+
+    private void saveCurrentSemester() {
+        String academicYear = academicYearField.getText().trim();
+        Integer semester = (Integer) semesterCombo.getSelectedItem();
+
+        if (academicYear.isEmpty() || semester == null) {
+            JOptionPane.showMessageDialog(this,
+                    "Vui lòng nhập năm học và chọn học kỳ.",
+                    "Thiếu thông tin",
+                    JOptionPane.WARNING_MESSAGE);
+            return;
+        }
+
+        int confirm = JOptionPane.showConfirmDialog(this,
+                String.format("Xác nhận đặt năm học %s - Học kỳ %d làm học kỳ chính?\n"
+                        + "Mọi yêu cầu mở lớp mới sẽ cố định theo học kỳ này.",
+                        academicYear, semester),
+                "Xác nhận",
+                JOptionPane.YES_NO_OPTION);
+        if (confirm != JOptionPane.YES_OPTION) {
+            return;
+        }
+
+        SwingWorker<Message, Void> worker = new SwingWorker<>() {
+            @Override
+            protected Message doInBackground() throws Exception {
+                Message msg = Message.createRequest(Constants.ACTION_SET_CURRENT_SEMESTER);
+                msg.addData(Constants.KEY_ACADEMIC_YEAR, academicYear);
+                msg.addData(Constants.KEY_SEMESTER, semester);
+                return serverConnection.sendRequest(msg);
+            }
+
+            @Override
+            protected void done() {
+                try {
+                    Message response = get();
+                    if (response != null && response.isSuccess()) {
+                        JOptionPane.showMessageDialog(AdminPanel.this,
+                                response.getMessage() != null ? response.getMessage()
+                                        : "Đã cập nhật học kỳ hiện tại.",
+                                "Thành công",
+                                JOptionPane.INFORMATION_MESSAGE);
+                    } else {
+                        String errorMsg = response != null ? response.getMessage() : "Không nhận được phản hồi";
+                        JOptionPane.showMessageDialog(AdminPanel.this,
+                                "Không thể cập nhật học kỳ hiện tại: " + errorMsg,
+                                "Lỗi",
+                                JOptionPane.ERROR_MESSAGE);
+                    }
+                } catch (Exception e) {
+                    LOGGER.log(Level.SEVERE, "Lỗi khi lưu học kỳ hiện tại", e);
+                    JOptionPane.showMessageDialog(AdminPanel.this,
+                            "Lỗi khi lưu học kỳ hiện tại: " + e.getMessage(),
+                            "Lỗi",
+                            JOptionPane.ERROR_MESSAGE);
+                }
+            }
+        };
+        worker.execute();
     }
 
     private void refreshRequests() {

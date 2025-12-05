@@ -27,15 +27,25 @@ public class ClassOpeningRequestDialog extends JDialog {
 
     private List<Subject> subjects;
     private String teacherUsername;
+    // Nếu được set, dialog sẽ khóa năm học/học kỳ theo cấu hình hiện tại
+    private String fixedAcademicYear;
+    private Integer fixedSemester;
 
     /**
      * Constructor for new request
      */
     public ClassOpeningRequestDialog(Frame owner, String teacherUsername, List<Subject> subjects) {
+        this(owner, teacherUsername, subjects, null, null);
+    }
+
+    public ClassOpeningRequestDialog(Frame owner, String teacherUsername, List<Subject> subjects,
+            String academicYear, Integer semester) {
         super(owner, "Gửi Yêu Cầu Mở Lớp", true);
         this.teacherUsername = teacherUsername;
         this.subjects = subjects;
         this.request = null;
+        this.fixedAcademicYear = academicYear;
+        this.fixedSemester = semester;
 
         initComponents();
         setLocationRelativeTo(owner);
@@ -49,6 +59,8 @@ public class ClassOpeningRequestDialog extends JDialog {
         this.teacherUsername = request.getTeacherUsername();
         this.subjects = subjects;
         this.request = request;
+        this.fixedAcademicYear = null;
+        this.fixedSemester = null;
 
         initComponents();
         loadRequestData();
@@ -94,8 +106,12 @@ public class ClassOpeningRequestDialog extends JDialog {
         gbc.weightx = 0.7;
         academicYearField = new JTextField();
         academicYearField.setToolTipText("Ví dụ: 2024-2025");
-        // Đặt năm học mặc định là 2024-2025
-        if (request == null) {
+        // Đặt năm học mặc định: nếu có cấu hình cố định thì dùng cấu hình đó,
+        // nếu không thì dùng giá trị cũ (hoặc mặc định 2024-2025)
+        if (fixedAcademicYear != null && !fixedAcademicYear.trim().isEmpty()) {
+            academicYearField.setText(fixedAcademicYear);
+            academicYearField.setEnabled(false);
+        } else if (request == null) {
             academicYearField.setText("2024-2025");
         }
         formPanel.add(academicYearField, gbc);
@@ -110,6 +126,10 @@ public class ClassOpeningRequestDialog extends JDialog {
         gbc.weightx = 0.7;
         // Chỉ có 2 học kỳ: 1 và 2
         semesterCombo = new JComboBox<>(new Integer[] { 1, 2 });
+        if (fixedSemester != null) {
+            semesterCombo.setSelectedItem(fixedSemester);
+            semesterCombo.setEnabled(false);
+        }
         formPanel.add(semesterCombo, gbc);
 
         // Row 3: Schedule Day

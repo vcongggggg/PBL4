@@ -14,6 +14,7 @@ import com.university.sms.model.User;
 import com.university.sms.service.ClassOpeningRequestService;
 import com.university.sms.service.CourseRegistrationService;
 import com.university.sms.service.StudentService;
+import com.university.sms.dao.SystemConfigDAO;
 
 import java.util.ArrayList;
 import java.util.List;
@@ -33,6 +34,7 @@ public class AdminHandler {
   private final StudentService studentService;
   private final ClassOpeningRequestService classRequestService;
   private final CourseRegistrationService registrationService;
+  private final SystemConfigDAO systemConfigDAO;
 
   public AdminHandler(User currentUser,
       Supplier<String> clientSourceSupplier,
@@ -46,6 +48,7 @@ public class AdminHandler {
     this.studentService = studentService;
     this.classRequestService = classRequestService;
     this.registrationService = registrationService;
+    this.systemConfigDAO = new SystemConfigDAO();
   }
 
   private String getClientSource() {
@@ -724,6 +727,68 @@ public class AdminHandler {
     } catch (Exception e) {
       LOGGER.severe("Lỗi khi lấy class request stats: " + e.getMessage());
       return Message.createErrorResponse(request.getAction(), "Error: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Lấy năm học & học kỳ hiện tại từ system_config (dùng cho cấu hình học kỳ
+   * chính).
+   */
+  public Message handleGetCurrentSemester(Message request) {
+    try {
+      String academicYear = systemConfigDAO.getConfigValue("academic_year_current");
+      String semesterStr = systemConfigDAO.getConfigValue("semester_current");
+      Integer semester = null;
+      try {
+        if (semesterStr != null) {
+          semester = Integer.parseInt(semesterStr);
+        }
+      } catch (NumberFormatException ignore) {
+      }
+      if (semester == null) {
+        semester = 1;
+      }
+
+      Message response = Message.createSuccessResponse(request.getAction(), "Success");
+      response.addData(Constants.KEY_ACADEMIC_YEAR, academicYear);
+      response.addData(Constants.KEY_SEMESTER, semester);
+      return response;
+    } catch (Exception e) {
+      LOGGER.log(Level.SEVERE, "Lỗi khi lấy học kỳ hiện tại", e);
+      return Message.createErrorResponse(request.getAction(), "Lỗi khi lấy học kỳ hiện tại: " + e.getMessage());
+    }
+  }
+
+  /**
+   * Cập nhật năm học & học kỳ hiện tại. Chỉ Admin được phép gọi.
+   */
+  public Message handleSetCurrentSemester(Message request) {
+    try {
+      if (currentUser == null || currentUser.getRole() != User.UserRole.ADMIN) {
+        return Message.createErrorResponse(request.getAction(), Constants.MSG_UNAUTHORIZED);
+      }
+
+      String academicYear = request.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
+      Integer semester = request.getData(Constants.KEY_SEMESTER, Integer.class);
+
+      if (academicYear == null || academicYear.trim().isEmpty() || semester == null || semester <= 0) {
+        return Message.createErrorResponse(request.getAction(), "Vui lòng nhập năm học và học kỳ hợp lệ");
+      }
+
+      boolean ok1 = systemConfigDAO.upsertConfigValue("academic_year_current", academicYear.trim(),
+          "Năm học hiện tại");
+      boolean ok2 = systemConfigDAO.upsertConfigValue("semester_current", String.valueOf(semester),
+          "Học kỳ hiện tại");
+
+      if (ok1 && ok2) {
+        LOGGER.info("Admin " + currentUser.getUsername() + " đã cập nhật học kỳ hiện tại: " + academicYear + " - HK"
+            + semester);
+        return Message.createSuccessResponse(request.getAction(), "Đã cập nhật năm học/học kỳ hiện tại");
+      }
+      return Message.createErrorResponse(request.getAction(), "Không thể cập nhật năm học/học kỳ hiện tại");
+    } catch (Exception e) {
+      LOGGER.log(Level.SEVERE, "Lỗi khi cập nhật học kỳ hiện tại", e);
+      return Message.createErrorResponse(request.getAction(), "Lỗi khi cập nhật học kỳ hiện tại: " + e.getMessage());
     }
   }
 

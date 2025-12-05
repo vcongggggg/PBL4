@@ -287,10 +287,26 @@ public class MyClassRequestsPanel extends JPanel {
                 return;
             }
 
+            // Lấy học kỳ hiện tại từ server để cố định năm học/học kỳ cho yêu cầu mới
+            String academicYear = null;
+            Integer semester = null;
+            try {
+                Message cfgReq = Message.createRequest(Constants.ACTION_GET_CURRENT_SEMESTER);
+                Message cfgRes = serverConnection.sendRequest(cfgReq);
+                if (cfgRes != null && cfgRes.isSuccess()) {
+                    academicYear = cfgRes.getData(Constants.KEY_ACADEMIC_YEAR, String.class);
+                    semester = cfgRes.getData(Constants.KEY_SEMESTER, Integer.class);
+                }
+            } catch (Exception ex) {
+                LOGGER.warning("Không thể lấy học kỳ hiện tại, sẽ dùng giá trị mặc định trong dialog: " + ex.getMessage());
+            }
+
             ClassOpeningRequestDialog dialog = new ClassOpeningRequestDialog(
                     (Frame) SwingUtilities.getWindowAncestor(this),
                     currentUser.getUsername(),
-                    subjects);
+                    subjects,
+                    academicYear,
+                    semester);
             dialog.setVisible(true);
 
             if (dialog.isConfirmed()) {

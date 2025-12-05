@@ -450,6 +450,10 @@ public class ClientHandler implements Runnable, DataOriginHelper {
                 // Hành động đăng ký khóa học
                 case Constants.ACTION_GET_ALL_REGISTRATIONS:
                     return adminHandler.handleGetAllRegistrations(request);
+                case Constants.ACTION_GET_CURRENT_SEMESTER:
+                    return adminHandler.handleGetCurrentSemester(request);
+                case Constants.ACTION_SET_CURRENT_SEMESTER:
+                    return adminHandler.handleSetCurrentSemester(request);
                 case Constants.ACTION_GET_REGISTRATION_BY_ID:
                     return adminHandler.handleGetRegistrationById(request);
                 case Constants.ACTION_GET_MY_REGISTRATIONS:

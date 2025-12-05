@@ -45,6 +45,8 @@ public class Constants {
     public static final String ACTION_DELETE_COURSE = "DELETE_COURSE";
     public static final String ACTION_OPEN_COURSE_REGISTRATION = "OPEN_COURSE_REGISTRATION";
     public static final String ACTION_CLOSE_COURSE_REGISTRATION = "CLOSE_COURSE_REGISTRATION";
+    public static final String ACTION_GET_CURRENT_SEMESTER = "GET_CURRENT_SEMESTER";
+    public static final String ACTION_SET_CURRENT_SEMESTER = "SET_CURRENT_SEMESTER";
 
     // Enrollment Actions
     public static final String ACTION_ENROLL_COURSE = "ENROLL_COURSE";

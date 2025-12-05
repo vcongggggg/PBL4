@@ -531,6 +531,11 @@ public class CourseRegistrationPanel extends JPanel {
                     availableCourses = get();
                     updateCourseLookup(availableCourses);
                     updateAvailableTable();
+                    // Sau khi reload danh sách khóa học (có sĩ số mới),
+                    // cập nhật lại bảng các môn đã đăng ký để hiển thị đúng sĩ số
+                    if (activeRegistrations != null) {
+                        updateSubmittedRegistrations(activeRegistrations);
+                    }
                 } catch (Exception e) {
                     LOGGER.log(Level.SEVERE, "Lỗi khi tải danh sách môn học khả dụng", e);
                     JOptionPane.showMessageDialog(CourseRegistrationPanel.this,
@@ -581,9 +586,10 @@ public class CourseRegistrationPanel extends JPanel {
                 }
             }
 
+            // Sĩ số luôn dựa trên currentEnrollment (đã được backend cập nhật theo đăng ký)
             boolean registrationOpen = course.getRegistrationStatus() == Course.RegistrationStatus.OPEN;
             int maxStudents = course.getMaxStudents();
-            int displayCount = registrationOpen ? course.getPendingRegistrations() : course.getCurrentEnrollment();
+            int displayCount = course.getCurrentEnrollment();
             String availabilityText = maxStudents > 0
                     ? displayCount + "/" + maxStudents
                     : displayCount + "/-";
@@ -1241,9 +1247,8 @@ public class CourseRegistrationPanel extends JPanel {
             return "-";
         }
         int max = course.getMaxStudents();
-        int count = course.getRegistrationStatus() == Course.RegistrationStatus.OPEN
-                ? course.getPendingRegistrations()
-                : course.getCurrentEnrollment();
+        // Dùng currentEnrollment cho mọi trường hợp (backend đã tính theo đăng ký)
+        int count = course.getCurrentEnrollment();
         if (max > 0) {
             return count + "/" + max;
         }
@@ -1262,9 +1267,7 @@ public class CourseRegistrationPanel extends JPanel {
         if (course == null || course.getMaxStudents() <= 0) {
             return false;
         }
-        if (course.getRegistrationStatus() == Course.RegistrationStatus.OPEN) {
-            return course.getPendingRegistrations() >= course.getMaxStudents();
-        }
+        // Kiểm tra đầy dựa trên currentEnrollment (số lượng đăng ký thực tế)
         return course.getCurrentEnrollment() >= course.getMaxStudents();
     }
 

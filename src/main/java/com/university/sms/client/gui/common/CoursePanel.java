@@ -18,6 +18,8 @@ import java.math.BigDecimal;
 import java.time.LocalDate;
 import java.util.*;
 import java.util.List;
+import java.util.Comparator;
+import java.util.Map;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 import java.util.stream.Collectors;
@@ -91,7 +93,8 @@ public class CoursePanel extends JPanel {
             }
         };
         courseTable = new JTable(tableModel);
-        courseTable.setSelectionMode(ListSelectionModel.SINGLE_SELECTION);
+        // Cho phép chọn nhiều lớp để admin có thể mở/chốt đăng ký hàng loạt
+        courseTable.setSelectionMode(ListSelectionModel.MULTIPLE_INTERVAL_SELECTION);
         courseTable.setRowHeight(35); // Increased height for button
 
         // Set custom renderer and editor for student count column
@@ -444,7 +447,27 @@ public class CoursePanel extends JPanel {
     }
 
     private void updateCourseTable(List<Course> courses) {
-        this.currentCourses = courses;
+        if (courses == null) {
+            this.currentCourses = List.of();
+        } else {
+            // Sắp xếp lớp học phần theo khoa (dựa trên facultyName), sau đó theo mã môn, rồi mã lớp
+            courses.sort(Comparator
+                    // Ưu tiên theo mã khoa (tiền tố của subjectCode, ví dụ CNTT, DTVT, CK, KT)
+                    .comparing((Course c) -> {
+                        String code = c != null ? c.getSubjectCode() : null;
+                        if (code == null) return "";
+                        // Lấy phần chữ trước khi gặp ký tự số đầu tiên
+                        int i = 0;
+                        while (i < code.length() && !Character.isDigit(code.charAt(i))) {
+                            i++;
+                        }
+                        return code.substring(0, i);
+                    }, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(Course::getSubjectCode, String.CASE_INSENSITIVE_ORDER)
+                    .thenComparing(Course::getCourseCode, String.CASE_INSENSITIVE_ORDER));
+
+            this.currentCourses = courses;
+        }
         tableModel.setRowCount(0);
 
         // Create course map for quick lookup
@@ -515,6 +538,14 @@ public class CoursePanel extends JPanel {
         return courseMap.get(courseCode);
     }
 
+    private Course getCourseAtRow(int viewRowIndex) {
+        if (viewRowIndex < 0 || courseMap == null) {
+            return null;
+        }
+        String courseCode = (String) courseTable.getValueAt(viewRowIndex, 0);
+        return courseMap.get(courseCode);
+    }
+
     private boolean canOpenRegistration(Course course) {
         if (course == null) {
             return false;
@@ -531,62 +562,88 @@ public class CoursePanel extends JPanel {
     }
 
     private void openRegistrationPeriod() {
-        Course course = getSelectedCourse();
-        if (course == null) {
+        int[] selectedRows = courseTable.getSelectedRows();
+        if (selectedRows == null || selectedRows.length == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Vui lòng chọn ít nhất một lớp học phần để mở đăng ký.",
+                    "Thông báo",
+                    JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
-        Message request = Message.createRequest(Constants.ACTION_OPEN_COURSE_REGISTRATION);
-        request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
-
-        try {
-            Message response = serverConnection.sendRequest(request);
-            if (response != null && response.isSuccess()) {
-                JOptionPane.showMessageDialog(this,
-                        response.getMessage() != null ? response.getMessage() : "Đã mở đăng ký cho lớp.",
-                        "Thành công",
-                        JOptionPane.INFORMATION_MESSAGE);
-                refreshData();
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        response != null ? response.getMessage() : "Không thể mở đăng ký cho lớp này.",
-                        "Lỗi",
-                        JOptionPane.ERROR_MESSAGE);
+        int successCount = 0;
+        for (int row : selectedRows) {
+            Course course = getCourseAtRow(row);
+            if (course == null) {
+                continue;
             }
-        } catch (Exception ex) {
+
+            Message request = Message.createRequest(Constants.ACTION_OPEN_COURSE_REGISTRATION);
+            request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
+
+            try {
+                Message response = serverConnection.sendRequest(request);
+                if (response != null && response.isSuccess()) {
+                    successCount++;
+                }
+            } catch (Exception ex) {
+                LOGGER.log(Level.SEVERE, "Lỗi khi mở đăng ký cho lớp " + course.getCourseCode(), ex);
+            }
+        }
+
+        if (successCount > 0) {
             JOptionPane.showMessageDialog(this,
-                    "Lỗi khi mở đăng ký: " + ex.getMessage(),
+                    "Đã mở đăng ký cho " + successCount + " lớp học phần.",
+                    "Thành công",
+                    JOptionPane.INFORMATION_MESSAGE);
+            refreshData();
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Không thể mở đăng ký cho các lớp đã chọn.",
                     "Lỗi",
                     JOptionPane.ERROR_MESSAGE);
         }
     }
 
     private void closeRegistrationPeriod() {
-        Course course = getSelectedCourse();
-        if (course == null) {
+        int[] selectedRows = courseTable.getSelectedRows();
+        if (selectedRows == null || selectedRows.length == 0) {
+            JOptionPane.showMessageDialog(this,
+                    "Vui lòng chọn ít nhất một lớp học phần để chốt đăng ký.",
+                    "Thông báo",
+                    JOptionPane.INFORMATION_MESSAGE);
             return;
         }
 
-        Message request = Message.createRequest(Constants.ACTION_CLOSE_COURSE_REGISTRATION);
-        request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
-
-        try {
-            Message response = serverConnection.sendRequest(request);
-            if (response != null && response.isSuccess()) {
-                JOptionPane.showMessageDialog(this,
-                        response.getMessage() != null ? response.getMessage() : "Đã chốt đăng ký cho lớp.",
-                        "Thành công",
-                        JOptionPane.INFORMATION_MESSAGE);
-                refreshData();
-            } else {
-                JOptionPane.showMessageDialog(this,
-                        response != null ? response.getMessage() : "Không thể chốt đăng ký cho lớp này.",
-                        "Lỗi",
-                        JOptionPane.ERROR_MESSAGE);
+        int successCount = 0;
+        for (int row : selectedRows) {
+            Course course = getCourseAtRow(row);
+            if (course == null) {
+                continue;
             }
-        } catch (Exception ex) {
+
+            Message request = Message.createRequest(Constants.ACTION_CLOSE_COURSE_REGISTRATION);
+            request.addData(Constants.KEY_COURSE_ID, course.getCourseId());
+
+            try {
+                Message response = serverConnection.sendRequest(request);
+                if (response != null && response.isSuccess()) {
+                    successCount++;
+                }
+            } catch (Exception ex) {
+                LOGGER.log(Level.SEVERE, "Lỗi khi chốt đăng ký cho lớp " + course.getCourseCode(), ex);
+            }
+        }
+
+        if (successCount > 0) {
             JOptionPane.showMessageDialog(this,
-                    "Lỗi khi chốt đăng ký: " + ex.getMessage(),
+                    "Đã chốt đăng ký cho " + successCount + " lớp học phần.",
+                    "Thành công",
+                    JOptionPane.INFORMATION_MESSAGE);
+            refreshData();
+        } else {
+            JOptionPane.showMessageDialog(this,
+                    "Không thể chốt đăng ký cho các lớp đã chọn.",
                     "Lỗi",
                     JOptionPane.ERROR_MESSAGE);
         }

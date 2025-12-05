@@ -12,6 +12,7 @@ import java.awt.*;
 import java.awt.event.ComponentAdapter;
 import java.awt.event.ComponentEvent;
 import java.util.List;
+import java.util.Comparator;
 
 /**
  * Panel quản lý môn học (Khung chương trình đào tạo)
@@ -326,6 +327,11 @@ public class SubjectPanel extends JPanel {
   }
 
   private void updateSubjectTable(List<Subject> subjects) {
+    // Sắp xếp môn theo khoa, sau đó theo mã môn để dễ quan sát trong khung chương trình
+    subjects.sort(Comparator
+        .comparing(Subject::getFacultyName, Comparator.nullsLast(String::compareToIgnoreCase))
+        .thenComparing(Subject::getSubjectCode, String.CASE_INSENSITIVE_ORDER));
+
     this.currentSubjects = subjects;
     tableModel.setRowCount(0);
 
