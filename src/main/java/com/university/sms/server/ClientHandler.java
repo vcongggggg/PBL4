@@ -639,6 +639,25 @@ public class ClientHandler implements Runnable, DataOriginHelper {
 
         boolean success = authService.changePassword(currentUser.getUsername(), newPassword);
         if (success) {
+            // Cập nhật data_origin để CSV/PostgreSQL clients có thể sync thay đổi
+            if (currentUser.getUserId() > 0) {
+                String existingSource = getDataOrigin("user", currentUser.getUserId());
+                if (existingSource != null) {
+                    // Đã có source, chỉ cập nhật timestamp
+                    updateDataOriginTimestamp("user", currentUser.getUserId());
+                    LOGGER.fine("Updated data_origin timestamp for user: " + currentUser.getUsername() + " after password change");
+                } else {
+                    // Chưa có source, tạo mới với source = "REGULAR" (hoặc clientSource nếu là CSV/POSTGRES)
+                    String source = "REGULAR";
+                    if (isCsvClient()) {
+                        source = "CSV";
+                    } else if (isPostgresClient()) {
+                        source = "POSTGRES";
+                    }
+                    saveDataOrigin("user", currentUser.getUserId(), source);
+                    LOGGER.info("Created data_origin record for user: " + currentUser.getUsername() + " with source: " + source + " after password change");
+                }
+            }
             return Message.createSuccessResponse(Constants.ACTION_CHANGE_PASSWORD, "Đổi mật khẩu thành công");
         } else {
             return Message.createErrorResponse(Constants.ACTION_CHANGE_PASSWORD, "Đổi mật khẩu thất bại");
