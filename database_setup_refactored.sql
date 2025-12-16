@@ -461,57 +461,6 @@ END//
 DELIMITER ;
 
 -- ===============================================
--- TRIGGERS TĂNG VERSION
--- ===============================================
-
-DELIMITER //
-CREATE TRIGGER tr_students_insert_version AFTER INSERT ON students FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_students_update_version AFTER UPDATE ON students FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_students_delete_version AFTER DELETE ON students FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_courses_insert_version AFTER INSERT ON courses FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_courses_update_version AFTER UPDATE ON courses FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_courses_delete_version AFTER DELETE ON courses FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_enrollments_insert_version AFTER INSERT ON enrollments FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_enrollments_update_version AFTER UPDATE ON enrollments FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-
-CREATE TRIGGER tr_enrollments_delete_version AFTER DELETE ON enrollments FOR EACH ROW
-BEGIN
-    UPDATE system_config SET config_value = CAST(config_value AS UNSIGNED) + 1 WHERE config_key = 'db_version';
-END//
-DELIMITER ;
-
--- ===============================================
 -- STORED PROCEDURES
 -- ===============================================
 
@@ -586,8 +535,7 @@ INSERT INTO system_config (config_key, config_value, description) VALUES
 ('academic_year_current', '2024-2025', 'Năm học hiện tại'),
 ('semester_current', '1', 'Học kỳ hiện tại'),
 ('max_credits_per_semester', '24', 'Số tín chỉ tối đa mỗi học kỳ'),
-('passing_grade', '5.0', 'Điểm đậu tối thiểu'),
-('db_version', '1', 'Database version cho sync mechanism');
+('passing_grade', '5.0', 'Điểm đậu tối thiểu');
 
 -- Admin
 INSERT INTO users (username, password, email, full_name, role, phone, address) VALUES
