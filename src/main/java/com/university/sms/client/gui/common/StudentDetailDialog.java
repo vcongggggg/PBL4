@@ -6,6 +6,7 @@ import com.university.sms.model.Student;
 import com.university.sms.model.User;
 
 import javax.swing.*;
+import javax.swing.KeyStroke;
 import java.awt.*;
 import java.awt.event.ActionEvent;
 import java.awt.event.ActionListener;
@@ -43,56 +44,51 @@ public class StudentDetailDialog extends JDialog {
 
     public StudentDetailDialog(Frame parent, Student student, IServerConnection serverConnection,
             User currentUser, boolean isReadOnly) {
-        super(parent, "Thông tin sinh viên - " + student.getStudentCode(), true);
+        super(parent, "", true);
         this.student = student;
         this.serverConnection = serverConnection;
         this.currentUser = currentUser;
         this.isReadOnly = isReadOnly;
 
+        setUndecorated(true);
         initializeComponents();
         setupLayout();
         loadStudentData();
         setupEventListeners();
 
-        setSize(700, 600);
+        setSize(750, 700);
         setLocationRelativeTo(parent);
         setDefaultCloseOperation(DISPOSE_ON_CLOSE);
     }
 
     private void initializeComponents() {
-        // Create form fields
-        studentCodeField = new JTextField(20);
-        studentCodeField.setEditable(false); // Student code should not be editable
-
-        fullNameField = new JTextField(20);
-        emailField = new JTextField(20);
-        phoneField = new JTextField(20);
-        facultyField = new JTextField(20);
-        facultyField.setEditable(false); // Read-only display
-        classField = new JTextField(20);
-        classField.setEditable(false); // Read-only display
-        gpaField = new JTextField(20);
-        gpaField.setEditable(false); // GPA is calculated
-        creditsField = new JTextField(20);
-        creditsField.setEditable(false); // Credits are calculated
-        admissionYearField = new JTextField(20);
-        citizenIdField = new JTextField(20);
-        emergencyContactField = new JTextField(20);
-        emergencyPhoneField = new JTextField(20);
+        // Create styled form fields
+        studentCodeField = createStyledTextField(false);
+        fullNameField = createStyledTextField(true);
+        emailField = createStyledTextField(true);
+        phoneField = createStyledTextField(true);
+        facultyField = createStyledTextField(false);
+        classField = createStyledTextField(false);
+        gpaField = createStyledTextField(false);
+        creditsField = createStyledTextField(false);
+        admissionYearField = createStyledTextField(true);
+        citizenIdField = createStyledTextField(true);
+        emergencyContactField = createStyledTextField(true);
+        emergencyPhoneField = createStyledTextField(true);
 
         // Status combo box - Vietnamese labels
-        statusComboBox = new JComboBox<>(new String[] {
+        statusComboBox = createStyledComboBox(new String[] {
                 "Đang học", "Tạm đình chỉ", "Đã tốt nghiệp", "Thôi học"
         });
 
         // Gender combo box
-        genderComboBox = new JComboBox<>(new String[] {
+        genderComboBox = createStyledComboBox(new String[] {
                 "MALE", "FEMALE", "OTHER"
         });
 
         // Buttons
-        saveButton = new JButton("Lưu thay đổi");
-        closeButton = new JButton("Đóng");
+        saveButton = createStyledButton("Lưu thay đổi", new Color(41, 128, 185), true);
+        closeButton = createStyledButton("Đóng", new Color(108, 117, 125), false);
 
         // Set read-only mode based on user role
         if (isReadOnly) {
@@ -120,88 +116,204 @@ public class StudentDetailDialog extends JDialog {
         }
     }
 
+    private JTextField createStyledTextField(boolean editable) {
+        JTextField field = new JTextField();
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        field.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        field.setPreferredSize(new Dimension(0, 40));
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        field.setEditable(editable);
+        if (!editable) {
+            field.setBackground(new Color(248, 249, 250));
+        }
+        return field;
+    }
+
+    private JComboBox<String> createStyledComboBox(String[] items) {
+        JComboBox<String> combo = new JComboBox<>(items);
+        combo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        combo.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+        combo.setPreferredSize(new Dimension(0, 40));
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        combo.setBackground(Color.WHITE);
+        return combo;
+    }
+
+    private JButton createStyledButton(String text, Color bgColor, boolean isPrimary) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        button.setForeground(Color.WHITE);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(isPrimary ? 150 : 100, 42));
+        
+        Color hoverColor = new Color(
+            Math.max(0, bgColor.getRed() - 15),
+            Math.max(0, bgColor.getGreen() - 15),
+            Math.max(0, bgColor.getBlue() - 15)
+        );
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(hoverColor);
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(bgColor);
+            }
+        });
+        
+        return button;
+    }
+
     private void setupLayout() {
-        setLayout(new BorderLayout(10, 10));
+        setLayout(new BorderLayout());
+        
+        Color primaryColor = new Color(44, 62, 80); // Match sidebar color
+        Color backgroundColor = new Color(245, 247, 250);
+        Color cardColor = Color.WHITE;
+        Color borderColor = new Color(220, 224, 230);
 
-        // Main panel with form
-        JPanel formPanel = new JPanel(new GridBagLayout());
-        formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+        // Custom header panel
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(primaryColor);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        headerPanel.setPreferredSize(new Dimension(0, 60));
 
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
-        gbc.fill = GridBagConstraints.HORIZONTAL;
+        JLabel titleLabel = new JLabel("Thông tin Sinh viên - " + student.getStudentCode());
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
 
-        int row = 0;
+        // Close button in header
+        JButton headerCloseButton = new JButton("X");
+        headerCloseButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        headerCloseButton.setForeground(Color.WHITE);
+        headerCloseButton.setBackground(primaryColor);
+        headerCloseButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+        headerCloseButton.setFocusPainted(false);
+        headerCloseButton.setContentAreaFilled(false);
+        headerCloseButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        headerCloseButton.addActionListener(e -> dispose());
+        headerCloseButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                headerCloseButton.setForeground(new Color(255, 200, 200));
+                headerCloseButton.setBackground(new Color(220, 53, 69));
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                headerCloseButton.setForeground(Color.WHITE);
+                headerCloseButton.setBackground(primaryColor);
+            }
+        });
+        headerPanel.add(headerCloseButton, BorderLayout.EAST);
+        add(headerPanel, BorderLayout.NORTH);
 
-        // Student Code
-        addFormField(formPanel, gbc, row++, "Mã sinh viên:", studentCodeField);
+        // Main content panel
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(backgroundColor);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
-        // Full Name
-        addFormField(formPanel, gbc, row++, "Họ và tên:", fullNameField);
+        // Section 1: Thông tin cơ bản
+        JPanel basicInfoCard = createSectionCard("Thông tin Cơ bản", cardColor, borderColor);
+        basicInfoCard.add(createFieldPanel("Mã sinh viên", studentCodeField, false));
+        basicInfoCard.add(Box.createVerticalStrut(15));
+        basicInfoCard.add(createFieldPanel("Họ và tên", fullNameField, true));
+        basicInfoCard.add(Box.createVerticalStrut(15));
+        basicInfoCard.add(createFieldPanel("Email", emailField, true));
+        basicInfoCard.add(Box.createVerticalStrut(15));
+        basicInfoCard.add(createFieldPanel("Số điện thoại", phoneField, false));
+        basicInfoCard.add(Box.createVerticalStrut(15));
+        basicInfoCard.add(createFieldPanel("Giới tính", genderComboBox, false));
+        basicInfoCard.add(Box.createVerticalStrut(15));
+        basicInfoCard.add(createFieldPanel("CCCD/CMND", citizenIdField, false));
+        mainPanel.add(basicInfoCard);
+        mainPanel.add(Box.createVerticalStrut(15));
 
-        // Email
-        addFormField(formPanel, gbc, row++, "Email:", emailField);
+        // Section 2: Thông tin Học tập
+        JPanel academicInfoCard = createSectionCard("Thông tin Học tập", cardColor, borderColor);
+        academicInfoCard.add(createFieldPanel("Khoa", facultyField, false));
+        academicInfoCard.add(Box.createVerticalStrut(15));
+        academicInfoCard.add(createFieldPanel("Lớp", classField, false));
+        academicInfoCard.add(Box.createVerticalStrut(15));
+        academicInfoCard.add(createFieldPanel("Năm nhập học", admissionYearField, false));
+        academicInfoCard.add(Box.createVerticalStrut(15));
+        academicInfoCard.add(createFieldPanel("GPA", gpaField, false));
+        academicInfoCard.add(Box.createVerticalStrut(15));
+        academicInfoCard.add(createFieldPanel("Tổng tín chỉ", creditsField, false));
+        academicInfoCard.add(Box.createVerticalStrut(15));
+        academicInfoCard.add(createFieldPanel("Trạng thái", statusComboBox, false));
+        mainPanel.add(academicInfoCard);
+        mainPanel.add(Box.createVerticalStrut(15));
 
-        // Phone
-        addFormField(formPanel, gbc, row++, "Số điện thoại:", phoneField);
+        // Section 3: Thông tin Liên hệ Khẩn cấp
+        JPanel emergencyInfoCard = createSectionCard("Thông tin Liên hệ Khẩn cấp", cardColor, borderColor);
+        emergencyInfoCard.add(createFieldPanel("Người liên hệ khẩn cấp", emergencyContactField, false));
+        emergencyInfoCard.add(Box.createVerticalStrut(15));
+        emergencyInfoCard.add(createFieldPanel("SĐT khẩn cấp", emergencyPhoneField, false));
+        mainPanel.add(emergencyInfoCard);
 
-        // Faculty
-        addFormField(formPanel, gbc, row++, "Khoa:", facultyField);
-
-        // Class
-        addFormField(formPanel, gbc, row++, "Lớp:", classField);
-
-        // Admission Year
-        addFormField(formPanel, gbc, row++, "Năm nhập học:", admissionYearField);
-
-        // Gender
-        addFormField(formPanel, gbc, row++, "Giới tính:", genderComboBox);
-
-        // Citizen ID
-        addFormField(formPanel, gbc, row++, "CCCD/CMND:", citizenIdField);
-
-        // GPA
-        addFormField(formPanel, gbc, row++, "GPA:", gpaField);
-
-        // Credits
-        addFormField(formPanel, gbc, row++, "Tổng tín chỉ:", creditsField);
-
-        // Status
-        addFormField(formPanel, gbc, row++, "Trạng thái:", statusComboBox);
-
-        // Emergency Contact
-        addFormField(formPanel, gbc, row++, "Người liên hệ khẩn cấp:", emergencyContactField);
-
-        // Emergency Phone
-        addFormField(formPanel, gbc, row++, "SĐT khẩn cấp:", emergencyPhoneField);
-
-        // Scroll pane for form
-        JScrollPane scrollPane = new JScrollPane(formPanel);
-        scrollPane.setVerticalScrollBarPolicy(JScrollPane.VERTICAL_SCROLLBAR_AS_NEEDED);
-        scrollPane.setHorizontalScrollBarPolicy(JScrollPane.HORIZONTAL_SCROLLBAR_NEVER);
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
         add(scrollPane, BorderLayout.CENTER);
 
         // Button panel
-        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonPanel.setBackground(backgroundColor);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 20, 20));
+        buttonPanel.add(this.closeButton);
         buttonPanel.add(saveButton);
-        buttonPanel.add(closeButton);
         add(buttonPanel, BorderLayout.SOUTH);
+
+        // Viền ngoài cùng cho dialog chi tiết sinh viên
+        if (getContentPane() instanceof JComponent) {
+            ((JComponent) getContentPane()).setBorder(BorderFactory.createLineBorder(new Color(210, 214, 220), 1));
+        }
     }
 
-    private void addFormField(JPanel panel, GridBagConstraints gbc, int row,
-            String labelText, Component field) {
-        gbc.gridx = 0;
-        gbc.gridy = row;
-        gbc.weightx = 0.3;
-        JLabel label = new JLabel(labelText);
-        label.setFont(label.getFont().deriveFont(Font.BOLD));
-        panel.add(label, gbc);
+    private JPanel createSectionCard(String title, Color bgColor, Color borderColor) {
+        JPanel card = new JPanel();
+        card.setLayout(new BoxLayout(card, BoxLayout.Y_AXIS));
+        card.setBackground(bgColor);
+        card.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)));
 
-        gbc.gridx = 1;
-        gbc.weightx = 0.7;
-        panel.add(field, gbc);
+        JLabel sectionTitle = new JLabel(title);
+        sectionTitle.setFont(new Font("Segoe UI", Font.BOLD, 16));
+        sectionTitle.setForeground(new Color(52, 73, 94));
+        sectionTitle.setAlignmentX(Component.LEFT_ALIGNMENT);
+        card.add(sectionTitle);
+        card.add(Box.createVerticalStrut(15));
+
+        return card;
     }
+
+    private JPanel createFieldPanel(String label, JComponent component, boolean required) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel labelComponent = new JLabel(label + (required ? " *" : ""));
+        labelComponent.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        labelComponent.setForeground(new Color(73, 80, 87));
+        labelComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(labelComponent);
+        panel.add(Box.createVerticalStrut(6));
+
+        component.setAlignmentX(Component.LEFT_ALIGNMENT);
+        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, component.getPreferredSize().height));
+        panel.add(component);
+
+        return panel;
+    }
+
 
     private void loadStudentData() {
         studentCodeField.setText(student.getStudentCode());
@@ -239,7 +351,17 @@ public class StudentDetailDialog extends JDialog {
             }
         });
 
-        closeButton.addActionListener(new ActionListener() {
+        this.closeButton.addActionListener(new ActionListener() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dispose();
+            }
+        });
+
+        // Close on ESC key
+        getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke("ESCAPE"), "close");
+        getRootPane().getActionMap().put("close", new AbstractAction() {
             @Override
             public void actionPerformed(ActionEvent e) {
                 dispose();

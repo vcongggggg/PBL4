@@ -501,17 +501,23 @@ public class ClassPanel extends JPanel {
       this.serverConnection = serverConnection;
       this.classEntity = classEntity;
 
+      // Borderless + header tùy chỉnh để đồng bộ với các dialog khác
+      setUndecorated(true);
+
       initComponents();
-      setSize(500, 400);
+      pack();
       setLocationRelativeTo(parent);
     }
 
     private void initComponents() {
-      setLayout(new BorderLayout(10, 10));
+      setLayout(new BorderLayout());
 
-      // Form panel
+      Color primaryColor = new Color(44, 62, 80); // match sidebar
+      Color backgroundColor = new Color(245, 247, 250);
+      Color cardBorderColor = new Color(220, 224, 230);
+
+      // ========= Form controls =========
       JPanel formPanel = new JPanel(new GridBagLayout());
-      formPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
       GridBagConstraints gbc = new GridBagConstraints();
       gbc.fill = GridBagConstraints.HORIZONTAL;
       gbc.insets = new Insets(5, 5, 5, 5);
@@ -524,6 +530,7 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Mã lớp:"), gbc);
       gbc.gridx = 1;
       codeField = new JTextField(20);
+      styleTextField(codeField);
       formPanel.add(codeField, gbc);
 
       // Class Name
@@ -532,6 +539,7 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Tên lớp:"), gbc);
       gbc.gridx = 1;
       nameField = new JTextField(20);
+      styleTextField(nameField);
       formPanel.add(nameField, gbc);
 
       // Faculty
@@ -541,6 +549,7 @@ public class ClassPanel extends JPanel {
       gbc.gridx = 1;
       facultyCombo = new JComboBox<>();
       facultyCombo.addItem(new FacultyItem(null, "-- Chọn khoa --"));
+      styleComboBox(facultyCombo);
       formPanel.add(facultyCombo, gbc);
 
       // Teacher
@@ -551,6 +560,7 @@ public class ClassPanel extends JPanel {
       teacherCombo = new JComboBox<>();
       teacherCombo.addItem(new TeacherItem(null, "-- Chọn giáo viên --"));
       teacherCombo.setEnabled(false);
+      styleComboBox(teacherCombo);
       formPanel.add(teacherCombo, gbc);
 
       // Academic Year
@@ -559,6 +569,7 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Năm học:"), gbc);
       gbc.gridx = 1;
       academicYearField = new JTextField(20);
+      styleTextField(academicYearField);
       formPanel.add(academicYearField, gbc);
 
       // Semester
@@ -567,6 +578,7 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Học kỳ:"), gbc);
       gbc.gridx = 1;
       semesterSpinner = new JSpinner(new SpinnerNumberModel(1, 1, 3, 1));
+      styleSpinner(semesterSpinner);
       formPanel.add(semesterSpinner, gbc);
 
       // Max Students
@@ -575,6 +587,7 @@ public class ClassPanel extends JPanel {
       formPanel.add(new JLabel("Số SV tối đa:"), gbc);
       gbc.gridx = 1;
       maxStudentsSpinner = new JSpinner(new SpinnerNumberModel(50, 1, 200, 1));
+      styleSpinner(maxStudentsSpinner);
       formPanel.add(maxStudentsSpinner, gbc);
 
       // Load faculties
@@ -645,19 +658,75 @@ public class ClassPanel extends JPanel {
         academicYearField.setText(java.time.Year.now() + "-" + (java.time.Year.now().getValue() + 1));
       }
 
-      add(formPanel, BorderLayout.CENTER);
+      // Header
+      JPanel headerPanel = new JPanel(new BorderLayout());
+      headerPanel.setBackground(primaryColor);
+      headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+      headerPanel.setPreferredSize(new Dimension(0, 60));
+
+      JLabel titleLabel = new JLabel(classEntity == null ? "Thêm lớp mới" : "Chỉnh sửa lớp");
+      titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+      titleLabel.setForeground(Color.WHITE);
+      headerPanel.add(titleLabel, BorderLayout.WEST);
+
+      JButton closeButton = new JButton("X");
+      closeButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
+      closeButton.setForeground(Color.WHITE);
+      closeButton.setContentAreaFilled(false);
+      closeButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+      closeButton.setFocusPainted(false);
+      closeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+      closeButton.addActionListener(e -> dispose());
+      closeButton.addMouseListener(new java.awt.event.MouseAdapter() {
+        @Override
+        public void mouseEntered(java.awt.event.MouseEvent e) {
+          closeButton.setForeground(new Color(255, 200, 200));
+        }
+
+        @Override
+        public void mouseExited(java.awt.event.MouseEvent e) {
+          closeButton.setForeground(Color.WHITE);
+        }
+      });
+      headerPanel.add(closeButton, BorderLayout.EAST);
+
+      add(headerPanel, BorderLayout.NORTH);
+
+      // Root + card panel
+      JPanel rootPanel = new JPanel(new BorderLayout(10, 10));
+      rootPanel.setBackground(backgroundColor);
+      rootPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+      JPanel cardPanel = new JPanel(new BorderLayout(10, 10));
+      cardPanel.setBackground(Color.WHITE);
+      cardPanel.setBorder(BorderFactory.createCompoundBorder(
+          BorderFactory.createLineBorder(cardBorderColor, 1),
+          BorderFactory.createEmptyBorder(20, 20, 20, 20)));
+      cardPanel.add(formPanel, BorderLayout.CENTER);
 
       // Button panel
-      JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
+      JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+      buttonPanel.setOpaque(false);
       JButton saveButton = new JButton("Lưu");
       JButton cancelButton = new JButton("Hủy");
+      styleButton(saveButton, new Color(41, 128, 185));
+      styleButton(cancelButton, new Color(108, 117, 125));
 
       saveButton.addActionListener(e -> save());
       cancelButton.addActionListener(e -> dispose());
 
-      buttonPanel.add(saveButton);
       buttonPanel.add(cancelButton);
-      add(buttonPanel, BorderLayout.SOUTH);
+      buttonPanel.add(saveButton);
+      cardPanel.add(buttonPanel, BorderLayout.SOUTH);
+
+      rootPanel.add(cardPanel, BorderLayout.CENTER);
+      add(rootPanel, BorderLayout.CENTER);
+
+      // Viền ngoài cùng cho dialog thêm/sửa lớp
+      if (getContentPane() instanceof JComponent) {
+        ((JComponent) getContentPane())
+            .setBorder(BorderFactory.createLineBorder(new Color(210, 214, 220), 1));
+      }
     }
 
     private void save() {
@@ -739,6 +808,42 @@ public class ClassPanel extends JPanel {
         }
       };
       worker.execute();
+    }
+
+    // --- style helpers (chỉ thay đổi giao diện) ---
+    private void styleTextField(JTextField field) {
+      field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+      field.setBorder(BorderFactory.createCompoundBorder(
+          BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+          BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+    }
+
+    private void styleComboBox(JComboBox<?> combo) {
+      combo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+      combo.setBorder(BorderFactory.createCompoundBorder(
+          BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+          BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+      combo.setBackground(Color.WHITE);
+    }
+
+    private void styleSpinner(JSpinner spinner) {
+      spinner.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+      if (spinner.getEditor() instanceof JSpinner.DefaultEditor) {
+        JSpinner.DefaultEditor editor = (JSpinner.DefaultEditor) spinner.getEditor();
+        editor.getTextField().setBorder(BorderFactory.createCompoundBorder(
+            BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+            BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        editor.getTextField().setFont(new Font("Segoe UI", Font.PLAIN, 14));
+      }
+    }
+
+    private void styleButton(JButton button, Color bgColor) {
+      button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+      button.setForeground(Color.WHITE);
+      button.setBackground(bgColor);
+      button.setBorder(BorderFactory.createEmptyBorder(10, 22, 10, 22));
+      button.setFocusPainted(false);
+      button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
     }
 
     public boolean isSaved() {

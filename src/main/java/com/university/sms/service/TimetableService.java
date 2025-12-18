@@ -55,38 +55,41 @@ public class TimetableService {
             int filteredBySchedule = 0;
 
             for (Enrollment enrollment : enrollments) {
-                // Only show enrolled courses
-                if (enrollment.getEnrollmentStatus() == Enrollment.EnrollmentStatus.ENROLLED) {
-                    Course course = courseDAO.findByCourseCode(enrollment.getCourseCode());
-                    if (course != null) {
-                        // Only show ONGOING courses
-                        if (course.getCourseStatus() == Course.CourseStatus.ONGOING) {
-                            TimetableEntry entry = new TimetableEntry(course);
-
-                            // Check if schedule is valid
-                            if (entry.getDayOfWeek() == null) {
-                                LOGGER.warning("  Course " + course.getCourseCode()
-                                        + " - Filtered: Invalid schedule (dayOfWeek is null), scheduleDay: "
-                                        + course.getScheduleDay());
-                                filteredBySchedule++;
-                                continue;
-                            }
-
-                            // Assign color based on subject
-                            String subjectKey = course.getSubjectName();
-                            if (!colorMap.containsKey(subjectKey)) {
-                                colorMap.put(subjectKey, COLORS[colorIndex % COLORS.length]);
-                                colorIndex++;
-                            }
-                            entry.setColor(colorMap.get(subjectKey));
-
-                            timetable.add(entry);
-                        } else {
-                            filteredByCourseStatus++;
-                        }
-                    }
-                } else {
+                // Bỏ qua các enrollment đã hủy / rớt, giữ cả ENROLLED và COMPLETED trên TKB
+                Enrollment.EnrollmentStatus status = enrollment.getEnrollmentStatus();
+                if (status == Enrollment.EnrollmentStatus.DROPPED
+                        || status == Enrollment.EnrollmentStatus.FAILED) {
                     filteredByEnrollmentStatus++;
+                    continue;
+                }
+
+                Course course = courseDAO.findByCourseCode(enrollment.getCourseCode());
+                if (course != null) {
+                    // Chỉ hiển thị các lớp đang diễn ra
+                    if (course.getCourseStatus() == Course.CourseStatus.ONGOING) {
+                        TimetableEntry entry = new TimetableEntry(course);
+
+                        // Check if schedule is valid
+                        if (entry.getDayOfWeek() == null) {
+                            LOGGER.warning("  Course " + course.getCourseCode()
+                                    + " - Filtered: Invalid schedule (dayOfWeek is null), scheduleDay: "
+                                    + course.getScheduleDay());
+                            filteredBySchedule++;
+                            continue;
+                        }
+
+                        // Assign color based on subject
+                        String subjectKey = course.getSubjectName();
+                        if (!colorMap.containsKey(subjectKey)) {
+                            colorMap.put(subjectKey, COLORS[colorIndex % COLORS.length]);
+                            colorIndex++;
+                        }
+                        entry.setColor(colorMap.get(subjectKey));
+
+                        timetable.add(entry);
+                    } else {
+                        filteredByCourseStatus++;
+                    }
                 }
             }
 

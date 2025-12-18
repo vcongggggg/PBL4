@@ -47,6 +47,9 @@ public class SubjectEditDialog extends JDialog {
     this.serverConnection = serverConnection;
     this.subject = subject;
 
+    // Sử dụng header tùy chỉnh, bỏ border mặc định
+    setUndecorated(true);
+
     initializeComponents();
     setupLayout();
     loadFaculties();
@@ -65,6 +68,12 @@ public class SubjectEditDialog extends JDialog {
     nameField = new JTextField(30);
 
     creditsSpinner = new JSpinner(new SpinnerNumberModel(3, 1, 10, 1));
+    // Style cho spinner (ô nhập số tín chỉ)
+    JSpinner.DefaultEditor spinnerEditor = (JSpinner.DefaultEditor) creditsSpinner.getEditor();
+    spinnerEditor.getTextField().setFont(new Font("Segoe UI", Font.PLAIN, 14));
+    spinnerEditor.getTextField().setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+        BorderFactory.createEmptyBorder(10, 12, 10, 12)));
 
     facultyCombo = new JComboBox<>();
     prerequisiteCombo = new JComboBox<>();
@@ -76,11 +85,24 @@ public class SubjectEditDialog extends JDialog {
     requiredCheckbox.setSelected(true);
 
     descriptionArea = new JTextArea(5, 30);
+    descriptionArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
     descriptionArea.setLineWrap(true);
     descriptionArea.setWrapStyleWord(true);
+    descriptionArea.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+        BorderFactory.createEmptyBorder(10, 12, 10, 12)));
 
     saveButton = new JButton("Lưu");
     cancelButton = new JButton("Hủy");
+
+    // Áp dụng style hiện đại cho các control cơ bản
+    styleTextField(codeField);
+    styleTextField(nameField);
+    styleComboBox(facultyCombo);
+    styleComboBox(prerequisiteCombo);
+    styleButton(saveButton, new Color(41, 128, 185), true);
+    styleButton(cancelButton, new Color(108, 117, 125), false);
+    requiredCheckbox.setFont(new Font("Segoe UI", Font.PLAIN, 14));
 
     saveButton.addActionListener(e -> saveSubject());
     cancelButton.addActionListener(e -> dispose());
@@ -92,8 +114,48 @@ public class SubjectEditDialog extends JDialog {
   }
 
   private void setupLayout() {
-    JPanel mainPanel = new JPanel(new BorderLayout(10, 10));
-    mainPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+    setLayout(new BorderLayout());
+
+    Color primaryColor = new Color(44, 62, 80); // Đồng bộ sidebar
+    Color backgroundColor = new Color(245, 247, 250);
+    Color cardBorderColor = new Color(220, 224, 230);
+
+    // Header tùy chỉnh
+    JPanel headerPanel = new JPanel(new BorderLayout());
+    headerPanel.setBackground(primaryColor);
+    headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+    headerPanel.setPreferredSize(new Dimension(0, 60));
+
+    JLabel titleLabel = new JLabel(subject == null ? "Thêm môn học" : "Sửa môn học");
+    titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+    titleLabel.setForeground(Color.WHITE);
+    headerPanel.add(titleLabel, BorderLayout.WEST);
+
+    JButton closeButton = new JButton("X");
+    closeButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
+    closeButton.setForeground(Color.WHITE);
+    closeButton.setContentAreaFilled(false);
+    closeButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+    closeButton.setFocusPainted(false);
+    closeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+    closeButton.addActionListener(e -> dispose());
+    closeButton.addMouseListener(new java.awt.event.MouseAdapter() {
+      @Override
+      public void mouseEntered(java.awt.event.MouseEvent e) {
+        closeButton.setForeground(new Color(255, 200, 200));
+      }
+
+      @Override
+      public void mouseExited(java.awt.event.MouseEvent e) {
+        closeButton.setForeground(Color.WHITE);
+      }
+    });
+    headerPanel.add(closeButton, BorderLayout.EAST);
+
+    // Panel nền (phần thân dưới header)
+    JPanel rootPanel = new JPanel(new BorderLayout(10, 10));
+    rootPanel.setBackground(backgroundColor);
+    rootPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
 
     // Form panel
     JPanel formPanel = new JPanel(new GridBagLayout());
@@ -134,15 +196,33 @@ public class SubjectEditDialog extends JDialog {
     descriptionFieldConstraints.weighty = 1.0;
     formPanel.add(new JScrollPane(descriptionArea), descriptionFieldConstraints);
 
-    mainPanel.add(formPanel, BorderLayout.CENTER);
+    // Card trắng chứa form
+    JPanel cardPanel = new JPanel(new BorderLayout(10, 10));
+    cardPanel.setBackground(Color.WHITE);
+    cardPanel.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(cardBorderColor, 1),
+        BorderFactory.createEmptyBorder(20, 20, 20, 20)));
+    cardPanel.add(formPanel, BorderLayout.CENTER);
 
     // Button panel
-    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
-    buttonPanel.add(saveButton);
+    JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+    buttonPanel.setOpaque(false);
     buttonPanel.add(cancelButton);
-    mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+    buttonPanel.add(saveButton);
+    cardPanel.add(buttonPanel, BorderLayout.SOUTH);
 
-    setContentPane(mainPanel);
+    rootPanel.add(cardPanel, BorderLayout.CENTER);
+
+    // Gộp header + thân vào một container, rồi set làm content pane
+    JPanel container = new JPanel(new BorderLayout());
+    container.add(headerPanel, BorderLayout.NORTH);
+    container.add(rootPanel, BorderLayout.CENTER);
+    setContentPane(container);
+
+    // Viền ngoài cùng cho toàn bộ dialog
+    if (getContentPane() instanceof JComponent) {
+      ((JComponent) getContentPane()).setBorder(BorderFactory.createLineBorder(new Color(210, 214, 220), 1));
+    }
 
     addComponentListener(new java.awt.event.ComponentAdapter() {
       @Override
@@ -155,6 +235,32 @@ public class SubjectEditDialog extends JDialog {
         }
       }
     });
+  }
+
+  // ===== Style helpers (chỉ thay đổi giao diện, không đụng logic dữ liệu) =====
+
+  private void styleTextField(JTextField field) {
+    field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+    field.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+        BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+  }
+
+  private void styleComboBox(JComboBox<?> combo) {
+    combo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+    combo.setBorder(BorderFactory.createCompoundBorder(
+        BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+        BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+    combo.setBackground(Color.WHITE);
+  }
+
+  private void styleButton(JButton button, Color bgColor, boolean primary) {
+    button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+    button.setForeground(Color.WHITE);
+    button.setBackground(bgColor);
+    button.setBorder(BorderFactory.createEmptyBorder(10, 22, 10, 22));
+    button.setFocusPainted(false);
+    button.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
   }
 
   private void addFormRow(JPanel panel, int row, String labelText, JComponent field,

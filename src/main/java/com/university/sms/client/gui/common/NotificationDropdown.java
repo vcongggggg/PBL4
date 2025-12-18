@@ -19,6 +19,7 @@ public class NotificationDropdown extends JPopupMenu {
     
     private JPanel contentPanel;
     private JLabel headerLabel;
+    private JLabel headerIconLabel;
     private List<Notification> notifications;
     private NotificationClickListener clickListener;
     
@@ -63,12 +64,26 @@ public class NotificationDropdown extends JPopupMenu {
         header.setBackground(new Color(41, 128, 185));
         header.setBorder(new EmptyBorder(15, 15, 15, 15));
         header.setMaximumSize(new Dimension(Integer.MAX_VALUE, 60));
-        
-        headerLabel = new JLabel("🔔 Thông Báo (0)");
+
+        // Icon và tiêu đề tách riêng để emoji không làm hỏng font tiếng Việt
+        JPanel leftPanel = new JPanel();
+        leftPanel.setOpaque(false);
+        leftPanel.setLayout(new BoxLayout(leftPanel, BoxLayout.X_AXIS));
+
+        headerIconLabel = new JLabel("🔔");
+        headerIconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 18));
+        headerIconLabel.setForeground(Color.WHITE);
+
+        headerLabel = new JLabel("Thông Báo (0 chưa đọc)");
         headerLabel.setFont(new Font("Segoe UI", Font.BOLD, 16));
         headerLabel.setForeground(Color.WHITE);
-        header.add(headerLabel, BorderLayout.WEST);
-        
+
+        leftPanel.add(headerIconLabel);
+        leftPanel.add(Box.createHorizontalStrut(6));
+        leftPanel.add(headerLabel);
+
+        header.add(leftPanel, BorderLayout.WEST);
+
         JButton markAllButton = new JButton("✓ Đọc hết");
         markAllButton.setFont(new Font("Segoe UI", Font.PLAIN, 12));
         markAllButton.setForeground(Color.WHITE);
@@ -114,10 +129,12 @@ public class NotificationDropdown extends JPopupMenu {
      */
     public void updateNotifications(List<Notification> notifications) {
         this.notifications = notifications != null ? notifications : new ArrayList<>();
-        
+
         // Update header
         int unreadCount = (int) this.notifications.stream().filter(n -> !n.isRead()).count();
-        headerLabel.setText(String.format("🔔 Thông Báo (%d chưa đọc)", unreadCount));
+        if (headerLabel != null) {
+            headerLabel.setText(String.format("Thông Báo (%d chưa đọc)", unreadCount));
+        }
         
         // Clear old items (keep header)
         Component header = contentPanel.getComponent(0);
@@ -149,7 +166,7 @@ public class NotificationDropdown extends JPopupMenu {
         panel.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
         
         JLabel iconLabel = new JLabel("📭");
-        iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 48));
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 48));
         iconLabel.setAlignmentX(Component.CENTER_ALIGNMENT);
         
         JLabel textLabel = new JLabel("Không có thông báo mới");
@@ -177,7 +194,7 @@ public class NotificationDropdown extends JPopupMenu {
         // Priority icon
         String priorityIcon = getPriorityIcon(notification.getPriority());
         JLabel iconLabel = new JLabel(priorityIcon);
-        iconLabel.setFont(new Font("Segoe UI", Font.PLAIN, 20));
+        iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 20));
         item.add(iconLabel, BorderLayout.WEST);
         
         // Content

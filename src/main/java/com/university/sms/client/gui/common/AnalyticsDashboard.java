@@ -80,8 +80,21 @@ public class AnalyticsDashboard extends JPanel {
         // Title bar
         JPanel titleBar = new JPanel(new BorderLayout());
         titleBar.setOpaque(false);
-        titleLabel = new JLabel("📊 Thống Kê & Phân Tích", JLabel.LEFT);
+
+        // Tách icon và chữ để dùng 2 font khác nhau
+        JPanel titleLeft = new JPanel();
+        titleLeft.setOpaque(false);
+        titleLeft.setLayout(new BoxLayout(titleLeft, BoxLayout.X_AXIS));
+
+        JLabel titleIcon = new JLabel("📊");
+        titleIcon.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 24));
+
+        titleLabel = new JLabel("Thống Kê & Phân Tích", JLabel.LEFT);
         titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 24));
+
+        titleLeft.add(titleIcon);
+        titleLeft.add(Box.createHorizontalStrut(8));
+        titleLeft.add(titleLabel);
 
         // Control panel
         JPanel controlPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
@@ -98,10 +111,12 @@ public class AnalyticsDashboard extends JPanel {
         }
 
         refreshButton = new JButton("🔄 Làm mới");
+        // Dùng Segoe UI cho text, emoji sẽ fallback
+        refreshButton.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         refreshButton.addActionListener(e -> refreshData());
         controlPanel.add(refreshButton);
 
-        titleBar.add(titleLabel, BorderLayout.WEST);
+        titleBar.add(titleLeft, BorderLayout.WEST);
         titleBar.add(controlPanel, BorderLayout.EAST);
 
         add(titleBar, BorderLayout.NORTH);
@@ -810,11 +825,33 @@ public class AnalyticsDashboard extends JPanel {
                     BorderFactory.createLineBorder(new Color(220, 220, 220)),
                     BorderFactory.createEmptyBorder(15, 15, 15, 15)));
 
-            // Title
-            JLabel titleLabel = new JLabel(title);
-            titleLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
-            titleLabel.setForeground(Color.GRAY);
-            add(titleLabel, BorderLayout.NORTH);
+            // Title: tách emoji và chữ
+            JPanel titlePanel = new JPanel();
+            titlePanel.setOpaque(false);
+            titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.X_AXIS));
+
+            String iconText = "";
+            String labelText = title;
+            int spaceIndex = title.indexOf(' ');
+            if (spaceIndex > 0) {
+                iconText = title.substring(0, spaceIndex);
+                labelText = title.substring(spaceIndex + 1);
+            }
+
+            if (!iconText.isEmpty()) {
+                JLabel iconLabel = new JLabel(iconText);
+                iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 14));
+                iconLabel.setForeground(Color.GRAY);
+                titlePanel.add(iconLabel);
+                titlePanel.add(Box.createHorizontalStrut(4));
+            }
+
+            JLabel textLabel = new JLabel(labelText);
+            textLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+            textLabel.setForeground(Color.GRAY);
+            titlePanel.add(textLabel);
+
+            add(titlePanel, BorderLayout.NORTH);
 
             // Value
             valueLabel = new JLabel(value);
@@ -881,10 +918,32 @@ public class AnalyticsDashboard extends JPanel {
             Graphics2D g2d = (Graphics2D) g;
             g2d.setRenderingHint(RenderingHints.KEY_ANTIALIASING, RenderingHints.VALUE_ANTIALIAS_ON);
 
-            // Draw title
-            g2d.setFont(new Font("Segoe UI", Font.BOLD, 14));
-            g2d.setColor(Color.DARK_GRAY);
-            g2d.drawString(title, 10, 20);
+            // Draw title: tách icon emoji và chữ
+            String iconText = "";
+            String labelText = title != null ? title : "";
+            int spaceIndex = labelText.indexOf(' ');
+            if (spaceIndex > 0) {
+                iconText = labelText.substring(0, spaceIndex);
+                labelText = labelText.substring(spaceIndex + 1);
+            }
+
+            int x = 10;
+            int y = 20;
+
+            if (!iconText.isEmpty()) {
+                Font emojiFont = new Font("Segoe UI Emoji", Font.BOLD, 14);
+                g2d.setFont(emojiFont);
+                g2d.setColor(Color.DARK_GRAY);
+                g2d.drawString(iconText, x, y);
+                x += g2d.getFontMetrics().stringWidth(iconText + " ");
+            }
+
+            if (!labelText.isEmpty()) {
+                Font textFont = new Font("Segoe UI", Font.BOLD, 14);
+                g2d.setFont(textFont);
+                g2d.setColor(Color.DARK_GRAY);
+                g2d.drawString(labelText, x, y);
+            }
 
             if (bars.isEmpty())
                 return;
@@ -900,15 +959,15 @@ public class AnalyticsDashboard extends JPanel {
 
             // Draw bars
             int barWidth = chartWidth / bars.size() - 10;
-            int x = chartLeft;
+            int barX = chartLeft;
 
             for (BarData bar : bars) {
                 int barHeight = (int) ((bar.value / maxValue) * chartHeight);
-                int y = chartTop + chartHeight - barHeight;
+                int barY = chartTop + chartHeight - barHeight;
 
                 // Draw bar
                 g2d.setColor(bar.color);
-                g2d.fillRoundRect(x, y, barWidth, barHeight, 5, 5);
+                g2d.fillRoundRect(barX, barY, barWidth, barHeight, 5, 5);
 
                 // Draw value on top
                 g2d.setColor(Color.DARK_GRAY);
@@ -916,7 +975,7 @@ public class AnalyticsDashboard extends JPanel {
                 String valueText = valueFormatter != null ? valueFormatter.apply(bar.value)
                         : String.format("%.0f%%", bar.value);
                 int textWidth = g2d.getFontMetrics().stringWidth(valueText);
-                g2d.drawString(valueText, x + (barWidth - textWidth) / 2, y - 5);
+                g2d.drawString(valueText, barX + (barWidth - textWidth) / 2, barY - 5);
 
                 // Draw label
                 Font labelFont = new Font("Segoe UI", Font.PLAIN, 10);
@@ -927,11 +986,11 @@ public class AnalyticsDashboard extends JPanel {
                 int labelY = chartTop + chartHeight + 15;
                 for (String line : lines) {
                     textWidth = labelMetrics.stringWidth(line);
-                    g2d.drawString(line, x + (barWidth - textWidth) / 2, labelY);
+                    g2d.drawString(line, barX + (barWidth - textWidth) / 2, labelY);
                     labelY += labelMetrics.getHeight();
                 }
 
-                x += barWidth + 10;
+                barX += barWidth + 10;
             }
         }
 
@@ -1006,10 +1065,33 @@ public class AnalyticsDashboard extends JPanel {
                     BorderFactory.createLineBorder(new Color(220, 220, 220)),
                     BorderFactory.createEmptyBorder(15, 15, 15, 15)));
 
-            JLabel titleLabel = new JLabel(title);
-            titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
-            titleLabel.setForeground(Color.DARK_GRAY);
-            add(titleLabel, BorderLayout.NORTH);
+            // Tách icon và chữ cho tiêu đề bảng Top 5
+            JPanel titlePanel = new JPanel();
+            titlePanel.setOpaque(false);
+            titlePanel.setLayout(new BoxLayout(titlePanel, BoxLayout.X_AXIS));
+
+            String iconText = "";
+            String labelText = title;
+            int spaceIndex = title.indexOf(' ');
+            if (spaceIndex > 0) {
+                iconText = title.substring(0, spaceIndex);
+                labelText = title.substring(spaceIndex + 1);
+            }
+
+            if (!iconText.isEmpty()) {
+                JLabel iconLabel = new JLabel(iconText);
+                iconLabel.setFont(new Font("Segoe UI Emoji", Font.PLAIN, 16));
+                iconLabel.setForeground(Color.DARK_GRAY);
+                titlePanel.add(iconLabel);
+                titlePanel.add(Box.createHorizontalStrut(4));
+            }
+
+            JLabel textLabel = new JLabel(labelText);
+            textLabel.setFont(new Font("Segoe UI", Font.BOLD, 14));
+            textLabel.setForeground(Color.DARK_GRAY);
+            titlePanel.add(textLabel);
+
+            add(titlePanel, BorderLayout.NORTH);
 
             tableModel = new DefaultTableModel(new Object[] { "Hạng", "Mã SV", "Họ và tên", "GPA" }, 0) {
                 private static final long serialVersionUID = 1L;

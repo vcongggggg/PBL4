@@ -34,29 +34,39 @@ public class TeacherMainFrame extends JFrame {
     private NotificationPanel notificationPanel;
 
     public TeacherMainFrame(User user, IServerConnection serverConnection) {
-        this.currentUser = user;
-        this.serverConnection = serverConnection;
+        try {
+            this.currentUser = user;
+            this.serverConnection = serverConnection;
 
-        initializeComponents();
-        setupLayout();
-        setupMenuBar();
-        setupEventListeners();
+            initializeComponents();
+            setupLayout();
+            setupMenuBar();
+            setupEventListeners();
 
-        // Refresh panel đầu tiên sau khi window được show
-        addWindowListener(new WindowAdapter() {
-            private boolean firstTime = true;
+            // Refresh panel đầu tiên sau khi window được show
+            addWindowListener(new WindowAdapter() {
+                private boolean firstTime = true;
 
-            @Override
-            public void windowOpened(WindowEvent e) {
-                if (firstTime) {
-                    firstTime = false;
-                    SwingUtilities.invokeLater(() -> {
-                        if (studentPanel != null)
-                            studentPanel.refreshData();
-                    });
+                @Override
+                public void windowOpened(WindowEvent e) {
+                    if (firstTime) {
+                        firstTime = false;
+                        SwingUtilities.invokeLater(() -> {
+                            if (studentPanel != null)
+                                studentPanel.refreshData();
+                        });
+                    }
                 }
-            }
-        });
+            });
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(null, 
+                "Lỗi khi khởi tạo giao diện giảng viên: " + e.getMessage() + "\n" +
+                e.getClass().getName(), 
+                "Lỗi", 
+                JOptionPane.ERROR_MESSAGE);
+            throw e; // Re-throw để caller biết có lỗi
+        }
     }
 
     private void initializeComponents() {
@@ -76,32 +86,44 @@ public class TeacherMainFrame extends JFrame {
     }
 
     private void createTeacherPanels() {
-        // Giảng viên quản lý sinh viên của những lớp mình dạy
-        studentPanel = new StudentPanel(currentUser, serverConnection, true);
-        modernDashboard.addNavItem("👥", "Danh sách Sinh viên", "student", studentPanel);
+        try {
+            // Giảng viên quản lý sinh viên của những lớp mình dạy
+            studentPanel = new StudentPanel(currentUser, serverConnection, true);
+            modernDashboard.addNavItem("👥", "Danh sách Sinh viên", "student", studentPanel);
 
-        // Giảng viên quản lý các lớp học phần mình dạy
-        coursePanel = new CoursePanel(currentUser, serverConnection, true);
-        modernDashboard.addNavItem("📚", "Lớp học phần", "course", coursePanel);
+            // Giảng viên quản lý các lớp học phần mình dạy
+            coursePanel = new CoursePanel(currentUser, serverConnection, true);
+            modernDashboard.addNavItem("📚", "Lớp học phần", "course", coursePanel);
 
-        // Giảng viên nhập điểm
-        gradePanel = new GradePanel(currentUser, serverConnection, false);
-        modernDashboard.addNavItem("📊", "Nhập Điểm", "grade", gradePanel);
+            // Giảng viên nhập điểm
+            gradePanel = new GradePanel(currentUser, serverConnection, false);
+            modernDashboard.addNavItem("📊", "Nhập Điểm", "grade", gradePanel);
 
-        // Thời khóa biểu
-        timetablePanel = new TimetablePanel(serverConnection);
-        timetablePanel.setCurrentUser(currentUser);
-        modernDashboard.addNavItem("📅", "Thời khóa biểu", "timetable", timetablePanel);
+            // Thời khóa biểu
+            timetablePanel = new TimetablePanel(serverConnection);
+            timetablePanel.setCurrentUser(currentUser);
+            modernDashboard.addNavItem("📅", "Thời khóa biểu", "timetable", timetablePanel);
 
-        // Yêu cầu mở lớp
-        classRequestsPanel = new MyClassRequestsPanel();
-        classRequestsPanel.setServerConnection(serverConnection);
-        classRequestsPanel.setCurrentUser(currentUser);
-        modernDashboard.addNavItem("📝", "Yêu Cầu Mở Lớp", "classRequests", classRequestsPanel);
+            // Yêu cầu mở lớp
+            classRequestsPanel = new MyClassRequestsPanel();
+            classRequestsPanel.setServerConnection(serverConnection);
+            classRequestsPanel.setCurrentUser(currentUser);
+            modernDashboard.addNavItem("📝", "Yêu Cầu Mở Lớp", "classRequests", classRequestsPanel);
 
-        // Thông báo (với badge)
-        notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
-        modernDashboard.addNavItemWithBadge("🔔", "Thông báo", "notification", notificationPanel);
+            // Thông báo (với badge)
+            notificationPanel = new NotificationPanel(currentUser, serverConnection, false);
+            modernDashboard.addNavItemWithBadge("🔔", "Thông báo", "notification", notificationPanel);
+        } catch (Exception e) {
+            e.printStackTrace();
+            JOptionPane.showMessageDialog(this, 
+                "Lỗi khi tạo các panel: " + e.getMessage() + "\n" +
+                e.getClass().getName() + "\n" +
+                java.util.Arrays.toString(e.getStackTrace()).substring(0, Math.min(300, 
+                java.util.Arrays.toString(e.getStackTrace()).length())), 
+                "Lỗi", 
+                JOptionPane.ERROR_MESSAGE);
+            throw e; // Re-throw để caller biết có lỗi
+        }
     }
 
     private void setupLayout() {

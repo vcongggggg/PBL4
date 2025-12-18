@@ -7,9 +7,11 @@ import com.university.sms.model.Notification;
 import com.university.sms.model.User;
 
 import javax.swing.*;
+import javax.swing.KeyStroke;
 import javax.swing.table.DefaultTableCellRenderer;
 import javax.swing.table.DefaultTableModel;
 import java.awt.*;
+import java.awt.event.ActionEvent;
 import java.text.SimpleDateFormat;
 import java.util.List;
 
@@ -164,9 +166,9 @@ public class NotificationPanel extends JPanel {
         unreadCountLabel.setFont(new Font("Arial", Font.BOLD, 14));
         unreadCountLabel.setForeground(Color.RED);
 
-        // Notification dropdown button with badge
+        // Notification dropdown button với icon + text, dùng Segoe UI để không vỡ tiếng Việt
         notificationButton = new JButton("🔔 Thông báo");
-        notificationButton.setFont(new Font("Arial", Font.PLAIN, 13));
+        notificationButton.setFont(new Font("Segoe UI", Font.PLAIN, 13));
         notificationButton.addActionListener(e -> showNotificationDropdown());
 
         // Create dropdown
@@ -319,57 +321,191 @@ public class NotificationPanel extends JPanel {
 
         // Show details dialog
         JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this),
-                "Chi tiết thông báo", true);
-        dialog.setLayout(new BorderLayout(10, 10));
+                "", true);
+        dialog.setUndecorated(true);
+        dialog.setLayout(new BorderLayout());
+        
+        Color primaryColor = new Color(44, 62, 80); // Match sidebar color
+        Color backgroundColor = new Color(245, 247, 250);
+        Color cardColor = Color.WHITE;
+        Color borderColor = new Color(220, 224, 230);
 
-        JPanel contentPanel = new JPanel(new BorderLayout(10, 10));
-        contentPanel.setBorder(BorderFactory.createEmptyBorder(15, 15, 15, 15));
+        // Custom header panel
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(primaryColor);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        headerPanel.setPreferredSize(new Dimension(0, 60));
+
+        JLabel headerTitleLabel = new JLabel("Chi tiết thông báo");
+        headerTitleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        headerTitleLabel.setForeground(Color.WHITE);
+        headerPanel.add(headerTitleLabel, BorderLayout.WEST);
+
+        // Close button in header
+        JButton headerCloseButton = new JButton("X");
+        headerCloseButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        headerCloseButton.setForeground(Color.WHITE);
+        headerCloseButton.setBackground(primaryColor);
+        headerCloseButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+        headerCloseButton.setFocusPainted(false);
+        headerCloseButton.setContentAreaFilled(false);
+        headerCloseButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        headerCloseButton.addActionListener(e -> dialog.dispose());
+        headerCloseButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                headerCloseButton.setForeground(new Color(255, 200, 200));
+                headerCloseButton.setBackground(new Color(220, 53, 69));
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                headerCloseButton.setForeground(Color.WHITE);
+                headerCloseButton.setBackground(primaryColor);
+            }
+        });
+        headerPanel.add(headerCloseButton, BorderLayout.EAST);
+        dialog.add(headerPanel, BorderLayout.NORTH);
+
+        // Main content panel
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(backgroundColor);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Form card
+        JPanel formCard = new JPanel();
+        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
+        formCard.setBackground(cardColor);
+        formCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(25, 25, 25, 25)));
 
         // Title
         JLabel titleLabel = new JLabel(notif.getTitle());
-        titleLabel.setFont(new Font("Arial", Font.BOLD, 16));
-        contentPanel.add(titleLabel, BorderLayout.NORTH);
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(new Color(52, 73, 94));
+        titleLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formCard.add(titleLabel);
+        formCard.add(Box.createVerticalStrut(20));
 
         // Info panel
-        JPanel infoPanel = new JPanel(new GridLayout(0, 1, 5, 5));
-        infoPanel.add(new JLabel("Người gửi: " +
-                (notif.getSenderName() != null ? notif.getSenderName() : "System")));
+        JPanel infoPanel = new JPanel();
+        infoPanel.setLayout(new BoxLayout(infoPanel, BoxLayout.Y_AXIS));
+        infoPanel.setOpaque(false);
+        infoPanel.setAlignmentX(Component.LEFT_ALIGNMENT);
 
         SimpleDateFormat sdf = new SimpleDateFormat("dd/MM/yyyy HH:mm");
+        
+        JLabel senderLabel = createInfoLabel("Người gửi", 
+            notif.getSenderName() != null ? notif.getSenderName() : "System");
+        infoPanel.add(senderLabel);
+        infoPanel.add(Box.createVerticalStrut(10));
+
         if (notif.getCreatedAt() != null) {
-            infoPanel.add(new JLabel("Ngày gửi: " + sdf.format(notif.getCreatedAt())));
+            JLabel dateLabel = createInfoLabel("Ngày gửi", sdf.format(notif.getCreatedAt()));
+            infoPanel.add(dateLabel);
+            infoPanel.add(Box.createVerticalStrut(10));
         }
 
-        infoPanel.add(new JLabel("Mức độ: " + notif.getPriorityIcon() + " " +
-                notif.getPriority().getDisplayName()));
+        JLabel priorityLabel = createInfoLabel("Mức độ", 
+            notif.getPriorityIcon() + " " + notif.getPriority().getDisplayName());
+        infoPanel.add(priorityLabel);
 
-        contentPanel.add(infoPanel, BorderLayout.CENTER);
+        formCard.add(infoPanel);
+        formCard.add(Box.createVerticalStrut(20));
 
         // Content
         JTextArea contentArea = new JTextArea(notif.getContent());
         contentArea.setEditable(false);
+        contentArea.setFont(new Font("Segoe UI", Font.PLAIN, 14));
         contentArea.setLineWrap(true);
         contentArea.setWrapStyleWord(true);
         contentArea.setBorder(BorderFactory.createCompoundBorder(
-                BorderFactory.createTitledBorder("Nội dung:"),
-                BorderFactory.createEmptyBorder(5, 5, 5, 5)));
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        contentArea.setBackground(new Color(248, 249, 250));
 
-        JScrollPane scrollPane = new JScrollPane(contentArea);
-        scrollPane.setPreferredSize(new Dimension(500, 200));
-        contentPanel.add(scrollPane, BorderLayout.SOUTH);
+        JLabel contentLabel = new JLabel("Nội dung:");
+        contentLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        contentLabel.setForeground(new Color(73, 80, 87));
+        contentLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formCard.add(contentLabel);
+        formCard.add(Box.createVerticalStrut(6));
 
-        dialog.add(contentPanel, BorderLayout.CENTER);
+        JScrollPane contentScroll = new JScrollPane(contentArea);
+        contentScroll.setBorder(contentArea.getBorder());
+        contentScroll.setPreferredSize(new Dimension(0, 150));
+        contentScroll.setMaximumSize(new Dimension(Integer.MAX_VALUE, 150));
+        contentArea.setBorder(null);
+        contentScroll.setAlignmentX(Component.LEFT_ALIGNMENT);
+        formCard.add(contentScroll);
 
-        // Close button
-        JButton closeButton = new JButton("Đóng");
+        mainPanel.add(formCard);
+        
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        dialog.add(scrollPane, BorderLayout.CENTER);
+
+        // Button panel
+        JButton closeButton = createStyledButton("Đóng", new Color(108, 117, 125), false);
         closeButton.addActionListener(e -> dialog.dispose());
-        JPanel buttonPanel = new JPanel();
+        
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonPanel.setBackground(backgroundColor);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 20, 20));
         buttonPanel.add(closeButton);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
 
-        dialog.pack();
+        // Viền ngoài cùng cho dialog chi tiết thông báo
+        dialog.getRootPane().setBorder(BorderFactory.createLineBorder(new Color(210, 214, 220), 1));
+
+        // Close on ESC key
+        dialog.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke("ESCAPE"), "close");
+        dialog.getRootPane().getActionMap().put("close", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dialog.dispose();
+            }
+        });
+
+        dialog.setSize(600, 550);
         dialog.setLocationRelativeTo(this);
         dialog.setVisible(true);
+    }
+
+    private JLabel createInfoLabel(String label, String value) {
+        JLabel infoLabel = new JLabel("<html><b>" + label + ":</b> " + value + "</html>");
+        infoLabel.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        infoLabel.setForeground(new Color(73, 80, 87));
+        infoLabel.setAlignmentX(Component.LEFT_ALIGNMENT);
+        return infoLabel;
+    }
+
+    private JButton createStyledButton(String text, Color bgColor, boolean isPrimary) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        button.setForeground(Color.WHITE);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(isPrimary ? 150 : 100, 42));
+        
+        Color hoverColor = new Color(
+            Math.max(0, bgColor.getRed() - 15),
+            Math.max(0, bgColor.getGreen() - 15),
+            Math.max(0, bgColor.getBlue() - 15)
+        );
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(hoverColor);
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(bgColor);
+            }
+        });
+        
+        return button;
     }
 
     private void markNotificationAsRead(int notificationId) {

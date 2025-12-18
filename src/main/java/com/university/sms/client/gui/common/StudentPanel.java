@@ -32,7 +32,6 @@ public class StudentPanel extends JPanel {
     private JButton searchButton;
     private JButton refreshButton;
     private JCheckBox showInactiveCheckbox;
-    private AdvancedSearchPanel advancedSearchPanel;
     private JButton addButton;
     private JButton deleteButton;
     private JButton activateButton;
@@ -110,17 +109,7 @@ public class StudentPanel extends JPanel {
             searchPanel.add(showInactiveCheckbox);
         }
 
-        JButton advancedSearchButton = new JButton("🔍 Nâng cao");
-        advancedSearchButton.addActionListener(e -> toggleAdvancedSearch());
-        searchPanel.add(advancedSearchButton);
-
         topPanel.add(searchPanel, BorderLayout.WEST);
-
-        advancedSearchPanel = new AdvancedSearchPanel();
-        advancedSearchPanel.setVisible(false);
-        advancedSearchPanel.setSearchListener((searchText, filters) -> {
-            performAdvancedSearch(searchText, filters);
-        });
 
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT));
         if (!isReadOnly) {
@@ -130,11 +119,7 @@ public class StudentPanel extends JPanel {
         }
         topPanel.add(buttonPanel, BorderLayout.EAST);
 
-        JPanel topContainer = new JPanel(new BorderLayout());
-        topContainer.add(topPanel, BorderLayout.NORTH);
-        topContainer.add(advancedSearchPanel, BorderLayout.CENTER);
-
-        add(topContainer, BorderLayout.NORTH);
+        add(topPanel, BorderLayout.NORTH);
 
         JSplitPane splitPane = new JSplitPane(JSplitPane.VERTICAL_SPLIT);
         splitPane.setResizeWeight(0.7);
@@ -447,23 +432,77 @@ public class StudentPanel extends JPanel {
     }
 
     private void showAddStudentDialog() {
-        // Create a custom dialog with dropdowns
-        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "Thêm sinh viên", true);
-        dialog.setSize(500, 400);
+        // Create a modern dialog with improved UI
+        JDialog dialog = new JDialog((Frame) SwingUtilities.getWindowAncestor(this), "", true);
+        dialog.setSize(600, 650);
         dialog.setLocationRelativeTo(this);
+        dialog.setUndecorated(true); // For custom header
+        dialog.setLayout(new BorderLayout());
 
-        JPanel panel = new JPanel(new GridBagLayout());
-        GridBagConstraints gbc = new GridBagConstraints();
-        gbc.insets = new Insets(5, 5, 5, 5);
-        gbc.anchor = GridBagConstraints.WEST;
+        // Modern color scheme
+        Color primaryColor = new Color(44, 62, 80); // Match sidebar color
+        Color backgroundColor = new Color(245, 247, 250);
+        Color cardColor = Color.WHITE;
+        Color borderColor = new Color(220, 224, 230);
 
-        JTextField code = new JTextField(20);
-        JTextField username = new JTextField(20);
-        JTextField name = new JTextField(20);
-        JTextField email = new JTextField(20);
-        JTextField phone = new JTextField(20);
-        JComboBox<FacultyItem> facultyCombo = new JComboBox<>();
-        JComboBox<ClassItem> classCombo = new JComboBox<>();
+        // Custom header panel
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(primaryColor);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        headerPanel.setPreferredSize(new Dimension(0, 60));
+
+        JLabel titleLabel = new JLabel("Thêm Sinh viên Mới");
+        titleLabel.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        titleLabel.setForeground(Color.WHITE);
+        headerPanel.add(titleLabel, BorderLayout.WEST);
+
+        // Close button with simple text "X"
+        JButton closeButton = new JButton("X");
+        closeButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        closeButton.setForeground(Color.WHITE);
+        closeButton.setBackground(primaryColor);
+        closeButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+        closeButton.setFocusPainted(false);
+        closeButton.setContentAreaFilled(false);
+        closeButton.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        closeButton.addActionListener(e -> dialog.dispose());
+        closeButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                closeButton.setForeground(new Color(255, 200, 200));
+                closeButton.setBackground(new Color(220, 53, 69)); // Red on hover
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                closeButton.setForeground(Color.WHITE);
+                closeButton.setBackground(primaryColor);
+            }
+        });
+        headerPanel.add(closeButton, BorderLayout.EAST);
+
+        dialog.add(headerPanel, BorderLayout.NORTH);
+
+        // Main content panel with scroll
+        JPanel mainPanel = new JPanel();
+        mainPanel.setLayout(new BoxLayout(mainPanel, BoxLayout.Y_AXIS));
+        mainPanel.setBackground(backgroundColor);
+        mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 20, 20));
+
+        // Form card
+        JPanel formCard = new JPanel();
+        formCard.setLayout(new BoxLayout(formCard, BoxLayout.Y_AXIS));
+        formCard.setBackground(cardColor);
+        formCard.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(borderColor, 1),
+                BorderFactory.createEmptyBorder(25, 25, 25, 25)));
+
+        // Input fields
+        JTextField code = createStyledTextField("");
+        JTextField username = createStyledTextField("");
+        JTextField name = createStyledTextField("");
+        JTextField email = createStyledTextField("");
+        JTextField phone = createStyledTextField("");
+        
+        JComboBox<FacultyItem> facultyCombo = createStyledComboBox();
+        JComboBox<ClassItem> classCombo = createStyledComboBox();
         classCombo.addItem(new ClassItem(null, "-- Không có --"));
 
         // Thêm item mặc định cho faculty combo
@@ -593,68 +632,80 @@ public class StudentPanel extends JPanel {
             }
         });
 
-        int row = 0;
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("Mã SV:"), gbc);
-        gbc.gridx = 1;
-        panel.add(code, gbc);
+        // Add fields to form with proper spacing
+        formCard.add(createFieldPanel("Mã sinh viên", code, true));
+        formCard.add(Box.createVerticalStrut(15));
+        formCard.add(createFieldPanel("Username", username, false));
+        formCard.add(Box.createVerticalStrut(15));
+        formCard.add(createFieldPanel("Họ và tên", name, true));
+        formCard.add(Box.createVerticalStrut(15));
+        formCard.add(createFieldPanel("Email", email, false));
+        formCard.add(Box.createVerticalStrut(15));
+        formCard.add(createFieldPanel("Số điện thoại", phone, false));
+        formCard.add(Box.createVerticalStrut(15));
+        formCard.add(createFieldPanel("Khoa", facultyCombo, true));
+        formCard.add(Box.createVerticalStrut(15));
+        formCard.add(createFieldPanel("Lớp (tùy chọn)", classCombo, false));
 
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("Username:"), gbc);
-        gbc.gridx = 1;
-        panel.add(username, gbc);
+        mainPanel.add(formCard);
+        
+        JScrollPane scrollPane = new JScrollPane(mainPanel);
+        scrollPane.setBorder(null);
+        scrollPane.getVerticalScrollBar().setUnitIncrement(16);
+        dialog.add(scrollPane, BorderLayout.CENTER);
 
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("Họ tên:"), gbc);
-        gbc.gridx = 1;
-        panel.add(name, gbc);
+        // Modern button panel
+        JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
+        buttonPanel.setBackground(backgroundColor);
+        buttonPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 20, 20));
 
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("Email:"), gbc);
-        gbc.gridx = 1;
-        panel.add(email, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("SĐT:"), gbc);
-        gbc.gridx = 1;
-        panel.add(phone, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("Khoa:"), gbc);
-        gbc.gridx = 1;
-        panel.add(facultyCombo, gbc);
-
-        gbc.gridx = 0;
-        gbc.gridy = row++;
-        panel.add(new JLabel("Lớp (có thể để trống):"), gbc);
-        gbc.gridx = 1;
-        panel.add(classCombo, gbc);
-
-        JButton okButton = new JButton("OK");
-        JButton cancelButton = new JButton("Hủy");
-        JPanel buttonPanel = new JPanel(new FlowLayout());
-        buttonPanel.add(okButton);
+        JButton cancelButton = createStyledButton("Hủy", new Color(108, 117, 125), false);
+        JButton okButton = createStyledButton("Thêm sinh viên", new Color(41, 128, 185), true);
+        
         buttonPanel.add(cancelButton);
-
-        dialog.add(panel, BorderLayout.CENTER);
+        buttonPanel.add(okButton);
         dialog.add(buttonPanel, BorderLayout.SOUTH);
 
         final boolean[] confirmed = { false };
         okButton.addActionListener(e -> {
-            if (facultyCombo.getSelectedItem() == null) {
-                JOptionPane.showMessageDialog(dialog, "Vui lòng chọn khoa", "Lỗi", JOptionPane.ERROR_MESSAGE);
+            // Validation
+            if (code.getText().trim().isEmpty()) {
+                showValidationError(dialog, "Vui lòng nhập mã sinh viên");
+                code.requestFocus();
+                return;
+            }
+            if (name.getText().trim().isEmpty()) {
+                showValidationError(dialog, "Vui lòng nhập họ và tên");
+                name.requestFocus();
+                return;
+            }
+            FacultyItem selectedFaculty = (FacultyItem) facultyCombo.getSelectedItem();
+            if (selectedFaculty == null || selectedFaculty.code == null) {
+                showValidationError(dialog, "Vui lòng chọn khoa");
+                facultyCombo.requestFocus();
+                return;
+            }
+            // Email validation (optional but if provided should be valid)
+            String emailText = email.getText().trim();
+            if (!emailText.isEmpty() && !emailText.contains("@")) {
+                showValidationError(dialog, "Email không hợp lệ");
+                email.requestFocus();
                 return;
             }
             confirmed[0] = true;
             dialog.dispose();
         });
         cancelButton.addActionListener(e -> dialog.dispose());
+
+        // Close on ESC key
+        dialog.getRootPane().getInputMap(JComponent.WHEN_IN_FOCUSED_WINDOW)
+            .put(KeyStroke.getKeyStroke("ESCAPE"), "close");
+        dialog.getRootPane().getActionMap().put("close", new AbstractAction() {
+            @Override
+            public void actionPerformed(ActionEvent e) {
+                dialog.dispose();
+            }
+        });
 
         dialog.setVisible(true);
 
@@ -753,27 +804,6 @@ public class StudentPanel extends JPanel {
     private void showErrorMessage(String message) {
         JOptionPane.showMessageDialog(this, message, "Lỗi", JOptionPane.ERROR_MESSAGE);
         addLog("LỖI: " + message);
-    }
-
-    private void toggleAdvancedSearch() {
-        if (advancedSearchPanel != null) {
-            boolean visible = !advancedSearchPanel.isVisible();
-            advancedSearchPanel.setVisible(visible);
-            revalidate();
-            repaint();
-        }
-    }
-
-    private void performAdvancedSearch(String searchText, java.util.Map<String, String> filters) {
-        addLog("Đang tìm kiếm nâng cao: " + searchText);
-        // Nếu có filters, có thể thêm logic filter phức tạp hơn
-        // Hiện tại chỉ dùng search text như search đơn giản
-        if (searchText != null && !searchText.trim().isEmpty()) {
-            searchField.setText(searchText);
-            performSearch();
-        } else {
-            refreshData();
-        }
     }
 
     // Button Renderer for table
@@ -924,6 +954,98 @@ public class StudentPanel extends JPanel {
         };
 
         worker.execute();
+    }
+
+    // Helper methods for styled dialog components
+    private void showValidationError(JDialog parent, String message) {
+        JOptionPane.showMessageDialog(parent, message, "Thông báo", 
+            JOptionPane.WARNING_MESSAGE);
+    }
+
+    private JTextField createStyledTextField(String placeholder) {
+        JTextField field = new JTextField();
+        field.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        field.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+                BorderFactory.createEmptyBorder(10, 12, 10, 12)));
+        field.setPreferredSize(new Dimension(0, 40));
+        field.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        return field;
+    }
+
+    private <T> JComboBox<T> createStyledComboBox() {
+        JComboBox<T> combo = new JComboBox<>();
+        combo.setFont(new Font("Segoe UI", Font.PLAIN, 14));
+        combo.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(new Color(220, 224, 230), 1),
+                BorderFactory.createEmptyBorder(8, 10, 8, 10)));
+        combo.setPreferredSize(new Dimension(0, 40));
+        combo.setMaximumSize(new Dimension(Integer.MAX_VALUE, 40));
+        combo.setBackground(Color.WHITE);
+        return combo;
+    }
+
+    private JPanel createFieldPanel(String label, JComponent component, boolean required) {
+        JPanel panel = new JPanel();
+        panel.setLayout(new BoxLayout(panel, BoxLayout.Y_AXIS));
+        panel.setOpaque(false);
+        panel.setAlignmentX(Component.LEFT_ALIGNMENT);
+
+        JLabel labelComponent = new JLabel(label + (required ? " *" : ""));
+        labelComponent.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        labelComponent.setForeground(new Color(73, 80, 87));
+        if (required) {
+            JLabel requiredLabel = new JLabel("*");
+            requiredLabel.setForeground(new Color(220, 53, 69));
+            requiredLabel.setFont(new Font("Segoe UI", Font.PLAIN, 13));
+        }
+        labelComponent.setAlignmentX(Component.LEFT_ALIGNMENT);
+        panel.add(labelComponent);
+        panel.add(Box.createVerticalStrut(6));
+
+        component.setAlignmentX(Component.LEFT_ALIGNMENT);
+        component.setMaximumSize(new Dimension(Integer.MAX_VALUE, component.getPreferredSize().height));
+        panel.add(component);
+
+        return panel;
+    }
+
+    private JButton createStyledButton(String text, Color bgColor, boolean isPrimary) {
+        JButton button = new JButton(text);
+        button.setFont(new Font("Segoe UI", Font.BOLD, 14));
+        button.setForeground(Color.WHITE);
+        button.setBackground(bgColor);
+        button.setBorder(BorderFactory.createEmptyBorder(12, 24, 12, 24));
+        button.setFocusPainted(false);
+        button.setCursor(new Cursor(Cursor.HAND_CURSOR));
+        button.setPreferredSize(new Dimension(isPrimary ? 160 : 100, 42));
+        
+        // Hover effect
+        Color hoverColor = new Color(
+            Math.max(0, bgColor.getRed() - 15),
+            Math.max(0, bgColor.getGreen() - 15),
+            Math.max(0, bgColor.getBlue() - 15)
+        );
+        button.addMouseListener(new java.awt.event.MouseAdapter() {
+            public void mouseEntered(java.awt.event.MouseEvent evt) {
+                button.setBackground(hoverColor);
+            }
+            public void mouseExited(java.awt.event.MouseEvent evt) {
+                button.setBackground(bgColor);
+            }
+            public void mousePressed(java.awt.event.MouseEvent evt) {
+                button.setBackground(new Color(
+                    Math.max(0, bgColor.getRed() - 25),
+                    Math.max(0, bgColor.getGreen() - 25),
+                    Math.max(0, bgColor.getBlue() - 25)
+                ));
+            }
+            public void mouseReleased(java.awt.event.MouseEvent evt) {
+                button.setBackground(bgColor);
+            }
+        });
+        
+        return button;
     }
 
     // Helper methods for display formatting

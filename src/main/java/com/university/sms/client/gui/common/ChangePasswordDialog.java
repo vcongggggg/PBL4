@@ -36,6 +36,9 @@ public class ChangePasswordDialog extends JDialog {
         super(parent, "Đổi mật khẩu", true);
         this.serverConnection = serverConnection;
 
+        // Dùng header tùy chỉnh, bỏ border hệ điều hành
+        setUndecorated(true);
+
         initializeComponents();
         setupLayout();
         setupEventListeners();
@@ -134,13 +137,48 @@ public class ChangePasswordDialog extends JDialog {
     }
 
     private void setupLayout() {
-        setLayout(new BorderLayout(10, 10));
-        getContentPane().setBackground(Color.WHITE);
+        setLayout(new BorderLayout());
+
+        Color primaryColor = new Color(44, 62, 80); // match sidebar
+        Color backgroundColor = new Color(245, 247, 250);
+        Color cardBorderColor = new Color(220, 224, 230);
+
+        // Header tùy chỉnh
+        JPanel headerPanel = new JPanel(new BorderLayout());
+        headerPanel.setBackground(primaryColor);
+        headerPanel.setBorder(BorderFactory.createEmptyBorder(15, 20, 15, 20));
+        headerPanel.setPreferredSize(new Dimension(0, 60));
+
+        JLabel headerTitle = new JLabel("Đổi mật khẩu");
+        headerTitle.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        headerTitle.setForeground(Color.WHITE);
+        headerPanel.add(headerTitle, BorderLayout.WEST);
+
+        JButton closeButton = new JButton("X");
+        closeButton.setFont(new Font("Segoe UI", Font.BOLD, 18));
+        closeButton.setForeground(Color.WHITE);
+        closeButton.setContentAreaFilled(false);
+        closeButton.setBorder(BorderFactory.createEmptyBorder(5, 15, 5, 15));
+        closeButton.setFocusPainted(false);
+        closeButton.setCursor(Cursor.getPredefinedCursor(Cursor.HAND_CURSOR));
+        closeButton.addActionListener(e -> dispose());
+        closeButton.addMouseListener(new java.awt.event.MouseAdapter() {
+            @Override
+            public void mouseEntered(java.awt.event.MouseEvent e) {
+                closeButton.setForeground(new Color(255, 200, 200));
+            }
+
+            @Override
+            public void mouseExited(java.awt.event.MouseEvent e) {
+                closeButton.setForeground(Color.WHITE);
+            }
+        });
+        headerPanel.add(closeButton, BorderLayout.EAST);
 
         // Main panel with padding
         JPanel mainPanel = new JPanel(new BorderLayout(10, 15));
         mainPanel.setBorder(BorderFactory.createEmptyBorder(20, 20, 15, 20));
-        mainPanel.setBackground(Color.WHITE);
+        mainPanel.setBackground(backgroundColor);
 
         // Form panel
         JPanel formPanel = new JPanel(new GridBagLayout());
@@ -193,16 +231,34 @@ public class ChangePasswordDialog extends JDialog {
         JPanel confirmPasswordPanel = createPasswordFieldPanel(confirmPasswordField, toggleConfirmPasswordButton);
         formPanel.add(confirmPasswordPanel, gbc);
 
-        mainPanel.add(formPanel, BorderLayout.CENTER);
+        // Card trắng chứa form
+        JPanel cardPanel = new JPanel(new BorderLayout(10, 10));
+        cardPanel.setBackground(Color.WHITE);
+        cardPanel.setBorder(BorderFactory.createCompoundBorder(
+                BorderFactory.createLineBorder(cardBorderColor, 1),
+                BorderFactory.createEmptyBorder(20, 20, 20, 20)));
+        cardPanel.add(formPanel, BorderLayout.CENTER);
 
         // Button panel
         JPanel buttonPanel = new JPanel(new FlowLayout(FlowLayout.RIGHT, 10, 0));
         buttonPanel.setBackground(Color.WHITE);
         buttonPanel.add(cancelButton);
         buttonPanel.add(changeButton);
-        mainPanel.add(buttonPanel, BorderLayout.SOUTH);
+        cardPanel.add(buttonPanel, BorderLayout.SOUTH);
 
-        add(mainPanel, BorderLayout.CENTER);
+        mainPanel.add(cardPanel, BorderLayout.CENTER);
+
+        // Container gộp header + thân
+        JPanel container = new JPanel(new BorderLayout());
+        container.add(headerPanel, BorderLayout.NORTH);
+        container.add(mainPanel, BorderLayout.CENTER);
+
+        setContentPane(container);
+
+        // Viền ngoài cùng
+        if (getContentPane() instanceof JComponent) {
+            ((JComponent) getContentPane()).setBorder(BorderFactory.createLineBorder(new Color(210, 214, 220), 1));
+        }
     }
 
     private JPanel createPasswordFieldPanel(JPasswordField passwordField, JButton toggleButton) {

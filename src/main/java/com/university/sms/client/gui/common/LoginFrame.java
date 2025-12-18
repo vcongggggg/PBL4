@@ -889,18 +889,29 @@ public class LoginFrame extends JFrame {
 
         setVisible(false);
         SwingUtilities.invokeLater(() -> {
-            switch (user.getRole()) {
-                case ADMIN:
-                    new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection).setVisible(true);
-                    break;
-                case TEACHER:
-                    new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection).setVisible(true);
-                    break;
-                case STUDENT:
-                    new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection).setVisible(true);
-                    break;
+            try {
+                switch (user.getRole()) {
+                    case ADMIN:
+                        new com.university.sms.client.gui.admin.AdminMainFrame(user, serverConnection).setVisible(true);
+                        break;
+                    case TEACHER:
+                        com.university.sms.client.gui.teacher.TeacherMainFrame teacherFrame = 
+                            new com.university.sms.client.gui.teacher.TeacherMainFrame(user, serverConnection);
+                        teacherFrame.setVisible(true);
+                        break;
+                    case STUDENT:
+                        new com.university.sms.client.gui.student.StudentMainFrame(user, serverConnection).setVisible(true);
+                        break;
+                }
+                dispose();
+            } catch (Exception e) {
+                e.printStackTrace();
+                showMessage("Lỗi khi mở giao diện: " + e.getMessage() + "\nChi tiết: " + 
+                    java.util.Arrays.toString(e.getStackTrace()).substring(0, Math.min(500, 
+                    java.util.Arrays.toString(e.getStackTrace()).length())), 
+                    "Lỗi", JOptionPane.ERROR_MESSAGE);
+                setVisible(true); // Hiển thị lại login frame nếu có lỗi
             }
-            dispose();
         });
     }
 
