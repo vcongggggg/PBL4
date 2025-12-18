@@ -115,48 +115,37 @@ public class PostgresHandler {
       }
 
       Map<String, Object> serverMetadata = getServerMetadata();
-      int serverVersion = ((Number) serverMetadata.get("db_version")).intValue();
 
-      String currentSource = SOURCE;
-      String clientSourceKey = currentSource.toLowerCase() + "_version";
-      int clientSourceVersion = 0;
-      if (serverMetadata.containsKey(clientSourceKey)) {
-        Object versionObj = serverMetadata.get(clientSourceKey);
-        if (versionObj instanceof Number) {
-          clientSourceVersion = ((Number) versionObj).intValue();
-        }
+      // Version của nguồn POSTGRES trên server
+      int serverSourceVersion = 0;
+      Object serverSourceVersionObj = serverMetadata.get("postgres_version");
+      if (serverSourceVersionObj instanceof Number) {
+        serverSourceVersion = ((Number) serverSourceVersionObj).intValue();
       }
 
       boolean hasClientVersion = clientVersion > 0;
-      boolean hasSourceVersion = clientSourceVersion > 0;
-      boolean versionMatches = hasClientVersion
-          && ((hasSourceVersion && clientVersion == clientSourceVersion)
-              || (!hasSourceVersion && clientVersion == serverVersion));
+      boolean hasServerSourceVersion = serverSourceVersion > 0;
 
       String syncAction;
-      if (versionMatches) {
+      if (hasClientVersion && hasServerSourceVersion && clientVersion == serverSourceVersion) {
         syncAction = "NO_SYNC_NEEDED";
-      } else if (currentSource != null && !"REGULAR".equals(currentSource) && !"UNKNOWN".equals(currentSource)) {
-        if (!hasClientVersion) {
-          syncAction = "UPLOAD_TO_SERVER";
-        } else if (clientSourceVersion > clientVersion) {
-          syncAction = "DOWNLOAD_FROM_SERVER";
-        } else {
-          syncAction = "UPLOAD_TO_SERVER";
-        }
+      } else if (!hasServerSourceVersion) {
+        // Server chưa có metadata cho nguồn POSTGRES -> cho phép client upload
+        syncAction = "UPLOAD_TO_SERVER";
+      } else if (!hasClientVersion) {
+        // Client chưa có version -> tải dữ liệu từ server
+        syncAction = "DOWNLOAD_FROM_SERVER";
+      } else if (clientVersion < serverSourceVersion) {
+        syncAction = "DOWNLOAD_FROM_SERVER";
       } else {
-        if (hasClientVersion && clientVersion >= serverVersion) {
-          syncAction = "NO_SYNC_NEEDED";
-        } else {
-          syncAction = "UPLOAD_TO_SERVER";
-        }
+        syncAction = "UPLOAD_TO_SERVER";
       }
 
       Message response = Message.createSuccessResponse(Constants.ACTION_SYNC_CHECK,
           "Sync check completed");
       response.addData("sync_action", syncAction);
-      response.addData("server_version", serverVersion);
-      response.addData("client_source_version", clientSourceVersion);
+      response.addData("server_version", serverSourceVersion);
+      response.addData("client_source_version", serverSourceVersion);
       response.addData("server_metadata", serverMetadata);
       response.addData("client_total_records", clientTotalRecords);
       response.addData("client_source", SOURCE);
@@ -1554,7 +1543,6 @@ public class PostgresHandler {
     try {
       int postgresVersion = getDataVersionBySource();
       metadata.put("postgres_version", postgresVersion);
-      metadata.put("db_version", postgresVersion);
       metadata.put("postgres_student_count", getDataCountBySource("student"));
       metadata.put("postgres_course_count", getDataCountBySource("course"));
       metadata.put("postgres_enrollment_count", getDataCountBySource("enrollment"));

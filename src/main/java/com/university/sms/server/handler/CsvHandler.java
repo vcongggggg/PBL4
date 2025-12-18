@@ -113,48 +113,43 @@ public class CsvHandler {
       }
 
       Map<String, Object> serverMetadata = getServerMetadata();
-      int serverVersion = ((Number) serverMetadata.get("db_version")).intValue();
 
+      // Version của nguồn CSV trên server (từ data_origin)
       String currentSource = SOURCE;
-      String clientSourceKey = currentSource.toLowerCase() + "_version";
-      int clientSourceVersion = 0;
-      if (serverMetadata.containsKey(clientSourceKey)) {
-        Object versionObj = serverMetadata.get(clientSourceKey);
-        if (versionObj instanceof Number) {
-          clientSourceVersion = ((Number) versionObj).intValue();
-        }
+      String sourceVersionKey = currentSource.toLowerCase() + "_version"; // "csv_version"
+      int serverSourceVersion = 0;
+      Object serverSourceVersionObj = serverMetadata.get(sourceVersionKey);
+      if (serverSourceVersionObj instanceof Number) {
+        serverSourceVersion = ((Number) serverSourceVersionObj).intValue();
       }
 
       boolean hasClientVersion = clientVersion > 0;
-      boolean hasSourceVersion = clientSourceVersion > 0;
-      boolean versionMatches = hasClientVersion
-          && ((hasSourceVersion && clientVersion == clientSourceVersion)
-              || (!hasSourceVersion && clientVersion == serverVersion));
+      boolean hasServerSourceVersion = serverSourceVersion > 0;
 
       String syncAction;
-      if (versionMatches) {
+      if (hasClientVersion && hasServerSourceVersion && clientVersion == serverSourceVersion) {
+        // Hai phía cùng version => không cần đồng bộ
         syncAction = "NO_SYNC_NEEDED";
-      } else if (currentSource != null && !"REGULAR".equals(currentSource) && !"UNKNOWN".equals(currentSource)) {
-        if (!hasClientVersion) {
-          syncAction = "UPLOAD_TO_SERVER";
-        } else if (clientSourceVersion > clientVersion) {
-          syncAction = "DOWNLOAD_FROM_SERVER";
-        } else {
-          syncAction = "UPLOAD_TO_SERVER";
-        }
+      } else if (!hasServerSourceVersion) {
+        // Server chưa có dữ liệu/phiên bản cho nguồn CSV => để client upload lên
+        syncAction = "UPLOAD_TO_SERVER";
+      } else if (!hasClientVersion) {
+        // Client chưa có version (lần đầu hoặc file .version hỏng) => tải dữ liệu chuẩn
+        // từ server
+        syncAction = "DOWNLOAD_FROM_SERVER";
+      } else if (clientVersion < serverSourceVersion) {
+        // Server mới hơn client => tải dữ liệu từ server
+        syncAction = "DOWNLOAD_FROM_SERVER";
       } else {
-        if (hasClientVersion && clientVersion >= serverVersion) {
-          syncAction = "NO_SYNC_NEEDED";
-        } else {
-          syncAction = "UPLOAD_TO_SERVER";
-        }
+        // Client mới hơn server => upload dữ liệu lên server
+        syncAction = "UPLOAD_TO_SERVER";
       }
 
       Message response = Message.createSuccessResponse(Constants.ACTION_SYNC_CHECK,
           "Sync check completed");
       response.addData("sync_action", syncAction);
-      response.addData("server_version", serverVersion);
-      response.addData("client_source_version", clientSourceVersion);
+      response.addData("server_version", serverSourceVersion);
+      response.addData("client_source_version", serverSourceVersion);
       response.addData("server_metadata", serverMetadata);
       response.addData("client_total_records", clientTotalRecords);
       return response;
@@ -1568,8 +1563,6 @@ public class CsvHandler {
       int studentCount = studentService.getTotalCount();
       int courseCount = courseService.getTotalCount();
 
-      int dbVersion = getServerVersion();
-
       List<String> sources = getAvailableSources();
 
       for (String source : sources) {
@@ -1594,7 +1587,6 @@ public class CsvHandler {
         metadata.put(sourceKey + "_total_records", sourceTotalRecords);
       }
 
-      metadata.put("db_version", dbVersion);
       metadata.put("student_count", studentCount);
       metadata.put("course_count", courseCount);
       metadata.put("total_records", studentCount + courseCount);
@@ -1602,7 +1594,6 @@ public class CsvHandler {
     } catch (Exception e) {
       LOGGER.warning("Lỗi khi lấy metadata server: " + e.getMessage());
       LOGGER.log(Level.WARNING, "Chi tiết lỗi", e);
-      metadata.put("db_version", 1);
       metadata.put("student_count", 0);
       metadata.put("course_count", 0);
       metadata.put("total_records", 0);
@@ -1730,27 +1721,6 @@ public class CsvHandler {
         return "user_id";
       default:
         return entityType + "_id";
-    }
-  }
-
-  private int getServerVersion() {
-    try (Connection conn = DatabaseConnection.getConnection();
-        PreparedStatement stmt = conn.prepareStatement(
-            "SELECT CAST(config_value AS UNSIGNED) as version FROM system_config WHERE config_key = 'db_version'");
-        ResultSet rs = stmt.executeQuery()) {
-      if (rs.next()) {
-        return rs.getInt("version");
-      }
-
-      try (PreparedStatement insertStmt = conn.prepareStatement(
-          "INSERT INTO system_config (config_key, config_value, description) "
-              + "VALUES ('db_version', '1', 'Database version')")) {
-        insertStmt.executeUpdate();
-      }
-      return 1;
-    } catch (Exception e) {
-      LOGGER.warning("Error getting server version: " + e.getMessage());
-      return 1;
     }
   }
 

@@ -685,31 +685,25 @@ public class ClientHandler implements Runnable, DataOriginHelper {
     }
 
     /**
-     * Lấy server version từ database
+     * Lấy phiên bản dữ liệu tổng quát của server.
+     * Ở đây dùng timestamp cập nhật cuối cùng trong bảng data_origin (mọi nguồn).
      */
     private int getServerVersion() {
         try {
             Connection conn = DatabaseConnection.getConnection();
-            String sql = "SELECT CAST(config_value AS UNSIGNED) as version " +
-                    "FROM system_config WHERE config_key = 'db_version'";
+            String sql = "SELECT MAX(UNIX_TIMESTAMP(updated_at)) as last_update FROM data_origin";
             ResultSet rs = conn.createStatement().executeQuery(sql);
-
             if (rs.next()) {
-                int version = rs.getInt("version");
-                return version;
+                long ts = rs.getLong("last_update");
+                if (!rs.wasNull() && ts > 0) {
+                    return (int) ts;
+                }
             }
-
-            // Nếu chưa có, tạo version ban đầu
-            PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO system_config (config_key, config_value, description) " +
-                            "VALUES ('db_version', '1', 'Database version')");
-            stmt.executeUpdate();
-            return 1;
-
         } catch (Exception e) {
-            LOGGER.warning("Error getting server version: " + e.getMessage());
-            return 1;
+            LOGGER.warning("Error getting server version from data_origin: " + e.getMessage());
         }
+        // Fallback: 0 = chưa có dữ liệu
+        return 0;
     }
 
     /**

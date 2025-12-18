@@ -116,26 +116,18 @@ public class ServerMain {
     private static int getServerDatabaseVersion() {
         try {
             Connection conn = DatabaseConnection.getConnection();
-            String sql = "SELECT CAST(config_value AS UNSIGNED) as version " +
-                    "FROM system_config WHERE config_key = 'db_version'";
+            String sql = "SELECT MAX(UNIX_TIMESTAMP(updated_at)) as last_update FROM data_origin";
             ResultSet rs = conn.createStatement().executeQuery(sql);
-
             if (rs.next()) {
-                int version = rs.getInt("version");
-                return version;
+                long ts = rs.getLong("last_update");
+                if (!rs.wasNull() && ts > 0) {
+                    return (int) ts;
+                }
             }
-
-            // If not found, create initial version
-            PreparedStatement stmt = conn.prepareStatement(
-                    "INSERT INTO system_config (config_key, config_value, description) " +
-                            "VALUES ('db_version', '1', 'Database version')");
-            stmt.executeUpdate();
-            return 1;
-
         } catch (Exception e) {
-            LOGGER.warning("Error getting server database version: " + e.getMessage());
-            return 0;
+            LOGGER.warning("Error getting server database version from data_origin: " + e.getMessage());
         }
+        return 0;
     }
 
     /**
