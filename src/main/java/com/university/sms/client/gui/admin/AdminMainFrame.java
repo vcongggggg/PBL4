@@ -14,6 +14,7 @@ import java.awt.event.WindowAdapter;
 import java.awt.event.WindowEvent;
 import java.nio.file.*;
 import java.io.IOException;
+import java.net.InetAddress;
 
 public class AdminMainFrame extends JFrame {
     private static final long serialVersionUID = 1L;
@@ -85,17 +86,13 @@ public class AdminMainFrame extends JFrame {
 
         createAdminPanels();
 
-        // Load server statistics and client DB version
-        loadServerStatistics();
-        loadClientDbVersion();
-        loadSyncStatus();
-
-        // Start file watcher to auto-update client DB version when .version file
-        // changes
-        startVersionFileWatcher();
-
-        // Start timer to auto-update sync status
-        startSyncStatusTimer();
+        // Hiển thị IP của client đang kết nối (thay cho thống kê Clients/DB version)
+        try {
+            String ip = InetAddress.getLocalHost().getHostAddress();
+            serverStatsLabel.setText("Client IP: " + ip);
+        } catch (Exception e) {
+            serverStatsLabel.setText("Client IP: unknown");
+        }
     }
 
     private void createAdminPanels() {
@@ -157,15 +154,7 @@ public class AdminMainFrame extends JFrame {
         centerPanel.setOpaque(false);
         serverStatsLabel.setFont(new Font("Arial", Font.PLAIN, 11));
         serverStatsLabel.setForeground(new Color(100, 100, 100));
-        serverVersionLabel.setFont(new Font("Arial", Font.PLAIN, 11));
-        serverVersionLabel.setForeground(new Color(100, 100, 100));
-        clientDbVersionLabel.setFont(new Font("Arial", Font.PLAIN, 11));
-        clientDbVersionLabel.setForeground(new Color(100, 100, 100));
-        syncStatusLabel.setFont(new Font("Arial", Font.BOLD, 11));
         centerPanel.add(serverStatsLabel);
-        centerPanel.add(serverVersionLabel);
-        centerPanel.add(clientDbVersionLabel);
-        centerPanel.add(syncStatusLabel);
         statusPanel.add(centerPanel, BorderLayout.CENTER);
 
         // Right side: Connection status

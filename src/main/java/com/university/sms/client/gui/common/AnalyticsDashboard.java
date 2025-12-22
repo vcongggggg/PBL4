@@ -933,7 +933,7 @@ public class AnalyticsDashboard extends JPanel {
             if (!iconText.isEmpty()) {
                 Font emojiFont = new Font("Segoe UI Emoji", Font.BOLD, 14);
                 g2d.setFont(emojiFont);
-                g2d.setColor(Color.DARK_GRAY);
+            g2d.setColor(Color.DARK_GRAY);
                 g2d.drawString(iconText, x, y);
                 x += g2d.getFontMetrics().stringWidth(iconText + " ");
             }
