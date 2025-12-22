@@ -93,6 +93,15 @@ public class AdminMainFrame extends JFrame {
         } catch (Exception e) {
             serverStatsLabel.setText("Client IP: unknown");
         }
+
+        // Chỉ load sync status và start timer cho CSV/Postgres client
+        if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection
+                || serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+            loadClientDbVersion();
+            loadSyncStatus();
+            startVersionFileWatcher();
+            startSyncStatusTimer();
+        }
     }
 
     private void createAdminPanels() {
@@ -149,12 +158,26 @@ public class AdminMainFrame extends JFrame {
         userInfoLabel.setBorder(BorderFactory.createEmptyBorder(2, 10, 2, 10));
         statusPanel.add(userInfoLabel, BorderLayout.WEST);
 
-        // Center: Server stats, server version, client DB version, and sync status
+        // Center: Client IP (always) + Sync status (only for CSV/Postgres client)
         JPanel centerPanel = new JPanel(new FlowLayout(FlowLayout.CENTER, 15, 0));
         centerPanel.setOpaque(false);
         serverStatsLabel.setFont(new Font("Arial", Font.PLAIN, 11));
         serverStatsLabel.setForeground(new Color(100, 100, 100));
         centerPanel.add(serverStatsLabel);
+        
+        // Chỉ hiển thị sync status cho CSV/Postgres client
+        if (serverConnection instanceof com.university.sms.csvclient.CSVServerConnection
+                || serverConnection instanceof com.university.sms.postgresclient.PostgresServerConnection) {
+            serverVersionLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+            serverVersionLabel.setForeground(new Color(100, 100, 100));
+            clientDbVersionLabel.setFont(new Font("Arial", Font.PLAIN, 11));
+            clientDbVersionLabel.setForeground(new Color(100, 100, 100));
+            syncStatusLabel.setFont(new Font("Arial", Font.BOLD, 11));
+            centerPanel.add(serverVersionLabel);
+            centerPanel.add(clientDbVersionLabel);
+            centerPanel.add(syncStatusLabel);
+        }
+        
         statusPanel.add(centerPanel, BorderLayout.CENTER);
 
         // Right side: Connection status
